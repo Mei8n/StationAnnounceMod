@@ -47,7 +47,6 @@ public class MessageAnnouncerUpdate implements IMessage {
             if (te instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) te;
                 announcer.setScriptName(msg.scriptName);
-                announcer.setLinkKey(msg.linkKey);
                 // サーバー側でデータを保存し、チャンクを保存対象にする
                 announcer.markDirty();
                 // 周囲のクライアントにTileEntityの更新を通知（必要に応じて）
