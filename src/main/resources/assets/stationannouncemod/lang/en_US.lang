@@ -1,0 +1,6 @@
+# Blocks
+tile.sam.announcer.name=Station Announcer
+tile.sam.stop_announcer.name=Announce Stopper
+
+# Creative Tab
+itemGroup.sam_tab=Station Announce Mod

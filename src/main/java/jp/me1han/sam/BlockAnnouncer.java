@@ -1,31 +1,44 @@
 package jp.me1han.sam;
 
 import net.minecraft.block.Block;
-import net.minecraft.block.BlockContainer;
 import net.minecraft.block.material.Material;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
-public class BlockAnnouncer extends BlockContainer {
-    protected BlockAnnouncer() {
-        super(Material.iron); // 鉄ブロックの性質
-        setHardness(2.0F);    // 硬さ
-        setResistance(10.0F); // 爆破耐性
+public class BlockAnnouncer extends Block {
+
+    public BlockAnnouncer() {
+        super(Material.iron);
+        setBlockName("sam.announcer");
+        setBlockTextureName("stationannouncemod:announcer");
+        setCreativeTab(StationAnnounceMod.tabSAM);
     }
 
     @Override
-    public TileEntity createNewTileEntity(World world, int meta) {
+    public boolean hasTileEntity(int metadata) {
+        return true;
+    }
+
+    @Override
+    public TileEntity createTileEntity(World world, int metadata) {
         return new TileEntityAnnouncer();
     }
 
-    // 隣接するブロックが変化（RS信号など）したときに呼ばれる
+    @Override
+    public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float hitX, float hitY, float hitZ) {
+        // クライアント・サーバー両方で実行（player.openGuiが内部でパケット処理を行うため）
+        player.openGui(StationAnnounceMod.instance, 0, world, x, y, z);
+        return true;
+    }
+
     @Override
     public void onNeighborBlockChange(World world, int x, int y, int z, Block block) {
-        if (!world.isRemote) { // サーバー側でのみ処理
-            boolean isPowered = world.isBlockIndirectlyGettingPowered(x, y, z);
-            TileEntityAnnouncer te = (TileEntityAnnouncer) world.getTileEntity(x, y, z);
-            if (te != null) {
-                te.onRedstoneUpdate(isPowered);
+        if (!world.isRemote) {
+            TileEntity te = world.getTileEntity(x, y, z);
+            if (te instanceof TileEntityAnnouncer) {
+                ((TileEntityAnnouncer) te).onRedstoneUpdate(world.isBlockIndirectlyGettingPowered(x, y, z));
             }
         }
     }

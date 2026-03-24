@@ -1,42 +1,52 @@
 package jp.me1han.sam;
 
 import cpw.mods.fml.common.Mod;
+import cpw.mods.fml.common.SidedProxy;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.registry.GameRegistry;
 import net.minecraft.block.Block;
-import net.minecraft.block.material.Material;
+import net.minecraft.creativetab.CreativeTabs; // 追加
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-@Mod(modid = "stationannouncemod", name = "StationAnnounceMod", version = "1.0.0")
+@Mod(modid = "stationannouncemod", name = "Station Announce Mod", version = "1.0")
 public class StationAnnounceMod {
 
     @Mod.Instance("stationannouncemod")
     public static StationAnnounceMod instance;
 
-    // Proxyの登録（これがないとPackLoaderから呼べません）
-    @cpw.mods.fml.common.SidedProxy(clientSide = "jp.me1han.sam.ClientProxy", serverSide = "jp.me1han.sam.CommonProxy")
+    @SidedProxy(clientSide = "jp.me1han.sam.ClientProxy", serverSide = "jp.me1han.sam.CommonProxy")
     public static CommonProxy proxy;
 
-    // Loggerの登録（これがないとエラー出力ができません）
-    public static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger("SAM");
+    public static final Logger logger = LogManager.getLogger("SAM");
 
-    // 放送用ブロックの変数
+    // クリエイティブタブのインスタンス
+    public static final CreativeTabs tabSAM = new SAMCreativeTab("SAM");
+
     public static Block blockAnnouncer;
+    public static Block blockStopAnnouncer;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
-        // ブロックのインスタンス化
-        blockAnnouncer = new BlockAnnouncer().setBlockName("announcer_block");
+        // 放送装置
+        blockAnnouncer = new BlockAnnouncer();
+        GameRegistry.registerBlock(blockAnnouncer, "blockAnnouncer");
 
-        // Minecraftへの登録
-        GameRegistry.registerBlock(blockAnnouncer, "announcer_block");
+        // 停止装置
+        blockStopAnnouncer = new BlockStopAnnouncer();
+        GameRegistry.registerBlock(blockStopAnnouncer, "blockStopAnnouncer");
 
-        // TileEntity登録
-        GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tile_entity_announcer");
+        GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
+        NetworkHandler.init();
+        proxy.preInit(event);
     }
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
-        // ここでレシピを追加
+        NetworkRegistry.INSTANCE.registerGuiHandler(instance, new SAMGuiHandler());
+        PackLoader.loadPacks();
+        proxy.init(event);
     }
 }
