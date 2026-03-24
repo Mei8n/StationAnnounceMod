@@ -11,10 +11,10 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-public class ResourcePackSAM implements IResourcePack {
+public class SAMResourcePack implements IResourcePack {
     private final File zipFile;
 
-    public ResourcePackSAM(File zipFile) {
+    public SAMResourcePack(File zipFile) {
         this.zipFile = zipFile;
     }
 
