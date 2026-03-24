@@ -13,6 +13,13 @@ public class StationAnnounceMod {
     @Mod.Instance("stationannouncemod")
     public static StationAnnounceMod instance;
 
+    // Proxyの登録（これがないとPackLoaderから呼べません）
+    @cpw.mods.fml.common.SidedProxy(clientSide = "jp.me1han.sam.ClientProxy", serverSide = "jp.me1han.sam.CommonProxy")
+    public static CommonProxy proxy;
+
+    // Loggerの登録（これがないとエラー出力ができません）
+    public static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger("SAM");
+
     // 放送用ブロックの変数
     public static Block blockAnnouncer;
 

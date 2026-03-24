@@ -24,7 +24,8 @@ public class ClientProxy extends CommonProxy {
                 Minecraft.class,
                 Minecraft.getMinecraft(),
                 "defaultResourcePacks",
-                "field_110449_ao"
+                "field_110449_ao",
+                "ap"
             );
 
             // SAM専用のリソースパッククラスを追加
