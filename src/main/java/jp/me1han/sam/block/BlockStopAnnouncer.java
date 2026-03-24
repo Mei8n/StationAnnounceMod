@@ -1,8 +1,10 @@
-package jp.me1han.sam;
+package jp.me1han.sam.block;
 
+import jp.me1han.sam.network.MessageAnnounce;
+import jp.me1han.sam.network.NetworkHandler;
+import jp.me1han.sam.StationAnnounceModCore;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
-import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.world.World;
 import cpw.mods.fml.common.network.NetworkRegistry;
 
@@ -12,7 +14,7 @@ public class BlockStopAnnouncer extends Block {
         super(Material.iron);
         setBlockName("sam.stop_announcer");
         setBlockTextureName("stationannouncemod:stop_announcer");
-        setCreativeTab(StationAnnounceMod.tabSAM);
+        setCreativeTab(StationAnnounceModCore.tabSAM);
     }
 
     @Override

@@ -2,6 +2,8 @@ package jp.me1han.sam;
 
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.relauncher.ReflectionHelper;
+import jp.me1han.sam.client.AnnounceManager;
+import jp.me1han.sam.client.ResourcePackSAM;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.IResourcePack;
 import java.io.File;
@@ -23,10 +25,10 @@ public class ClientProxy extends CommonProxy {
                 Minecraft.getMinecraft(),
                 "defaultResourcePacks", "field_110449_ao", "ap"
             );
-            defaultPacks.add(new SAMResourcePack(zipFile));
+            defaultPacks.add(new ResourcePackSAM(zipFile));
             Minecraft.getMinecraft().refreshResources();
         } catch (Exception e) {
-            StationAnnounceMod.logger.error("Failed to register resource pack: " + zipFile.getName());
+            StationAnnounceModCore.logger.error("Failed to register resource pack: " + zipFile.getName());
         }
     }
 }

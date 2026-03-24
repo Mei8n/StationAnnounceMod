@@ -1,4 +1,4 @@
-package jp.me1han.sam;
+package jp.me1han.sam.client;
 
 import com.google.common.collect.ImmutableSet;
 import net.minecraft.client.resources.IResourcePack;
@@ -11,10 +11,10 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-public class SAMResourcePack implements IResourcePack {
+public class ResourcePackSAM implements IResourcePack {
     private final File zipFile;
 
-    public SAMResourcePack(File zipFile) {
+    public ResourcePackSAM(File zipFile) {
         this.zipFile = zipFile;
     }
 

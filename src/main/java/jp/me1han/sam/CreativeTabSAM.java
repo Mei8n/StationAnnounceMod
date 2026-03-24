@@ -5,9 +5,9 @@ import net.minecraft.item.Item;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
-public class SAMCreativeTab extends CreativeTabs {
+public class CreativeTabSAM extends CreativeTabs {
 
-    public SAMCreativeTab(String label) {
+    public CreativeTabSAM(String label) {
         super(label);
     }
 
@@ -16,7 +16,7 @@ public class SAMCreativeTab extends CreativeTabs {
     public Item getTabIconItem() {
         // タブのアイコンとして「放送装置」を表示
         // BlockからItemを取得して返します
-        return Item.getItemFromBlock(StationAnnounceMod.blockAnnouncer);
+        return Item.getItemFromBlock(StationAnnounceModCore.blockAnnouncer);
     }
 
     @Override

@@ -1,9 +1,11 @@
 package jp.me1han.sam;
 
+import jp.me1han.sam.api.AnnounceData;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class SAMJsAPI {
+public class SAMScriptAPI {
 
     public String startmelo(String id) {
         return (id == null || id.isEmpty()) ? null : id;

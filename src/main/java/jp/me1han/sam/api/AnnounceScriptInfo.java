@@ -1,12 +1,12 @@
-package jp.me1han.sam;
+package jp.me1han.sam.api;
 
 import java.io.Serializable;
 
-public class ScriptInfo implements Serializable {
+public class AnnounceScriptInfo implements Serializable {
     public final String fileName;
     public final String displayName;
 
-    public ScriptInfo(String fileName, String displayName) {
+    public AnnounceScriptInfo(String fileName, String displayName) {
         this.fileName = fileName;
         this.displayName = displayName;
     }

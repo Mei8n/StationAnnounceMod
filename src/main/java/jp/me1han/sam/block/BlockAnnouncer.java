@@ -1,8 +1,9 @@
-package jp.me1han.sam;
+package jp.me1han.sam.block;
 
+import jp.me1han.sam.StationAnnounceModCore;
+import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
-import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -13,7 +14,7 @@ public class BlockAnnouncer extends Block {
         super(Material.iron);
         setBlockName("sam.announcer");
         setBlockTextureName("stationannouncemod:announcer");
-        setCreativeTab(StationAnnounceMod.tabSAM);
+        setCreativeTab(StationAnnounceModCore.tabSAM);
     }
 
     @Override
@@ -29,7 +30,7 @@ public class BlockAnnouncer extends Block {
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float hitX, float hitY, float hitZ) {
         // クライアント・サーバー両方で実行（player.openGuiが内部でパケット処理を行うため）
-        player.openGui(StationAnnounceMod.instance, 0, world, x, y, z);
+        player.openGui(StationAnnounceModCore.instance, 0, world, x, y, z);
         return true;
     }
 

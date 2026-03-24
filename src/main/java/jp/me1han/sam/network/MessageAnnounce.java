@@ -1,8 +1,10 @@
-package jp.me1han.sam;
+package jp.me1han.sam.network;
 
 import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
+import jp.me1han.sam.api.AnnounceData;
+
 import java.util.ArrayList;
 import java.util.List;
 

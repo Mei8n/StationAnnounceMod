@@ -1,4 +1,4 @@
-package jp.me1han.sam;
+package jp.me1han.sam.api;
 
 import java.util.List;
 

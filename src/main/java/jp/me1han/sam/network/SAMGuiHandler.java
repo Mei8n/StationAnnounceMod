@@ -1,6 +1,8 @@
-package jp.me1han.sam;
+package jp.me1han.sam.network;
 
 import cpw.mods.fml.common.network.IGuiHandler;
+import jp.me1han.sam.gui.GuiAnnouncer;
+import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;

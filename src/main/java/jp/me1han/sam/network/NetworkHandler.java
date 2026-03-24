@@ -1,4 +1,4 @@
-package jp.me1han.sam;
+package jp.me1han.sam.network;
 
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
@@ -6,6 +6,9 @@ import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
 import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import cpw.mods.fml.relauncher.Side;
+import jp.me1han.sam.client.AnnounceManager;
+import jp.me1han.sam.StationAnnounceModCore;
+import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.tileentity.TileEntity;
 
 public class NetworkHandler {
@@ -39,7 +42,7 @@ public class NetworkHandler {
             if (te instanceof TileEntityAnnouncer) {
                 ((TileEntityAnnouncer) te).setScriptName(message.scriptName);
                 te.markDirty(); // 保存を確定させる
-                StationAnnounceMod.logger.info("Config saved for TileEntity: " + message.scriptName);
+                StationAnnounceModCore.logger.info("Config saved for TileEntity: " + message.scriptName);
             }
             return null;
         }

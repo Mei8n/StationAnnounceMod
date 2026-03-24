@@ -1,4 +1,4 @@
-package jp.me1han.sam;
+package jp.me1han.sam.network;
 
 import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;

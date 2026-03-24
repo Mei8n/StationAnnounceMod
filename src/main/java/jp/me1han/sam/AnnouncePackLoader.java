@@ -3,6 +3,9 @@ package jp.me1han.sam;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import jp.me1han.sam.api.AnnounceData;
+import jp.me1han.sam.api.AnnounceScriptInfo;
+import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.client.Minecraft;
 import java.io.File;
 import java.io.InputStream;
@@ -19,10 +22,10 @@ import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 
-public class PackLoader {
+public class AnnouncePackLoader {
     public static final Map<String, Integer> soundTicks = new ConcurrentHashMap<>();
     public static final Map<String, ScriptEngine> scriptEngines = new ConcurrentHashMap<>();
-    public static final List<ScriptInfo> availableScripts = new ArrayList<>();
+    public static final List<AnnounceScriptInfo> availableScripts = new ArrayList<>();
 
     public static void loadPacks() {
         availableScripts.clear();
@@ -31,7 +34,7 @@ public class PackLoader {
         File mcDir = Minecraft.getMinecraft().mcDataDir;
         File packDir = new File(mcDir, "mods" + File.separator + "SAMpacks");
 
-        StationAnnounceMod.logger.info("[SAM] Scanning directory: " + packDir.getAbsolutePath());
+        StationAnnounceModCore.logger.info("[SAM] Scanning directory: " + packDir.getAbsolutePath());
 
         if (!packDir.exists()) {
             packDir.mkdirs();
@@ -42,8 +45,8 @@ public class PackLoader {
         if (files == null) return;
 
         for (File file : files) {
-            StationAnnounceMod.logger.info("[SAM] Loading External Pack: " + file.getName());
-            StationAnnounceMod.proxy.addResourcePack(file);
+            StationAnnounceModCore.logger.info("[SAM] Loading External Pack: " + file.getName());
+            StationAnnounceModCore.proxy.addResourcePack(file);
 
             try (ZipFile zip = new ZipFile(file)) {
                 Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -61,7 +64,7 @@ public class PackLoader {
                     }
                 }
             } catch (Exception e) {
-                StationAnnounceMod.logger.error("[SAM] Error parsing zip: " + file.getName(), e);
+                StationAnnounceModCore.logger.error("[SAM] Error parsing zip: " + file.getName(), e);
             }
         }
     }
@@ -75,7 +78,7 @@ public class PackLoader {
                 soundTicks.put(entry.getKey(), ticks);
             }
         } catch (Exception e) {
-            StationAnnounceMod.logger.error("[SAM] JSON error", e);
+            StationAnnounceModCore.logger.error("[SAM] JSON error", e);
         }
     }
 
@@ -90,7 +93,7 @@ public class PackLoader {
                 Method getEngine = factoryClass.getMethod("getScriptEngine");
                 engine = (ScriptEngine) getEngine.invoke(factory);
             } catch (Throwable t) {
-                StationAnnounceMod.logger.warn("[SAM] Direct factory access failed, trying Manager...");
+                StationAnnounceModCore.logger.warn("[SAM] Direct factory access failed, trying Manager...");
             }
 
             // マネージャー経由のフォールバック
@@ -100,11 +103,11 @@ public class PackLoader {
             }
 
             if (engine == null) {
-                StationAnnounceMod.logger.error("[SAM] CRITICAL: Nashorn is not available in this JVM.");
+                StationAnnounceModCore.logger.error("[SAM] CRITICAL: Nashorn is not available in this JVM.");
                 return;
             }
 
-            engine.put("sam", new SAMJsAPI());
+            engine.put("sam", new SAMScriptAPI());
             engine.eval(new InputStreamReader(is, "UTF-8"));
 
             String displayName = scriptName;
@@ -117,11 +120,11 @@ public class PackLoader {
             }
 
             scriptEngines.put(scriptName, engine);
-            availableScripts.add(new ScriptInfo(scriptName, displayName));
-            StationAnnounceMod.logger.info("[SAM] Registered: " + displayName);
+            availableScripts.add(new AnnounceScriptInfo(scriptName, displayName));
+            StationAnnounceModCore.logger.info("[SAM] Registered: " + displayName);
 
         } catch (Exception e) {
-            StationAnnounceMod.logger.error("[SAM] JS Error in " + scriptName, e);
+            StationAnnounceModCore.logger.error("[SAM] JS Error in " + scriptName, e);
         }
     }
 
@@ -132,7 +135,7 @@ public class PackLoader {
             Invocable inv = (Invocable) engine;
             return (AnnounceData) inv.invokeFunction("samMain", tile);
         } catch (Exception e) {
-            StationAnnounceMod.logger.error("[SAM] Runtime Error", e);
+            StationAnnounceModCore.logger.error("[SAM] Runtime Error", e);
         }
         return null;
     }

@@ -1,5 +1,8 @@
-package jp.me1han.sam;
+package jp.me1han.sam.client;
 
+import jp.me1han.sam.AnnouncePackLoader;
+import jp.me1han.sam.StationAnnounceModCore;
+import jp.me1han.sam.network.MessageAnnounce;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
 import net.minecraft.client.audio.PositionedSoundRecord;
@@ -83,7 +86,7 @@ public class AnnounceManager {
             this.waitTicks = 20;
             return;
         }
-        Integer ticks = PackLoader.soundTicks.get(soundId);
+        Integer ticks = AnnouncePackLoader.soundTicks.get(soundId);
         this.waitTicks = (ticks != null) ? ticks : 20;
     }
 
@@ -99,7 +102,7 @@ public class AnnounceManager {
             Minecraft.getMinecraft().getSoundHandler().playSound(psr);
             return psr; // 停止操作のためにインスタンスを返す
         } catch (Exception e) {
-            StationAnnounceMod.logger.error("[SAM] Sound Playback Error: " + soundId);
+            StationAnnounceModCore.logger.error("[SAM] Sound Playback Error: " + soundId);
             return null;
         }
     }

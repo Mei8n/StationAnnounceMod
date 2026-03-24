@@ -1,5 +1,9 @@
-package jp.me1han.sam;
+package jp.me1han.sam.render;
 
+import jp.me1han.sam.api.AnnounceData;
+import jp.me1han.sam.network.MessageAnnounce;
+import jp.me1han.sam.network.NetworkHandler;
+import jp.me1han.sam.AnnouncePackLoader;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import cpw.mods.fml.common.network.NetworkRegistry;
@@ -25,7 +29,7 @@ public class TileEntityAnnouncer extends TileEntity {
     private void startAnnounce() {
         if (scriptName == null || scriptName.isEmpty()) return;
 
-        AnnounceData data = PackLoader.runScript(scriptName, this);
+        AnnounceData data = AnnouncePackLoader.runScript(scriptName, this);
         if (data != null) {
             NetworkHandler.INSTANCE.sendToAllAround(
                 new MessageAnnounce(data),
