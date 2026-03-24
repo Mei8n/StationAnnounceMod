@@ -7,7 +7,7 @@ import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.registry.GameRegistry;
 import net.minecraft.block.Block;
-import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.creativetab.CreativeTabs; // 追加
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -50,7 +50,6 @@ public class StationAnnounceMod {
 
         // 3. TileEntityの登録
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
-        GameRegistry.registerTileEntity(TileEntityStopAnnouncer.class, "tileEntityStopAnnouncer");
         GameRegistry.registerTileEntity(TileEntityTrainSelector.class, "tileEntityTrainSelector");
 
         // 4. 通信とプロキシの初期化
