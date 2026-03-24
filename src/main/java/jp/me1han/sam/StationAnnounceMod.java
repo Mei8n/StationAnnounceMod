@@ -11,7 +11,13 @@ import net.minecraft.creativetab.CreativeTabs; // 追加
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-@Mod(modid = "stationannouncemod", name = "Station Announce Mod", version = "1.0")
+@Mod(
+    modid = "stationannouncemod",
+    name = "Station Announce Mod",
+    version = "0.1-alpha",
+    dependencies = "after:RTM ; after:NGTLib"
+)
+
 public class StationAnnounceMod {
 
     @Mod.Instance("stationannouncemod")

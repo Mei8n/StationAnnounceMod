@@ -44,4 +44,16 @@ public class NetworkHandler {
             return null;
         }
     }
+
+    // 設定の同期用
+    public static void sendSelectorUpdate(int x, int y, int z, String link, String data, int type) {
+        // ここで設定更新用のパケットを送る
+        // MessageSelectorUpdate というパケットクラスを新規作成する必要があります
+    }
+
+    // 車両データの通知用
+    public static void sendTrainData(String linkKey, String value) {
+        // linkKeyとvalueを全クライアント（または該当する装置の周囲）に送る
+        // MessageTrainData というパケットクラスを新規作成する必要があります
+    }
 }
