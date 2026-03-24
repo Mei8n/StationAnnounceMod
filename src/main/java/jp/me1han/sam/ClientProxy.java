@@ -2,7 +2,6 @@ package jp.me1han.sam;
 
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.relauncher.ReflectionHelper;
-import cpw.mods.fml.client.registry.ClientRegistry; // 追加
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.IResourcePack;
 import java.io.File;
@@ -13,10 +12,8 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void init(cpw.mods.fml.common.event.FMLInitializationEvent event) {
         super.init(event);
+        // AnnounceManagerを登録して、毎Tick処理が行われるようにする
         FMLCommonHandler.instance().bus().register(AnnounceManager.INSTANCE);
-
-        // 列車選別装置のビーコンレンダラーを登録
-        ClientRegistry.bindTileEntitySpecialRenderer(TileEntityTrainSelector.class, new TrainSelectorRenderer());
     }
 
     public void addResourcePack(File zipFile) {

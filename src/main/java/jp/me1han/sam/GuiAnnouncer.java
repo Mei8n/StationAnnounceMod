@@ -2,47 +2,51 @@ package jp.me1han.sam;
 
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.GuiTextField;
-import org.lwjgl.input.Keyboard;
+import org.lwjgl.opengl.GL11;
 
 public class GuiAnnouncer extends GuiScreen {
-    private TileEntityAnnouncer tile;
-    private GuiTextField linkField; // リンクキー用
+    private final TileEntityAnnouncer tile;
+    private int selectedIndex = 0;
 
     public GuiAnnouncer(TileEntityAnnouncer tile) {
         this.tile = tile;
+        // 初期選択状態を合わせる
+        for (int i = 0; i < PackLoader.availableScripts.size(); i++) {
+            if (PackLoader.availableScripts.get(i).fileName.equals(tile.getScriptName())) {
+                selectedIndex = i;
+                break;
+            }
+        }
     }
 
     @Override
     public void initGui() {
-        Keyboard.enableRepeatEvents(true);
         this.buttonList.clear();
-
-        // 既存のスクリプト選択ボタンなどは維持しつつ、下部にリンクキー入力欄を作成
-        this.linkField = new GuiTextField(this.fontRendererObj, this.width / 2 - 100, 160, 200, 20);
-        this.linkField.setText(tile.getLinkKey());
-
-        this.buttonList.add(new GuiButton(100, this.width / 2 - 100, 190, 200, 20, "Save Settings"));
+        String label = PackLoader.availableScripts.isEmpty() ? "No Scripts" : "Script: " + PackLoader.availableScripts.get(selectedIndex).displayName;
+        this.buttonList.add(new GuiButton(0, this.width / 2 - 100, this.height / 2 - 10, label));
+        this.buttonList.add(new GuiButton(1, this.width / 2 - 100, this.height / 2 + 20, "Done"));
     }
 
     @Override
     protected void actionPerformed(GuiButton button) {
-        if (button.id == 100) {
-            // サーバーへリンクキー設定を送信するパケットを飛ばす
-            // NetworkHandlerにMessageAnnouncerUpdateなどを追加する必要があります
-            NetworkHandler.sendAnnouncerUpdate(tile.xCoord, tile.yCoord, tile.zCoord, tile.getScriptName(), linkField.getText());
+        if (button.id == 0 && !PackLoader.availableScripts.isEmpty()) {
+            selectedIndex = (selectedIndex + 1) % PackLoader.availableScripts.size();
+            button.displayString = "Script: " + PackLoader.availableScripts.get(selectedIndex).displayName;
+        } else if (button.id == 1) {
+            if (!PackLoader.availableScripts.isEmpty()) {
+                // サーバーへ設定を送信
+                String selectedFile = PackLoader.availableScripts.get(selectedIndex).fileName;
+                NetworkHandler.INSTANCE.sendToServer(new MessageConfig(tile.xCoord, tile.yCoord, tile.zCoord, selectedFile));
+            }
             this.mc.displayGuiScreen(null);
         }
-        // 他のボタン（スクリプト選択など）の処理...
     }
 
     @Override
     public void drawScreen(int x, int y, float f) {
         this.drawDefaultBackground();
-        this.linkField.drawTextBox(); // 前回の修正通り drawTextBox を使用
-        this.drawString(this.fontRendererObj, "Link Key:", this.width / 2 - 100, 148, 0xA0A0A0);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        this.drawCenteredString(this.fontRendererObj, "Station Announcer Settings", this.width / 2, this.height / 2 - 40, 0xFFFFFF);
         super.drawScreen(x, y, f);
     }
-
-    // keyTyped や mouseClicked で linkField.textboxKeyTyped(c, i) 等を呼ぶ必要があります
 }

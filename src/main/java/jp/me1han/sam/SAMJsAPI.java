@@ -22,10 +22,4 @@ public class SAMJsAPI {
         }
         return new AnnounceData(start, sounds, loop);
     }
-
-    public String getTrainData(TileEntityAnnouncer tile) {
-        if (tile == null) return "";
-        String linkKey = tile.getLinkKey(); // TileEntityAnnouncerにlinkKeyを実装する必要があります
-        return TrainDataManager.INSTANCE.getData(linkKey);
-    }
 }
