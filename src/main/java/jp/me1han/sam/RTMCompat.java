@@ -42,12 +42,13 @@ public class RTMCompat {
         }
     }
 
+    // RTMCompat.java 内に追加
     public static boolean isCrowbar(ItemStack stack) {
         if (stack == null || stack.getItem() == null) return false;
-        // クラス名に ItemCrowbar が含まれているか、またはインスタンスか判定
         try {
-            Class<?> crowbarClass = Class.forName("jp.ngt.rtm.item.ItemCrowbar");
-            return crowbarClass.isInstance(stack.getItem());
+            // クラス名で判定することで、RTMがなくてもコンパイル・実行エラーを防ぐ
+            Class<?> clazz = Class.forName("jp.ngt.rtm.item.ItemCrowbar");
+            return clazz.isInstance(stack.getItem());
         } catch (ClassNotFoundException e) {
             return false;
         }
