@@ -19,17 +19,29 @@ public class SAMResourcePack implements IResourcePack {
     }
 
     @Override
-    public InputStream getInputStream(ResourceLocation loc) throws IOException {
-        // ZipFileはメソッド内で開き、最後に確実に閉じるか、
-        // 頻繁にアクセスされるならクラス変数に持ってclose処理を書く必要があります。
-        // ここではエラー回避のためリソース試行文を使います。
-        ZipFile zip = new ZipFile(zipFile);
-        ZipEntry entry = zip.getEntry("assets/" + loc.getResourceDomain() + "/" + loc.getResourcePath());
-        if (entry == null) {
-            zip.close();
-            throw new FileNotFoundException(loc.getResourcePath());
+    public InputStream getInputStream(ResourceLocation location) throws IOException {
+        // 1. 引数の location が null でないかチェック
+        if (location == null || location.getResourcePath() == null || location.getResourcePath().isEmpty()) {
+            throw new FileNotFoundException(location == null ? "null" : location.toString());
         }
-        return zip.getInputStream(entry);
+
+        // 2. ZipFile を開いてリソースを取得
+        ZipFile zip = new ZipFile(zipFile);
+        try {
+            // "assets/ドメイン/パス" の形式でエントリを探す
+            String path = "assets/" + location.getResourceDomain() + "/" + location.getResourcePath();
+            ZipEntry entry = zip.getEntry(path);
+
+            if (entry == null) {
+                zip.close();
+                throw new FileNotFoundException("Resource not found in zip: " + path);
+            }
+
+            return zip.getInputStream(entry);
+        } catch (IOException e) {
+            zip.close();
+            throw e;
+        }
     }
 
     @Override
