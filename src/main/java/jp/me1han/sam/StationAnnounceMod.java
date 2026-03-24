@@ -33,18 +33,26 @@ public class StationAnnounceMod {
 
     public static Block blockAnnouncer;
     public static Block blockStopAnnouncer;
+    public static Block blockTrainSelector;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
-        // 放送装置
+        // 1. ブロックのインスタンス化
+        // コンストラクタ内で setCreativeTab(StationAnnounceMod.tabSAM) が呼ばれます
         blockAnnouncer = new BlockAnnouncer();
-        GameRegistry.registerBlock(blockAnnouncer, "blockAnnouncer");
-
-        // 停止装置
         blockStopAnnouncer = new BlockStopAnnouncer();
-        GameRegistry.registerBlock(blockStopAnnouncer, "blockStopAnnouncer");
+        blockTrainSelector = new BlockTrainSelector();
 
+        // 2. ブロックの登録
+        GameRegistry.registerBlock(blockAnnouncer, "blockAnnouncer");
+        GameRegistry.registerBlock(blockStopAnnouncer, "blockStopAnnouncer");
+        GameRegistry.registerBlock(blockTrainSelector, "blockTrainSelector");
+
+        // 3. TileEntityの登録
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
+        GameRegistry.registerTileEntity(TileEntityTrainSelector.class, "tileEntityTrainSelector");
+
+        // 4. 通信とプロキシの初期化
         NetworkHandler.init();
         proxy.preInit(event);
     }

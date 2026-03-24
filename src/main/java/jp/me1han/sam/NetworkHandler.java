@@ -14,6 +14,7 @@ public class NetworkHandler {
     public static void init() {
         INSTANCE.registerMessage(MessageSelectorUpdate.Handler.class, MessageSelectorUpdate.class, 2, Side.SERVER);
         INSTANCE.registerMessage(MessageTrainData.Handler.class, MessageTrainData.class, 3, Side.CLIENT);
+        INSTANCE.registerMessage(MessageAnnouncerUpdate.Handler.class, MessageAnnouncerUpdate.class, 4, Side.SERVER);
     }
 
     // 放送再生用
@@ -51,5 +52,9 @@ public class NetworkHandler {
     public static void sendTrainData(String linkKey, String value) {
         // 全クライアントに通知（パケット最小化のためにはsendToAll推奨）
         INSTANCE.sendToAll(new MessageTrainData(linkKey, value));
+    }
+
+    public static void sendAnnouncerUpdate(int x, int y, int z, String scriptName, String linkKey) {
+        INSTANCE.sendToServer(new MessageAnnouncerUpdate(x, y, z, scriptName, linkKey));
     }
 }

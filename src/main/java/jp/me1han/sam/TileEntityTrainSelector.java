@@ -23,9 +23,17 @@ public class TileEntityTrainSelector extends TileEntity {
     }
 
     private void detectAndProcess() {
-        // ブロックの上方2ブロック分を検知
-        AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord, yCoord, zCoord, xCoord + 1, yCoord + 2, zCoord + 1);
-        List entities = worldObj.getEntitiesWithinAABBExcludingEntity(null, aabb);
+
+            // IFTTTブロックの仕様に合わせた検知範囲 (真上方向に伸ばす)
+            // x, z は 0〜1, y は 0〜3.0 (レールの上まで)
+            AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(
+                xCoord, yCoord, zCoord,
+                xCoord + 1, yCoord + 3, zCoord + 1
+            );
+
+            List entities = worldObj.getEntitiesWithinAABBExcludingEntity(null, aabb);
+            // ...以下、RTMCompatを用いた車両検知ロジック
+
 
         for (Object obj : entities) {
             if (RTMCompat.isTrain(obj)) {

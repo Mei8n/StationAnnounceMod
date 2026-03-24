@@ -1,5 +1,6 @@
 package jp.me1han.sam;
 
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import java.lang.reflect.Method;
 
@@ -38,6 +39,17 @@ public class RTMCompat {
             }
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    public static boolean isCrowbar(ItemStack stack) {
+        if (stack == null || stack.getItem() == null) return false;
+        // クラス名に ItemCrowbar が含まれているか、またはインスタンスか判定
+        try {
+            Class<?> crowbarClass = Class.forName("jp.ngt.rtm.item.ItemCrowbar");
+            return crowbarClass.isInstance(stack.getItem());
+        } catch (ClassNotFoundException e) {
+            return false;
         }
     }
 }
