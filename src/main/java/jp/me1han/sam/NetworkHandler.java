@@ -12,8 +12,10 @@ public class NetworkHandler {
     public static final SimpleNetworkWrapper INSTANCE = NetworkRegistry.INSTANCE.newSimpleChannel("SAM_CHANNEL");
 
     public static void init() {
-        INSTANCE.registerMessage(MessageSelectorUpdate.Handler.class, MessageSelectorUpdate.class, 2, Side.SERVER);
-        INSTANCE.registerMessage(MessageTrainData.Handler.class, MessageTrainData.class, 3, Side.CLIENT);
+        // ID 0: サーバー -> クライアント (再生命令)
+        INSTANCE.registerMessage(AnnounceHandler.class, MessageAnnounce.class, 0, Side.CLIENT);
+        // ID 1: クライアント -> サーバー (設定保存)
+        INSTANCE.registerMessage(ConfigHandler.class, MessageConfig.class, 1, Side.SERVER);
     }
 
     // 放送再生用
@@ -41,15 +43,5 @@ public class NetworkHandler {
             }
             return null;
         }
-    }
-
-    // 設定の同期用
-    public static void sendSelectorUpdate(int x, int y, int z, String link, String data, int type) {
-        INSTANCE.sendToServer(new MessageSelectorUpdate(x, y, z, link, data, type));
-    }
-
-    public static void sendTrainData(String linkKey, String value) {
-        // 全クライアントに通知（パケット最小化のためにはsendToAll推奨）
-        INSTANCE.sendToAll(new MessageTrainData(linkKey, value));
     }
 }
