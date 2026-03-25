@@ -1,7 +1,7 @@
 package jp.me1han.sam.gui;
 
 import jp.me1han.sam.api.TrainTypeCondition;
-import jp.me1han.sam.network.MessageTrainTypeConfig;
+import jp.me1han.sam.network.PacketTrainTypeConfig;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.render.TileEntityTrainTypeSelector;
 import jp.me1han.sam.container.ContainerTrainTypeSelector;
@@ -82,7 +82,7 @@ public class GuiTrainTypeSelector extends GuiScreen {
 
             String keyToSend = this.linkKeyField != null ? this.linkKeyField.getText() : "";
 
-            NetworkHandler.INSTANCE.sendToServer(new MessageTrainTypeConfig(
+            NetworkHandler.INSTANCE.sendToServer(new PacketTrainTypeConfig(
                 tile.xCoord, tile.yCoord, tile.zCoord, newConditions, keyToSend
             ));
 

@@ -2,7 +2,7 @@ package jp.me1han.sam.gui;
 
 import jp.me1han.sam.AnnouncePackLoader;
 import jp.me1han.sam.container.ContainerAnnouncer;
-import jp.me1han.sam.network.MessageConfig;
+import jp.me1han.sam.network.PacketConfig;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.client.gui.GuiButton;
@@ -54,7 +54,7 @@ public class GuiAnnouncer extends GuiScreen {
             String selectedFile = AnnouncePackLoader.availableScripts.isEmpty() ? "" : AnnouncePackLoader.availableScripts.get(selectedIndex).fileName;
             String keyToSend = linkKeyField.getText();
 
-            NetworkHandler.INSTANCE.sendToServer(new MessageConfig(tile.xCoord, tile.yCoord, tile.zCoord, selectedFile, keyToSend));
+            NetworkHandler.INSTANCE.sendToServer(new PacketConfig(tile.xCoord, tile.yCoord, tile.zCoord, selectedFile, keyToSend));
             this.mc.thePlayer.closeScreen();
         }
     }

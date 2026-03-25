@@ -2,7 +2,7 @@ package jp.me1han.sam.client;
 
 import jp.me1han.sam.AnnouncePackLoader;
 import jp.me1han.sam.StationAnnounceModCore;
-import jp.me1han.sam.network.MessageAnnounce;
+import jp.me1han.sam.network.PacketAnnounce;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
 import net.minecraft.client.audio.PositionedSoundRecord;
@@ -22,7 +22,7 @@ public class AnnounceManager {
     // 現在再生中のサウンドを保持する変数
     private ISound currentSound = null;
 
-    public void startAnnounce(MessageAnnounce msg) {
+    public void startAnnounce(PacketAnnounce msg) {
         this.stopAnnounce();
 
         if (msg.startMelo != null && !msg.startMelo.isEmpty()) {

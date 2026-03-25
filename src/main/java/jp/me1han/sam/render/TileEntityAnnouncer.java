@@ -1,7 +1,7 @@
 package jp.me1han.sam.render;
 
 import jp.me1han.sam.api.AnnounceData;
-import jp.me1han.sam.network.MessageAnnounce;
+import jp.me1han.sam.network.PacketAnnounce;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.AnnouncePackLoader;
 import net.minecraft.nbt.NBTTagCompound;
@@ -34,7 +34,7 @@ public class TileEntityAnnouncer extends TileEntity {
         AnnounceData data = AnnouncePackLoader.runScript(scriptName, this);
         if (data != null) {
             NetworkHandler.INSTANCE.sendToAllAround(
-                new MessageAnnounce(data),
+                new PacketAnnounce(data),
                 new NetworkRegistry.TargetPoint(this.worldObj.provider.dimensionId, xCoord, yCoord, zCoord, 64)
             );
         }
@@ -43,7 +43,7 @@ public class TileEntityAnnouncer extends TileEntity {
     public void forceStop() {
         if (this.worldObj.isRemote) return;
         NetworkHandler.INSTANCE.sendToAllAround(
-            new MessageAnnounce(true),
+            new PacketAnnounce(true),
             new NetworkRegistry.TargetPoint(this.worldObj.provider.dimensionId, xCoord, yCoord, zCoord, 64)
         );
     }

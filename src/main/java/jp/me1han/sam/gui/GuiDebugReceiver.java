@@ -1,7 +1,6 @@
 package jp.me1han.sam.gui;
 
-import jp.me1han.sam.network.MessageConfig;
-import jp.me1han.sam.network.MessageDebugConfig;
+import jp.me1han.sam.network.PacketDebugConfig;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.render.TileEntityDebugReceiver;
 import net.minecraft.client.gui.GuiButton;
@@ -33,7 +32,7 @@ public class GuiDebugReceiver extends GuiScreen {
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
-            NetworkHandler.INSTANCE.sendToServer(new MessageDebugConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText()));
+            NetworkHandler.INSTANCE.sendToServer(new PacketDebugConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText()));
             this.mc.thePlayer.closeScreen(); // 安全な閉じ方
         }
     }

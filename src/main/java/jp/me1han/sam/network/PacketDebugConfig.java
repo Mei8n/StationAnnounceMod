@@ -9,12 +9,12 @@ import jp.me1han.sam.render.TileEntityDebugReceiver;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
-public class MessageDebugConfig implements IMessage {
+public class PacketDebugConfig implements IMessage {
     public int x, y, z;
     public String linkKey;
 
-    public MessageDebugConfig() {}
-    public MessageDebugConfig(int x, int y, int z, String linkKey) {
+    public PacketDebugConfig() {}
+    public PacketDebugConfig(int x, int y, int z, String linkKey) {
         this.x = x; this.y = y; this.z = z; this.linkKey = linkKey;
     }
 
@@ -30,9 +30,9 @@ public class MessageDebugConfig implements IMessage {
         ByteBufUtils.writeUTF8String(buf, linkKey);
     }
 
-    public static class Handler implements IMessageHandler<MessageDebugConfig, IMessage> {
+    public static class Handler implements IMessageHandler<PacketDebugConfig, IMessage> {
         @Override
-        public IMessage onMessage(MessageDebugConfig message, MessageContext ctx) {
+        public IMessage onMessage(PacketDebugConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
             if (te instanceof TileEntityDebugReceiver) {

@@ -8,16 +8,16 @@ import jp.me1han.sam.api.TrainTypeCondition;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MessageTrainTypeConfig implements IMessage {
+public class PacketTrainTypeConfig implements IMessage {
     public int x, y, z;
     public List<TrainTypeCondition> conditions;
     public String linkKey;
 
-    public MessageTrainTypeConfig() {
+    public PacketTrainTypeConfig() {
         this.conditions = new ArrayList<TrainTypeCondition>();
     }
 
-    public MessageTrainTypeConfig(int x, int y, int z, List<TrainTypeCondition> conditions, String linkKey) {
+    public PacketTrainTypeConfig(int x, int y, int z, List<TrainTypeCondition> conditions, String linkKey) {
         this.x = x;
         this.y = y;
         this.z = z;

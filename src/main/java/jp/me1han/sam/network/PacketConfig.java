@@ -9,14 +9,14 @@ import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
-public class MessageConfig implements IMessage {
+public class PacketConfig implements IMessage {
     public int x, y, z;
     public String scriptName;
     public String linkKey;
 
-    public MessageConfig() {}
+    public PacketConfig() {}
 
-    public MessageConfig(int x, int y, int z, String scriptName, String linkKey) {
+    public PacketConfig(int x, int y, int z, String scriptName, String linkKey) {
         this.x = x;
         this.y = y;
         this.z = z;
@@ -43,9 +43,9 @@ public class MessageConfig implements IMessage {
         ByteBufUtils.writeUTF8String(buf, this.linkKey);
     }
 
-    public static class Handler implements IMessageHandler<MessageConfig, IMessage> {
+    public static class Handler implements IMessageHandler<PacketConfig, IMessage> {
         @Override
-        public IMessage onMessage(MessageConfig message, MessageContext ctx) {
+        public IMessage onMessage(PacketConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity tile = world.getTileEntity(message.x, message.y, message.z);
 

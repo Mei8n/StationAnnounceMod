@@ -1,6 +1,6 @@
 package jp.me1han.sam.block;
 
-import jp.me1han.sam.network.MessageAnnounce;
+import jp.me1han.sam.network.PacketAnnounce;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.StationAnnounceModCore;
 import net.minecraft.block.Block;
@@ -25,7 +25,7 @@ public class BlockStopAnnouncer extends Block {
                 // 停止パケットを送信
                 // AnnounceData(true) は stopCommand が true になるコンストラクタ
                 NetworkHandler.INSTANCE.sendToAllAround(
-                    new MessageAnnounce(true),
+                    new PacketAnnounce(true),
                     new NetworkRegistry.TargetPoint(world.provider.dimensionId, x, y, z, 64)
                 );
             }
