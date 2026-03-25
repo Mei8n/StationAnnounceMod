@@ -42,25 +42,27 @@ public class TileEntityTrainTypeSelector extends TileEntity {
 
         List list = this.worldObj.getEntitiesWithinAABB(net.minecraft.entity.Entity.class, aabb);
 
-        boolean foundNewTrain = false;
+        boolean anyTrainPresent = false;
         for (Object obj : list) {
             net.minecraft.entity.Entity entity = (net.minecraft.entity.Entity) obj;
             if (entity.getClass().getName().contains("EntityTrainBase")) {
+                anyTrainPresent = true;
 
-                // すでに処理済みの車両ならスキップ（return ではなく continue にする）
-                if (entity.getEntityId() == lastTrainId) continue;
+                // すでに処理済みの車両なら何もしない
+                if (entity.getEntityId() == lastTrainId) break;
 
+                // 新しい車両が来た時だけデータを抽出
                 lastTrainId = entity.getEntityId();
                 this.extractData(entity);
-                foundNewTrain = true;
-
-                // 抽出成功時にのみパルスを出す
                 this.signalTicks = 20;
                 this.worldObj.notifyBlocksOfNeighborChange(xCoord, yCoord, zCoord, this.getBlockType());
-
-                // ループを抜ける（1編成につき1回処理）
                 break;
             }
+        }
+
+        // 範囲内に車両が全くいなくなったらIDをリセット（次の車両に備える）
+        if (!anyTrainPresent) {
+            lastTrainId = -1;
         }
     }
 
