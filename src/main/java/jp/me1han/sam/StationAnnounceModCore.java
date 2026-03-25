@@ -8,11 +8,12 @@ import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.registry.GameRegistry;
 import jp.me1han.sam.block.BlockAnnouncer;
 import jp.me1han.sam.block.BlockStopAnnouncer;
+import jp.me1han.sam.block.BlockTrainTypeSelector;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.SAMGuiHandler;
 import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.block.Block;
-import net.minecraft.creativetab.CreativeTabs; // 追加
+import net.minecraft.creativetab.CreativeTabs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -27,21 +28,22 @@ public class StationAnnounceModCore {
 
     public static final Logger logger = LogManager.getLogger("SAM");
 
-    // クリエイティブタブのインスタンス
     public static final CreativeTabs tabSAM = new CreativeTabSAM("SAM");
 
     public static Block blockAnnouncer;
     public static Block blockStopAnnouncer;
+    public static Block blockTrainTypeSelector;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
-        // 放送装置
         blockAnnouncer = new BlockAnnouncer();
         GameRegistry.registerBlock(blockAnnouncer, "blockAnnouncer");
 
-        // 停止装置
         blockStopAnnouncer = new BlockStopAnnouncer();
         GameRegistry.registerBlock(blockStopAnnouncer, "blockStopAnnouncer");
+
+        blockTrainTypeSelector = new BlockTrainTypeSelector();
+        GameRegistry.registerBlock(blockTrainTypeSelector, "trainTypeSelector");
 
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         NetworkHandler.init();

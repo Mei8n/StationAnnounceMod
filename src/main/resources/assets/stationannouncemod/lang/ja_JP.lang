@@ -1,6 +1,7 @@
 # Blocks
 tile.sam.announcer.name=放送装置
 tile.sam.stop_announcer.name=放送停止装置
+tile.trainTypeSelector.name=列車選別装置
 
 # Creative Tab
 itemGroup.sam_tab=Station Announce Mod
