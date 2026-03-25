@@ -1,8 +1,13 @@
 package jp.me1han.sam.network;
 
 import cpw.mods.fml.common.network.IGuiHandler;
+import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.gui.GuiAnnouncer;
+import jp.me1han.sam.gui.GuiTrainTypeSelector;
 import jp.me1han.sam.render.TileEntityAnnouncer;
+import jp.me1han.sam.container.ContainerTrainTypeSelector;
+import jp.me1han.sam.container.ContainerAnnouncer;
+import jp.me1han.sam.render.TileEntityTrainTypeSelector;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -11,17 +16,36 @@ public class SAMGuiHandler implements IGuiHandler {
 
     @Override
     public Object getServerGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
-        // サーバー側にはContainer（インベントリ）がないのでnull
+        TileEntity tile = world.getTileEntity(x, y, z);
+
+        if (ID == StationAnnounceModCore.GUI_ID_TRAIN_TYPE_SELECTOR) {
+            if (tile instanceof TileEntityTrainTypeSelector) {
+                return new ContainerTrainTypeSelector((TileEntityTrainTypeSelector) tile);
+            }
+        }
+
+        if (ID == StationAnnounceModCore.GUI_ID_ANNOUNCER) {
+            if (tile instanceof TileEntityAnnouncer) {
+                return new ContainerAnnouncer((TileEntityAnnouncer) tile);
+            }
+        }
         return null;
     }
 
     @Override
     public Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
-        TileEntity te = world.getTileEntity(x, y, z);
+        TileEntity tile = world.getTileEntity(x, y, z);
 
-        // ID 0 の時に GuiAnnouncer を開く
-        if (ID == 0 && te instanceof TileEntityAnnouncer) {
-            return new GuiAnnouncer((TileEntityAnnouncer) te);
+        if (ID == StationAnnounceModCore.GUI_ID_TRAIN_TYPE_SELECTOR) {
+            if (tile instanceof TileEntityTrainTypeSelector) {
+                return new GuiTrainTypeSelector(new ContainerTrainTypeSelector((TileEntityTrainTypeSelector) tile), (TileEntityTrainTypeSelector) tile);
+            }
+        }
+
+        if (ID == StationAnnounceModCore.GUI_ID_ANNOUNCER) {
+            if (tile instanceof TileEntityAnnouncer) {
+                return new GuiAnnouncer(new ContainerAnnouncer((TileEntityAnnouncer) tile), (TileEntityAnnouncer) tile);
+            }
         }
         return null;
     }

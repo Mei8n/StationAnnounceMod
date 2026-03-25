@@ -24,7 +24,10 @@ public class StationAnnounceModCore {
     public static final String MOD_NAME = "Station Announce Mod";
     public static final String VERSION = "0.0.1-alpha";
 
-    @Mod.Instance(MOD_ID)
+    public static final int GUI_ID_ANNOUNCER = 0;
+    public static final int GUI_ID_TRAIN_TYPE_SELECTOR = 1;
+
+    @Mod.Instance("stationannouncemod")
     public static StationAnnounceModCore instance;
 
     @SidedProxy(clientSide = "jp.me1han.sam.ClientProxy", serverSide = "jp.me1han.sam.CommonProxy")

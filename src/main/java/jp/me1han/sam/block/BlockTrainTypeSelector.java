@@ -9,8 +9,10 @@ import net.minecraft.block.Block;
 import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
 import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.world.IBlockAccess; // 追加
 import net.minecraft.world.World;
 
 import java.util.List;
@@ -51,5 +53,27 @@ public class BlockTrainTypeSelector extends Block implements ITileEntityProvider
         super.onBlockEventReceived(world, x, y, z, id, param);
         TileEntity tileentity = world.getTileEntity(x, y, z);
         return tileentity != null && tileentity.receiveClientEvent(id, param);
+    }
+
+    @Override
+    public boolean canProvidePower() {
+        return true;
+    }
+
+    @Override
+    public int isProvidingWeakPower(IBlockAccess world, int x, int y, int z, int side) {
+        TileEntity te = world.getTileEntity(x, y, z);
+        if (te instanceof TileEntityTrainTypeSelector) {
+            return ((TileEntityTrainTypeSelector) te).getPowerOutput();
+        }
+        return 0;
+    }
+
+    @Override
+    public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float hitX, float hitY, float hitZ) {
+        if (!world.isRemote) {
+            player.openGui(StationAnnounceModCore.instance, StationAnnounceModCore.GUI_ID_TRAIN_TYPE_SELECTOR, world, x, y, z);
+        }
+        return true;
     }
 }
