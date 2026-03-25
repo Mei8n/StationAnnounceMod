@@ -23,6 +23,8 @@ public class NetworkHandler {
         INSTANCE.registerMessage(ConfigHandler.class, MessageConfig.class, 1, Side.SERVER);
         // ID 2: クライアント -> サーバー (列車選別装置の設定保存)
         INSTANCE.registerMessage(TrainTypeConfigHandler.class, MessageTrainTypeConfig.class, 2, Side.SERVER);
+        // ID 3: クライアント -> サーバー (デバッグレシーバーの設定保存)
+        INSTANCE.registerMessage(MessageDebugConfig.Handler.class, MessageDebugConfig.class, 3, Side.SERVER);
     }
 
     // 放送再生用

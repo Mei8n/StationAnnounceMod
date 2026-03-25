@@ -12,7 +12,6 @@ public class BlockDebugReceiver extends BlockContainer {
     public BlockDebugReceiver() {
         super(Material.iron);
         this.setBlockName("debugReceiver");
-        // setCreativeTab は呼ばない
     }
 
     @Override

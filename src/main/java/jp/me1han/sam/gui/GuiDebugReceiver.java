@@ -1,6 +1,7 @@
 package jp.me1han.sam.gui;
 
 import jp.me1han.sam.network.MessageConfig;
+import jp.me1han.sam.network.MessageDebugConfig;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.render.TileEntityDebugReceiver;
 import net.minecraft.client.gui.GuiButton;
@@ -32,8 +33,7 @@ public class GuiDebugReceiver extends GuiScreen {
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
-            // MessageConfig を利用して linkKey を送信（scriptNameは空文字）
-            NetworkHandler.INSTANCE.sendToServer(new MessageConfig(tile.xCoord, tile.yCoord, tile.zCoord, "", linkKeyField.getText()));
+            NetworkHandler.INSTANCE.sendToServer(new MessageDebugConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText()));
             this.mc.displayGuiScreen(null);
         }
     }
