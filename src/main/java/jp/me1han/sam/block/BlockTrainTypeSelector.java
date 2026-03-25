@@ -1,8 +1,15 @@
 package jp.me1han.sam.block;
 
+import cpw.mods.fml.common.Loader;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 import jp.me1han.sam.StationAnnounceModCore;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.item.Item;
+
+import java.util.List;
 
 public class BlockTrainTypeSelector extends Block {
 
@@ -13,7 +20,14 @@ public class BlockTrainTypeSelector extends Block {
         this.setHardness(2.0F);
         this.setResistance(10.0F);
         this.setStepSound(soundTypeMetal);
-        // 確定済みのクリエイティブタブに登録
         this.setCreativeTab(StationAnnounceModCore.tabSAM);
+    }
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public void getSubBlocks(Item item, CreativeTabs tab, List list) {
+        if (Loader.isModLoaded("RTM")) {
+            list.add(new net.minecraft.item.ItemStack(item));
+        }
     }
 }
