@@ -72,7 +72,7 @@ public class NetworkHandler {
                 selector.conditions = message.conditions;
 
                 selector.markDirty();
-                
+
                 world.markBlockForUpdate(message.x, message.y, message.z);
                 StationAnnounceModCore.logger.info("TrainSelector Config saved: " + message.conditions.size() + " conditions.");
             }

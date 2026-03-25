@@ -7,11 +7,13 @@ import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.registry.GameRegistry;
 import jp.me1han.sam.block.BlockAnnouncer;
+import jp.me1han.sam.block.BlockDebugReceiver;
 import jp.me1han.sam.block.BlockStopAnnouncer;
 import jp.me1han.sam.block.BlockTrainTypeSelector;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.SAMGuiHandler;
 import jp.me1han.sam.render.TileEntityAnnouncer;
+import jp.me1han.sam.render.TileEntityDebugReceiver;
 import jp.me1han.sam.render.TileEntityTrainTypeSelector;
 import net.minecraft.block.Block;
 import net.minecraft.creativetab.CreativeTabs;
@@ -26,6 +28,7 @@ public class StationAnnounceModCore {
 
     public static final int GUI_ID_ANNOUNCER = 0;
     public static final int GUI_ID_TRAIN_TYPE_SELECTOR = 1;
+    public static final int GUI_ID_DEBUG_RECEIVER = 2;
 
     @Mod.Instance("stationannouncemod")
     public static StationAnnounceModCore instance;
@@ -40,6 +43,7 @@ public class StationAnnounceModCore {
     public static Block blockAnnouncer;
     public static Block blockStopAnnouncer;
     public static Block blockTrainTypeSelector;
+    public static Block blockDebugReceiver;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
@@ -52,8 +56,12 @@ public class StationAnnounceModCore {
         blockTrainTypeSelector = new BlockTrainTypeSelector();
         GameRegistry.registerBlock(blockTrainTypeSelector, "trainTypeSelector");
 
+        blockDebugReceiver = new BlockDebugReceiver();
+        GameRegistry.registerBlock(blockDebugReceiver, "blockDebugReceiver");
+
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         GameRegistry.registerTileEntity(TileEntityTrainTypeSelector.class, "tileTrainTypeSelector");
+        GameRegistry.registerTileEntity(TileEntityDebugReceiver.class, "tileDebugReceiver");
 
         NetworkHandler.init();
         proxy.preInit(event);
