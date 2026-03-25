@@ -11,6 +11,7 @@ import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.render.TileEntityAnnouncer;
 import jp.me1han.sam.render.TileEntityTrainTypeSelector;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.world.World;
 
 public class NetworkHandler {
     public static final SimpleNetworkWrapper INSTANCE = NetworkRegistry.INSTANCE.newSimpleChannel("SAM_CHANNEL");
@@ -41,11 +42,19 @@ public class NetworkHandler {
     public static class ConfigHandler implements IMessageHandler<MessageConfig, IMessage> {
         @Override
         public IMessage onMessage(MessageConfig message, MessageContext ctx) {
+            World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = ctx.getServerHandler().playerEntity.worldObj.getTileEntity(message.x, message.y, message.z);
+
             if (te instanceof TileEntityAnnouncer) {
-                ((TileEntityAnnouncer) te).setScriptName(message.scriptName);
-                te.markDirty(); // 保存を確定させる
-                StationAnnounceModCore.logger.info("Config saved for TileEntity: " + message.scriptName);
+                TileEntityAnnouncer announcer = (TileEntityAnnouncer) te;
+                announcer.setScriptName(message.scriptName);
+                announcer.linkKey = message.linkKey;
+
+                announcer.markDirty();
+
+                world.markBlockForUpdate(message.x, message.y, message.z);
+
+                StationAnnounceModCore.logger.info("Config saved: " + message.scriptName + " with key: " + message.linkKey);
             }
             return null;
         }
@@ -54,14 +63,17 @@ public class NetworkHandler {
     public static class TrainTypeConfigHandler implements IMessageHandler<MessageTrainTypeConfig, IMessage> {
         @Override
         public IMessage onMessage(MessageTrainTypeConfig message, MessageContext ctx) {
+            World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = ctx.getServerHandler().playerEntity.worldObj.getTileEntity(message.x, message.y, message.z);
+
             if (te instanceof TileEntityTrainTypeSelector) {
                 TileEntityTrainTypeSelector selector = (TileEntityTrainTypeSelector) te;
 
-                // リストごと代入 (message.trainTypeなどは消えたので、message.conditionsを使う)
                 selector.conditions = message.conditions;
 
                 selector.markDirty();
+                
+                world.markBlockForUpdate(message.x, message.y, message.z);
                 StationAnnounceModCore.logger.info("TrainSelector Config saved: " + message.conditions.size() + " conditions.");
             }
             return null;

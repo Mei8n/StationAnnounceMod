@@ -11,17 +11,14 @@ import cpw.mods.fml.common.network.NetworkRegistry;
 public class TileEntityAnnouncer extends TileEntity {
     private boolean lastPowered = false;
     private String scriptName = "";
+    public String linkKey = "";
 
     public void onRedstoneUpdate(boolean powered) {
         if (this.worldObj.isRemote) return;
 
-        // 立ち上がり（OFF -> ON）の時だけ放送を開始する
         if (powered && !lastPowered) {
             startAnnounce();
         }
-
-        // 【修正】powered == false 時の stopAnnounce() を削除。
-        // これによりパルス信号が入った後、信号が消えても放送は継続されます。
 
         this.lastPowered = powered;
     }
@@ -38,7 +35,6 @@ public class TileEntityAnnouncer extends TileEntity {
         }
     }
 
-    // 別ブロック（停止用ボタンなど）から呼び出すためのメソッド
     public void forceStop() {
         if (this.worldObj.isRemote) return;
         NetworkHandler.INSTANCE.sendToAllAround(
@@ -48,18 +44,41 @@ public class TileEntityAnnouncer extends TileEntity {
     }
 
     public String getScriptName() { return this.scriptName; }
-    public void setScriptName(String name) { this.scriptName = name; }
-
-    @Override
-    public void readFromNBT(NBTTagCompound nbt) {
-        super.readFromNBT(nbt);
-        this.scriptName = nbt.getString("scriptName");
+    public void setScriptName(String name) {
+        this.scriptName = name;
+        System.out.println("[SAM-DEBUG] TileEntityAnnouncer: setScriptName called with " + name);
     }
 
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        nbt.setString("scriptName", this.scriptName);
+        if (this.scriptName != null) nbt.setString("scriptName", this.scriptName);
+        if (this.linkKey != null) {
+            nbt.setString("linkKey", this.linkKey);
+            // ★デバッグログ追加
+            jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] NBT Write: " + this.linkKey);
+        }
+    }
+
+    @Override
+    public void readFromNBT(NBTTagCompound nbt) {
+        super.readFromNBT(nbt);
+        this.scriptName = nbt.getString("scriptName");
+        this.linkKey = nbt.getString("linkKey");
+        // ★デバッグログ追加
+        jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] NBT Read: " + this.linkKey);
+    }
+
+    @Override
+    public net.minecraft.network.Packet getDescriptionPacket() {
+        NBTTagCompound nbt = new NBTTagCompound();
+        this.writeToNBT(nbt);
+        return new net.minecraft.network.play.server.S35PacketUpdateTileEntity(this.xCoord, this.yCoord, this.zCoord, 1, nbt);
+    }
+
+    @Override
+    public void onDataPacket(net.minecraft.network.NetworkManager net, net.minecraft.network.play.server.S35PacketUpdateTileEntity pkt) {
+        this.readFromNBT(pkt.func_148857_g());
     }
 
     public boolean isUseableByPlayer(net.minecraft.entity.player.EntityPlayer player) {
