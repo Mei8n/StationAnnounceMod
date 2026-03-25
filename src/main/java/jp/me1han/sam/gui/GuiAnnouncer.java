@@ -1,6 +1,7 @@
 package jp.me1han.sam.gui;
 
 import jp.me1han.sam.AnnouncePackLoader;
+import jp.me1han.sam.container.ContainerAnnouncer;
 import jp.me1han.sam.network.MessageConfig;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.render.TileEntityAnnouncer;
@@ -9,18 +10,14 @@ import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.opengl.GL11;
 
 public class GuiAnnouncer extends GuiScreen {
-    private final TileEntityAnnouncer tile;
     private int selectedIndex = 0;
 
-    public GuiAnnouncer(TileEntityAnnouncer tile) {
+    private ContainerAnnouncer container;
+    private TileEntityAnnouncer tile;
+
+    public GuiAnnouncer(ContainerAnnouncer container, TileEntityAnnouncer tile) {
+        this.container = container;
         this.tile = tile;
-        // 初期選択状態を合わせる
-        for (int i = 0; i < AnnouncePackLoader.availableScripts.size(); i++) {
-            if (AnnouncePackLoader.availableScripts.get(i).fileName.equals(tile.getScriptName())) {
-                selectedIndex = i;
-                break;
-            }
-        }
     }
 
     @Override
