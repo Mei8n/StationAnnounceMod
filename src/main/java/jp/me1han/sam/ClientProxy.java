@@ -1,9 +1,12 @@
 package jp.me1han.sam;
 
+import cpw.mods.fml.client.registry.ClientRegistry;
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.relauncher.ReflectionHelper;
 import jp.me1han.sam.client.AnnounceManager;
 import jp.me1han.sam.client.SAMResourcePack;
+import jp.me1han.sam.render.TileEntityTrainTypeSelector;
+import jp.me1han.sam.render.TrainTypeSelectorRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.IResourcePack;
 import java.io.File;
@@ -14,8 +17,8 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void init(cpw.mods.fml.common.event.FMLInitializationEvent event) {
         super.init(event);
-        // AnnounceManagerを登録して、毎Tick処理が行われるようにする
         FMLCommonHandler.instance().bus().register(AnnounceManager.INSTANCE);
+        ClientRegistry.bindTileEntitySpecialRenderer(TileEntityTrainTypeSelector.class, new TrainTypeSelectorRenderer());
     }
 
     public void addResourcePack(File zipFile) {

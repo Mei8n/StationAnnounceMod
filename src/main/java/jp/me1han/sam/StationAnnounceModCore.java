@@ -12,6 +12,7 @@ import jp.me1han.sam.block.BlockTrainTypeSelector;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.SAMGuiHandler;
 import jp.me1han.sam.render.TileEntityAnnouncer;
+import jp.me1han.sam.render.TileEntityTrainTypeSelector;
 import net.minecraft.block.Block;
 import net.minecraft.creativetab.CreativeTabs;
 import org.apache.logging.log4j.LogManager;
@@ -46,6 +47,8 @@ public class StationAnnounceModCore {
         GameRegistry.registerBlock(blockTrainTypeSelector, "trainTypeSelector");
 
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
+        GameRegistry.registerTileEntity(TileEntityTrainTypeSelector.class, "tileTrainTypeSelector");
+
         NetworkHandler.init();
         proxy.preInit(event);
     }
