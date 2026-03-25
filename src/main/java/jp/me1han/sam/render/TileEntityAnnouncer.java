@@ -7,11 +7,16 @@ import jp.me1han.sam.AnnouncePackLoader;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import cpw.mods.fml.common.network.NetworkRegistry;
+import java.util.Map;
+import java.util.HashMap;
 
 public class TileEntityAnnouncer extends TileEntity {
     private boolean lastPowered = false;
     private String scriptName = "";
     public String linkKey = "";
+
+    public Map<String, String> receivedData = new HashMap<String, String>();
+    public long lastDataReceivedTime = 0;
 
     public void onRedstoneUpdate(boolean powered) {
         if (this.worldObj.isRemote) return;
@@ -43,10 +48,17 @@ public class TileEntityAnnouncer extends TileEntity {
         );
     }
 
+    public void onDataReceived(Map<String, String> data, String sourcePos) {
+        if (this.worldObj.isRemote) return;
+
+        this.receivedData = new HashMap<String, String>(data);
+        this.lastDataReceivedTime = System.currentTimeMillis();
+        this.startAnnounce();
+    }
+
     public String getScriptName() { return this.scriptName; }
     public void setScriptName(String name) {
         this.scriptName = name;
-        System.out.println("[SAM-DEBUG] TileEntityAnnouncer: setScriptName called with " + name);
     }
 
     @Override
@@ -55,8 +67,6 @@ public class TileEntityAnnouncer extends TileEntity {
         if (this.scriptName != null) nbt.setString("scriptName", this.scriptName);
         if (this.linkKey != null) {
             nbt.setString("linkKey", this.linkKey);
-            // ★デバッグログ追加
-            jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] NBT Write: " + this.linkKey);
         }
     }
 
@@ -65,8 +75,6 @@ public class TileEntityAnnouncer extends TileEntity {
         super.readFromNBT(nbt);
         this.scriptName = nbt.getString("scriptName");
         this.linkKey = nbt.getString("linkKey");
-        // ★デバッグログ追加
-        jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] NBT Read: " + this.linkKey);
     }
 
     @Override

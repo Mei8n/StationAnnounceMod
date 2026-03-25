@@ -39,7 +39,7 @@ public class TrainTypeSelectorRenderer extends TileEntitySpecialRenderer {
         tessellator.setColorRGBA(255, 0, 20, 150);
 
         double size = 0.15;
-        double height = 256.0; // 空高く飛ばす
+        double height = 256.0;
 
         tessellator.addVertex(size, height, size);
         tessellator.addVertex(size, 0, size);

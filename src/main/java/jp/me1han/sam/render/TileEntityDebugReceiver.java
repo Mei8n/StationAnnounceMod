@@ -9,20 +9,40 @@ import net.minecraft.util.ChatComponentText;
 import java.util.Map;
 
 public class TileEntityDebugReceiver extends TileEntity {
-    public String linkKey = ""; // 待ち受け用リンクキー
+    public String linkKey = "";
+    private long lastReadTime = 0;
 
-    /**
-     * 送信側（選別装置など）からデータが飛んできたときに呼ばれるメソッド
-     */
-    public void onDataReceived(Map<String, String> data, String sourcePos) {
-        if (this.worldObj.isRemote) return;
+    @Override
+    public void updateEntity() {
+        if (this.worldObj.isRemote || this.linkKey == null || this.linkKey.isEmpty()) return;
 
-        // チャットにデバッグ情報を表示
-        String header = "§d[SAM-DEBUG] Received from " + sourcePos + " (Key: " + linkKey + ")";
+        if (this.worldObj.getTotalWorldTime() % 10 != 0) return;
+
+        for (Object obj : this.worldObj.loadedTileEntityList) {
+            if (obj instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
+                jp.me1han.sam.render.TileEntityAnnouncer announcer = (jp.me1han.sam.render.TileEntityAnnouncer) obj;
+
+                if (this.linkKey.equals(announcer.linkKey)) {
+
+                    if (announcer.lastDataReceivedTime > this.lastReadTime) {
+                        this.lastReadTime = announcer.lastDataReceivedTime;
+                        this.printAnnouncerData(announcer);
+                    }
+                }
+            }
+        }
+    }
+
+    private void printAnnouncerData(jp.me1han.sam.render.TileEntityAnnouncer announcer) {
+        String header = "§d[SAM-DEBUG] Read from Announcer at " + announcer.xCoord + ", " + announcer.yCoord + ", " + announcer.zCoord + " (Key: " + this.linkKey + ")";
         this.sendMessage(header);
 
-        for (Map.Entry<String, String> entry : data.entrySet()) {
-            this.sendMessage("  §7- " + entry.getKey() + " : §f" + entry.getValue());
+        if (announcer.receivedData.isEmpty()) {
+            this.sendMessage("  §7- (No Data)");
+        } else {
+            for (Map.Entry<String, String> entry : announcer.receivedData.entrySet()) {
+                this.sendMessage("  §7- " + entry.getKey() + " : §f" + entry.getValue());
+            }
         }
     }
 

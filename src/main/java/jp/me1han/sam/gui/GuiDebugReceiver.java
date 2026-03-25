@@ -40,7 +40,6 @@ public class GuiDebugReceiver extends GuiScreen {
 
     @Override
     protected void keyTyped(char c, int i) {
-        // ★追加：Escキーを横取りして安全に閉じる（無限ループ対策）
         if (i == 1) {
             this.mc.thePlayer.closeScreen();
             return;

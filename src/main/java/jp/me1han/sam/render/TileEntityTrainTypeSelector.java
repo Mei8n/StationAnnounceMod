@@ -51,58 +51,33 @@ public class TileEntityTrainTypeSelector extends TileEntity {
         if (train.getEntityId() == this.lastTrainId) return;
         this.lastTrainId = train.getEntityId();
 
-        // ★修正：条件リストに従ってデータを抽出する処理
         for (TrainTypeCondition cond : conditions) {
             String val = jp.me1han.sam.api.TrainDataExtractor.extractData(train, cond.key, cond.type);
-
-            // ★重要：何を抽出しようとして、結果がどうなったかをログに出す
-            System.out.println("[SAM-DEBUG] Extracting Key: " + cond.key + " -> Result: " + val);
-
             if (val != null && !val.isEmpty()) {
                 extractedData.put(cond.key, val);
             }
         }
 
-        // ★追加：データが空でも空じゃなくても、通信テストのために一旦送る
-        this.dispatchData(this.extractedData);
+        // 抽出したデータが存在すれば通信を試みる
+        if (!this.extractedData.isEmpty()) {
+            this.dispatchData(this.extractedData);
+            this.extractedData.clear(); // 連続送信防止
+        }
     }
 
-    /**
-     * ★新規追加：抽出したデータを対象のリンクキーを持つ装置に送信するメソッド
-     */
     public void dispatchData(Map<String, String> dataMap) {
-        if (this.worldObj.isRemote) return;
-
-        System.out.println("====== [SAM-DEBUG] dispatchData Called! ======");
-        System.out.println(" Target LinkKey: [" + this.linkKey + "]");
-        System.out.println(" Extracted Data Size: " + dataMap.size());
-
-        if (this.linkKey == null || this.linkKey.isEmpty()) {
-            System.out.println(" -> Aborted: LinkKey is empty.");
-            return;
-        }
+        if (this.worldObj.isRemote || this.linkKey == null || this.linkKey.isEmpty()) return;
 
         String sourcePos = String.format("%d, %d, %d", xCoord, yCoord, zCoord);
-        boolean foundMatch = false;
 
         for (Object obj : this.worldObj.loadedTileEntityList) {
-            if (obj instanceof jp.me1han.sam.render.TileEntityDebugReceiver) {
-                jp.me1han.sam.render.TileEntityDebugReceiver receiver = (jp.me1han.sam.render.TileEntityDebugReceiver) obj;
-
-                System.out.println(" -> Found DebugReceiver at " + receiver.xCoord + "," + receiver.yCoord + "," + receiver.zCoord + " with Key: [" + receiver.linkKey + "]");
-
+            if (obj instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
+                jp.me1han.sam.render.TileEntityAnnouncer receiver = (jp.me1han.sam.render.TileEntityAnnouncer) obj;
                 if (this.linkKey.equals(receiver.linkKey)) {
-                    System.out.println("   -> KEY MATCH! Sending data to chat...");
                     receiver.onDataReceived(dataMap, sourcePos);
-                    foundMatch = true;
                 }
             }
         }
-
-        if (!foundMatch) {
-            System.out.println(" -> Result: No matching DebugReceiver found in loaded chunks.");
-        }
-        System.out.println("==============================================");
     }
 
     public int getPowerOutput() {
@@ -117,10 +92,7 @@ public class TileEntityTrainTypeSelector extends TileEntity {
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-
-        if (this.linkKey != null) {
-            nbt.setString("linkKey", this.linkKey);
-        }
+        if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
 
         NBTTagList list = new NBTTagList();
         for (TrainTypeCondition cond : conditions) {
@@ -135,7 +107,6 @@ public class TileEntityTrainTypeSelector extends TileEntity {
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-
         this.linkKey = nbt.getString("linkKey");
 
         if (nbt.hasKey("conditions", 9)) {

@@ -27,7 +27,6 @@ public class NetworkHandler {
         INSTANCE.registerMessage(MessageDebugConfig.Handler.class, MessageDebugConfig.class, 3, Side.SERVER);
     }
 
-    // 放送再生用
     public static class AnnounceHandler implements IMessageHandler<MessageAnnounce, IMessage> {
         @Override
         public IMessage onMessage(MessageAnnounce message, MessageContext ctx) {
@@ -40,7 +39,6 @@ public class NetworkHandler {
         }
     }
 
-    // 設定保存用
     public static class ConfigHandler implements IMessageHandler<MessageConfig, IMessage> {
         @Override
         public IMessage onMessage(MessageConfig message, MessageContext ctx) {
@@ -56,7 +54,6 @@ public class NetworkHandler {
 
                 world.markBlockForUpdate(message.x, message.y, message.z);
 
-                StationAnnounceModCore.logger.info("Config saved: " + message.scriptName + " with key: " + message.linkKey);
             }
             return null;
         }

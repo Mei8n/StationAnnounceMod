@@ -54,16 +54,13 @@ public class GuiAnnouncer extends GuiScreen {
             String selectedFile = AnnouncePackLoader.availableScripts.isEmpty() ? "" : AnnouncePackLoader.availableScripts.get(selectedIndex).fileName;
             String keyToSend = linkKeyField.getText();
 
-            System.out.println("[SAM-DEBUG] GUI -> Sending: file=" + selectedFile + ", linkKey=[" + keyToSend + "]");
-
             NetworkHandler.INSTANCE.sendToServer(new MessageConfig(tile.xCoord, tile.yCoord, tile.zCoord, selectedFile, keyToSend));
-            this.mc.thePlayer.closeScreen(); // 安全な閉じ方
+            this.mc.thePlayer.closeScreen();
         }
     }
 
     @Override
     protected void keyTyped(char c, int i) {
-        // ★追加：Escキーを横取りして安全に閉じる（無限ループ対策）
         if (i == 1) {
             this.mc.thePlayer.closeScreen();
             return;
