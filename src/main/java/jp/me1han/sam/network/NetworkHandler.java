@@ -72,6 +72,7 @@ public class NetworkHandler {
                 TileEntityTrainTypeSelector selector = (TileEntityTrainTypeSelector) te;
 
                 selector.conditions = message.conditions;
+                selector.linkKey = message.linkKey;
 
                 selector.markDirty();
 

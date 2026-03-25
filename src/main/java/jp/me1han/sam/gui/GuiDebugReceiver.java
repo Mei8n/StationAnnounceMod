@@ -34,12 +34,18 @@ public class GuiDebugReceiver extends GuiScreen {
     protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
             NetworkHandler.INSTANCE.sendToServer(new MessageDebugConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText()));
-            this.mc.displayGuiScreen(null);
+            this.mc.thePlayer.closeScreen(); // 安全な閉じ方
         }
     }
 
     @Override
     protected void keyTyped(char c, int i) {
+        // ★追加：Escキーを横取りして安全に閉じる（無限ループ対策）
+        if (i == 1) {
+            this.mc.thePlayer.closeScreen();
+            return;
+        }
+
         if (this.linkKeyField.textboxKeyTyped(c, i)) return;
         super.keyTyped(c, i);
     }

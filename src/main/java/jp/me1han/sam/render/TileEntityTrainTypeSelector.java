@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class TileEntityTrainTypeSelector extends TileEntity {
+    public String linkKey = "";
     public List<TrainTypeCondition> conditions = new ArrayList<TrainTypeCondition>();
     public Map<String, String> extractedData = new HashMap<String, String>();
     private int signalTicks = 0;
@@ -35,57 +36,73 @@ public class TileEntityTrainTypeSelector extends TileEntity {
     }
 
     private void scanAndExtractTrain() {
-        AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(
-            (double)xCoord, (double)yCoord + 1, (double)zCoord,
-            (double)xCoord + 1, (double)yCoord + 4, (double)zCoord + 1
-        );
+        if (extractedData != null) extractedData.clear();
 
-        List list = this.worldObj.getEntitiesWithinAABB(net.minecraft.entity.Entity.class, aabb);
+        int r = 2;
+        AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
+        List list = this.worldObj.getEntitiesWithinAABB(jp.ngt.rtm.entity.train.EntityTrainBase.class, aabb);
 
-        boolean anyTrainPresent = false;
-        for (Object obj : list) {
-            net.minecraft.entity.Entity entity = (net.minecraft.entity.Entity) obj;
-            if (entity.getClass().getName().contains("EntityTrainBase")) {
-                anyTrainPresent = true;
+        if (list.isEmpty()) {
+            this.lastTrainId = -1;
+            return;
+        }
 
-                // すでに処理済みの車両なら何もしない
-                if (entity.getEntityId() == lastTrainId) break;
+        jp.ngt.rtm.entity.train.EntityTrainBase train = (jp.ngt.rtm.entity.train.EntityTrainBase) list.get(0);
+        if (train.getEntityId() == this.lastTrainId) return;
+        this.lastTrainId = train.getEntityId();
 
-                // 新しい車両が来た時だけデータを抽出
-                lastTrainId = entity.getEntityId();
-                this.extractData(entity);
-                this.signalTicks = 20;
-                this.worldObj.notifyBlocksOfNeighborChange(xCoord, yCoord, zCoord, this.getBlockType());
-                break;
+        // ★修正：条件リストに従ってデータを抽出する処理
+        for (TrainTypeCondition cond : conditions) {
+            String val = jp.me1han.sam.api.TrainDataExtractor.extractData(train, cond.key, cond.type);
+
+            // ★重要：何を抽出しようとして、結果がどうなったかをログに出す
+            System.out.println("[SAM-DEBUG] Extracting Key: " + cond.key + " -> Result: " + val);
+
+            if (val != null && !val.isEmpty()) {
+                extractedData.put(cond.key, val);
             }
         }
 
-        // 範囲内に車両が全くいなくなったらIDをリセット（次の車両に備える）
-        if (!anyTrainPresent) {
-            lastTrainId = -1;
-        }
+        // ★追加：データが空でも空じゃなくても、通信テストのために一旦送る
+        this.dispatchData(this.extractedData);
     }
 
-    private void extractData(net.minecraft.entity.Entity train) {
-        extractedData.clear();
-        net.minecraft.nbt.NBTTagCompound nbt = new net.minecraft.nbt.NBTTagCompound();
-        train.writeToNBT(nbt);
-        net.minecraft.nbt.NBTTagCompound trainState = nbt.getCompoundTag("ModelTrainState");
+    /**
+     * ★新規追加：抽出したデータを対象のリンクキーを持つ装置に送信するメソッド
+     */
+    public void dispatchData(Map<String, String> dataMap) {
+        if (this.worldObj.isRemote) return;
 
-        for (TrainTypeCondition cond : conditions) {
-            String val = "";
+        System.out.println("====== [SAM-DEBUG] dispatchData Called! ======");
+        System.out.println(" Target LinkKey: [" + this.linkKey + "]");
+        System.out.println(" Extracted Data Size: " + dataMap.size());
 
-            if (trainState.hasKey(cond.key)) {
-                val = trainState.getTag(cond.key).toString().replace("\"", "");
-            } else if (nbt.hasKey(cond.key)) {
-                val = nbt.getTag(cond.key).toString().replace("\"", "");
-            }
+        if (this.linkKey == null || this.linkKey.isEmpty()) {
+            System.out.println(" -> Aborted: LinkKey is empty.");
+            return;
+        }
 
-            if (!val.isEmpty()) {
-                extractedData.put(cond.key, val);
-                // StationAnnounceModCore.logger.info("Extracted: " + cond.key + " = " + val);
+        String sourcePos = String.format("%d, %d, %d", xCoord, yCoord, zCoord);
+        boolean foundMatch = false;
+
+        for (Object obj : this.worldObj.loadedTileEntityList) {
+            if (obj instanceof jp.me1han.sam.render.TileEntityDebugReceiver) {
+                jp.me1han.sam.render.TileEntityDebugReceiver receiver = (jp.me1han.sam.render.TileEntityDebugReceiver) obj;
+
+                System.out.println(" -> Found DebugReceiver at " + receiver.xCoord + "," + receiver.yCoord + "," + receiver.zCoord + " with Key: [" + receiver.linkKey + "]");
+
+                if (this.linkKey.equals(receiver.linkKey)) {
+                    System.out.println("   -> KEY MATCH! Sending data to chat...");
+                    receiver.onDataReceived(dataMap, sourcePos);
+                    foundMatch = true;
+                }
             }
         }
+
+        if (!foundMatch) {
+            System.out.println(" -> Result: No matching DebugReceiver found in loaded chunks.");
+        }
+        System.out.println("==============================================");
     }
 
     public int getPowerOutput() {
@@ -100,6 +117,11 @@ public class TileEntityTrainTypeSelector extends TileEntity {
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
+
+        if (this.linkKey != null) {
+            nbt.setString("linkKey", this.linkKey);
+        }
+
         NBTTagList list = new NBTTagList();
         for (TrainTypeCondition cond : conditions) {
             NBTTagCompound tag = new NBTTagCompound();
@@ -113,11 +135,30 @@ public class TileEntityTrainTypeSelector extends TileEntity {
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-        NBTTagList list = nbt.getTagList("conditions", 10);
-        this.conditions = new ArrayList<TrainTypeCondition>();
-        for (int i = 0; i < list.tagCount(); i++) {
-            NBTTagCompound tag = list.getCompoundTagAt(i);
-            this.conditions.add(new TrainTypeCondition(tag.getString("k"), tag.getInteger("t")));
+
+        this.linkKey = nbt.getString("linkKey");
+
+        if (nbt.hasKey("conditions", 9)) {
+            NBTTagList list = nbt.getTagList("conditions", 10);
+            this.conditions = new ArrayList<TrainTypeCondition>();
+            for (int i = 0; i < list.tagCount(); i++) {
+                NBTTagCompound tag = list.getCompoundTagAt(i);
+                String k = tag.getString("k");
+                int t = tag.getInteger("t");
+                this.conditions.add(new TrainTypeCondition(k, t));
+            }
         }
+    }
+
+    @Override
+    public net.minecraft.network.Packet getDescriptionPacket() {
+        NBTTagCompound nbt = new NBTTagCompound();
+        this.writeToNBT(nbt);
+        return new net.minecraft.network.play.server.S35PacketUpdateTileEntity(this.xCoord, this.yCoord, this.zCoord, 1, nbt);
+    }
+
+    @Override
+    public void onDataPacket(net.minecraft.network.NetworkManager net, net.minecraft.network.play.server.S35PacketUpdateTileEntity pkt) {
+        this.readFromNBT(pkt.func_148857_g());
     }
 }

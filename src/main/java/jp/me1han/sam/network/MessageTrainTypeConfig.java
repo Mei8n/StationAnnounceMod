@@ -11,16 +11,18 @@ import java.util.List;
 public class MessageTrainTypeConfig implements IMessage {
     public int x, y, z;
     public List<TrainTypeCondition> conditions;
+    public String linkKey;
 
     public MessageTrainTypeConfig() {
         this.conditions = new ArrayList<TrainTypeCondition>();
     }
 
-    public MessageTrainTypeConfig(int x, int y, int z, List<TrainTypeCondition> conditions) {
+    public MessageTrainTypeConfig(int x, int y, int z, List<TrainTypeCondition> conditions, String linkKey) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.conditions = conditions;
+        this.linkKey = linkKey;
     }
 
     @Override
@@ -28,6 +30,8 @@ public class MessageTrainTypeConfig implements IMessage {
         this.x = buf.readInt();
         this.y = buf.readInt();
         this.z = buf.readInt();
+
+        // リストの要素数を読み込む
         int size = buf.readInt();
         this.conditions = new ArrayList<TrainTypeCondition>();
         for (int i = 0; i < size; i++) {
@@ -35,17 +39,24 @@ public class MessageTrainTypeConfig implements IMessage {
             int type = buf.readInt();
             this.conditions.add(new TrainTypeCondition(key, type));
         }
+
+        this.linkKey = ByteBufUtils.readUTF8String(buf);
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
-        buf.writeInt(x);
-        buf.writeInt(y);
-        buf.writeInt(z);
-        buf.writeInt(conditions.size());
-        for (TrainTypeCondition cond : conditions) {
-            ByteBufUtils.writeUTF8String(buf, cond.key);
+        buf.writeInt(this.x);
+        buf.writeInt(this.y);
+        buf.writeInt(this.z);
+
+        buf.writeInt(this.conditions.size());
+
+        for (TrainTypeCondition cond : this.conditions) {
+            ByteBufUtils.writeUTF8String(buf, cond.key != null ? cond.key : "");
             buf.writeInt(cond.type);
         }
+
+        // 最後に linkKey を書き込む（nullの場合は空文字にする安全対策付き）
+        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
     }
 }
