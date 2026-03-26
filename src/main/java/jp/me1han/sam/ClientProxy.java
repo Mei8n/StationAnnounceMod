@@ -40,17 +40,17 @@ public class ClientProxy extends CommonProxy {
     public void registerRenderers() {
         ClientRegistry.bindTileEntitySpecialRenderer(
             TileEntityTrainTypeSelector.class,
-            new TrainTypeSelectorRenderer()
+            new RendererTrainTypeSelector()
         );
 
         ClientRegistry.bindTileEntitySpecialRenderer(
             TileEntityStartAnnouncer.class,
-            new StartAnnouncerRenderer()
+            new RendererStartAnnouncer()
         );
 
         ClientRegistry.bindTileEntitySpecialRenderer(
             TileEntityStopAnnouncer.class,
-            new StopAnnouncerRenderer()
+            new RendererStopAnnouncer()
         );
     }
 }
