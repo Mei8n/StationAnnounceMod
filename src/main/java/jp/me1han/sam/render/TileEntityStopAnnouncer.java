@@ -54,7 +54,6 @@ public class TileEntityStopAnnouncer extends TileEntity {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
                 if (this.linkKey.equals(announcer.linkKey)) {
-                    // ★ここを forceStop に変更
                     announcer.forceStop();
                 }
             }

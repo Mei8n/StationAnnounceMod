@@ -7,8 +7,8 @@ import net.minecraft.tileentity.TileEntity;
 
 public class TileEntitySpeaker extends TileEntity {
     public String linkKey = "";
-    public int range = 32;     // 可聴範囲 (ブロック)
-    public float volume = 1.0F; // 音量 (0.0 - 1.0)
+    public int range = 32;
+    public float volume = 1.0F;
 
     @Override
     public void writeToNBT(NBTTagCompound nbt) {

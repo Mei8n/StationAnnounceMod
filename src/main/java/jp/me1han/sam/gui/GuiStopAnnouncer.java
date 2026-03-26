@@ -21,20 +21,17 @@ public class GuiStopAnnouncer extends GuiScreen {
         Keyboard.enableRepeatEvents(true);
         this.buttonList.clear();
 
-        // 画面中央に入力欄を配置
         this.linkKeyField = new GuiTextField(fontRendererObj, width / 2 - 100, height / 2 - 20, 200, 20);
         this.linkKeyField.setText(tile.linkKey != null ? tile.linkKey : "");
         this.linkKeyField.setMaxStringLength(32);
         this.linkKeyField.setFocused(true);
 
-        // 完了ボタン
         this.buttonList.add(new GuiButton(0, width / 2 - 100, height / 2 + 20, "Done"));
     }
 
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
-            // サーバーへ停止装置の設定（リンクキー）を送信
             NetworkHandler.INSTANCE.sendToServer(new PacketStopAnnouncerConfig(
                 tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText()
             ));
@@ -49,7 +46,6 @@ public class GuiStopAnnouncer extends GuiScreen {
             return;
         }
 
-        // テキストボックスの入力を優先
         if (this.linkKeyField.textboxKeyTyped(c, i)) return;
 
         super.keyTyped(c, i);

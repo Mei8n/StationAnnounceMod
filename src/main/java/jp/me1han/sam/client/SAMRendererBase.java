@@ -17,7 +17,6 @@ public abstract class SAMRendererBase extends TileEntitySpecialRenderer {
         ItemStack heldItem = mc.thePlayer.getHeldItem();
         if (heldItem == null) return false;
 
-        // クラス名に ItemCrowbar が含まれるかチェック（ATSAssistMod等の仕様に準拠）
         return heldItem.getItem().getClass().getName().contains("ItemCrowbar");
     }
 
@@ -27,24 +26,19 @@ public abstract class SAMRendererBase extends TileEntitySpecialRenderer {
         Tessellator tessellator = Tessellator.instance;
         GL11.glPushMatrix();
 
-        // ブロックの中心直上から描画
         GL11.glTranslated(x + 0.5, y + 1.0, z + 0.5);
 
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glDisable(GL11.GL_LIGHTING);
         GL11.glEnable(GL11.GL_BLEND);
-        // 加算合成（IFTTTブロックのような発光感）
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE);
 
-        // 仕様準拠：太さは 0.15 固定（アニメーションなし）
         double size = 0.15;
         double height = 256.0;
 
         tessellator.startDrawingQuads();
-        // マゼンタ（赤紫色）
         tessellator.setColorRGBA(255, 0, 255, 150);
 
-        // --- 四方の面を描画 ---
         // 南面
         tessellator.addVertex(size, height, size);
         tessellator.addVertex(size, 0, size);

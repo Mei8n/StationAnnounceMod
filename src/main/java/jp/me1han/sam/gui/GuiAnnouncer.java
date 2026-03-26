@@ -9,7 +9,6 @@ import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
-import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.util.MathHelper;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -184,7 +183,6 @@ public class GuiAnnouncer extends GuiScreen {
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
         GL11.glScissor(listX * scale, (height - listBottom) * scale, listWidth * scale, listHeight * scale);
 
-        // アイテム描画ループ
         List<AnnounceScriptInfo> scripts = AnnouncePackLoader.availableScripts;
         for (int i = 0; i < scripts.size(); i++) {
             int slotY = listTop + (i * slotHeight) - (int)scrollAmount;

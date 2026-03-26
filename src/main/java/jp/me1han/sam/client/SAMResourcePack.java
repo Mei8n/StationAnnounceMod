@@ -20,9 +20,6 @@ public class SAMResourcePack implements IResourcePack {
 
     @Override
     public InputStream getInputStream(ResourceLocation loc) throws IOException {
-        // ZipFileはメソッド内で開き、最後に確実に閉じるか、
-        // 頻繁にアクセスされるならクラス変数に持ってclose処理を書く必要があります。
-        // ここではエラー回避のためリソース試行文を使います。
         ZipFile zip = new ZipFile(zipFile);
         ZipEntry entry = zip.getEntry("assets/" + loc.getResourceDomain() + "/" + loc.getResourcePath());
         if (entry == null) {
@@ -46,7 +43,6 @@ public class SAMResourcePack implements IResourcePack {
         return ImmutableSet.of("sound_rkkdev", "minecraft", "stationannouncemod");
     }
 
-    // 引数の型を IMetadataSerializer に変更
     @Override
     public IMetadataSection getPackMetadata(IMetadataSerializer serializer, String name) throws IOException {
         return null;

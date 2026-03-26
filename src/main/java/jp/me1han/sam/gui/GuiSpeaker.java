@@ -24,15 +24,12 @@ public class GuiSpeaker extends GuiScreen {
         int centerX = width / 2;
         int centerY = height / 2;
 
-        // リンクキー
         linkKeyField = new GuiTextField(fontRendererObj, centerX - 100, centerY - 60, 200, 20);
         linkKeyField.setText(tile.linkKey);
 
-        // 範囲 (数値のみ想定)
         rangeField = new GuiTextField(fontRendererObj, centerX - 100, centerY - 20, 90, 20);
         rangeField.setText(String.valueOf(tile.range));
 
-        // 音量 (0.0 - 1.0)
         volumeField = new GuiTextField(fontRendererObj, centerX + 10, centerY - 20, 90, 20);
         volumeField.setText(String.valueOf(tile.volume));
 
@@ -48,7 +45,6 @@ public class GuiSpeaker extends GuiScreen {
                 NetworkHandler.INSTANCE.sendToServer(new PacketSpeakerConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText(), range, vol));
                 this.mc.thePlayer.closeScreen();
             } catch (Exception e) {
-                // 数値変換エラー時は保存せず閉じるか、赤文字などで警告を出す
             }
         }
     }

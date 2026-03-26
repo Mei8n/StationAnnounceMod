@@ -13,9 +13,6 @@ public class PacketConfig implements IMessage {
     public int x, y, z;
     public String scriptName;
     public String linkKey;
-
-    public PacketConfig() {}
-
     public PacketConfig(int x, int y, int z, String scriptName, String linkKey) {
         this.x = x;
         this.y = y;
@@ -38,7 +35,6 @@ public class PacketConfig implements IMessage {
         buf.writeInt(this.x);
         buf.writeInt(this.y);
         buf.writeInt(this.z);
-        // ★修正：第1引数に buf を渡す必要があります
         ByteBufUtils.writeUTF8String(buf, this.scriptName);
         ByteBufUtils.writeUTF8String(buf, this.linkKey);
     }
@@ -57,16 +53,12 @@ public class PacketConfig implements IMessage {
                 announcer.setScriptName(message.scriptName);
                 announcer.linkKey = message.linkKey;
 
-                // ★重要：サーバー側のデータを保存
                 announcer.markDirty();
 
-                // ★最重要：クライアント側に「データが変わったから再同期して」と通知を送る
-                // これがないと、GUIを開いたときに古い（空の）データが表示されてしまいます
                 world.markBlockForUpdate(message.x, message.y, message.z);
                 jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] TileEntity updated on Server. Current linkKey in TE: " + announcer.linkKey);
             }
             else {
-                // ★TileEntityが見つからない場合の警告
                 jp.me1han.sam.StationAnnounceModCore.logger.error("[SAM-DEBUG] Error: TileEntity at pos is NOT an Announcer!");
             }
             return null;

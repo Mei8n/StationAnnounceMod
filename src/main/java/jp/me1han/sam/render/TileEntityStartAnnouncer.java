@@ -15,14 +15,12 @@ public class TileEntityStartAnnouncer extends TileEntity {
     public void updateEntity() {
         if (this.worldObj.isRemote) return;
 
-        // RTMが導入されている場合のみ車両検知を行う
         if (Loader.isModLoaded("RTM")) {
             this.scanTrain();
         }
     }
 
     private void scanTrain() {
-        // 検知範囲（周囲2ブロック）
         int r = 2;
         AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
         List list = this.worldObj.getEntitiesWithinAABB(jp.ngt.rtm.entity.train.EntityTrainBase.class, aabb);
@@ -34,7 +32,6 @@ public class TileEntityStartAnnouncer extends TileEntity {
 
         jp.ngt.rtm.entity.train.EntityTrainBase train = (jp.ngt.rtm.entity.train.EntityTrainBase) list.get(0);
 
-        // 新しい車両を検知した瞬間だけトリガーを送る
         if (train.getEntityId() != this.lastTrainId) {
             this.lastTrainId = train.getEntityId();
             this.dispatchTrigger();
@@ -44,7 +41,6 @@ public class TileEntityStartAnnouncer extends TileEntity {
     public void onRedstoneUpdate(boolean powered) {
         if (this.worldObj.isRemote) return;
 
-        // レッドストーン信号の立ち上がり（OFF -> ON）でトリガー
         if (powered && !lastPowered) {
             this.dispatchTrigger();
         }
@@ -54,12 +50,10 @@ public class TileEntityStartAnnouncer extends TileEntity {
     private void dispatchTrigger() {
         if (this.linkKey == null || this.linkKey.isEmpty()) return;
 
-        // ワールド内のロードされているTileEntityから放送装置を探す
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
                 if (this.linkKey.equals(announcer.linkKey)) {
-                    // 放送装置に「再生開始」を命令
                     announcer.startAnnounce();
                 }
             }

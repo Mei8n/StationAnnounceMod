@@ -13,7 +13,6 @@ public class ContainerTrainTypeSelector extends Container {
 
     @Override
     public boolean canInteractWith(EntityPlayer player) {
-        // ブロックから離れすぎたら閉じる判定
         return tile.isUseableByPlayer(player);
     }
 }

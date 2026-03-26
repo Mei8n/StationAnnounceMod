@@ -16,14 +16,11 @@ public class TileEntityDebugReceiver extends TileEntity {
     public void updateEntity() {
         if (this.worldObj.isRemote || this.linkKey == null || this.linkKey.isEmpty()) return;
 
-        // 10次Tickごとに監視
         if (this.worldObj.getTotalWorldTime() % 10 == 0) {
             for (Object obj : this.worldObj.loadedTileEntityList) {
                 if (obj instanceof TileEntityAnnouncer) {
                     TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
-                    // 保存されているlinkKeyと一致するかチェック
                     if (this.linkKey.equals(announcer.linkKey)) {
-                        // 新しいデータが来た時だけ自動ログ
                         if (announcer.lastDataReceivedTime > this.lastReadTime) {
                             this.lastReadTime = announcer.lastDataReceivedTime;
                             this.printAnnouncerData(announcer, "§a[SAM-AUTO]");
@@ -34,7 +31,6 @@ public class TileEntityDebugReceiver extends TileEntity {
         }
     }
 
-    // RS信号による手動確認用
     public void onRedstoneUpdate(boolean powered) {
         if (powered && !lastPowered) {
             this.forcePrintData();
@@ -87,7 +83,6 @@ public class TileEntityDebugReceiver extends TileEntity {
         this.linkKey = nbt.getString("linkKey");
     }
 
-    // ★同期用：これがないとGUIで設定したキーが保存されません
     @Override
     public net.minecraft.network.Packet getDescriptionPacket() {
         NBTTagCompound nbt = new NBTTagCompound();
