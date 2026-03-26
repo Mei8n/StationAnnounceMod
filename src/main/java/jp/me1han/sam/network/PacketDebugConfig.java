@@ -13,7 +13,6 @@ public class PacketDebugConfig implements IMessage {
     public int x, y, z;
     public String linkKey;
 
-    public PacketDebugConfig() {}
     public PacketDebugConfig(int x, int y, int z, String linkKey) {
         this.x = x; this.y = y; this.z = z; this.linkKey = linkKey;
     }

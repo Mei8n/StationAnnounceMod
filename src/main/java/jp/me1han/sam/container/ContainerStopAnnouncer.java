@@ -13,7 +13,6 @@ public class ContainerStopAnnouncer extends Container {
 
     @Override
     public boolean canInteractWith(EntityPlayer player) {
-        // TileEntityが有効で、プレイヤーが近くにいるか確認
         return player.getDistanceSq((double)tile.xCoord + 0.5D, (double)tile.yCoord + 0.5D, (double)tile.zCoord + 0.5D) <= 64.0D;
     }
 }

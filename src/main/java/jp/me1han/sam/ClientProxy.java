@@ -4,10 +4,13 @@ import cpw.mods.fml.client.registry.ClientRegistry;
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.relauncher.ReflectionHelper;
 import jp.me1han.sam.client.AnnounceManager;
+import jp.me1han.sam.client.MetadataCopyHandler;
 import jp.me1han.sam.client.SAMResourcePack;
 import jp.me1han.sam.render.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.IResourcePack;
+import net.minecraftforge.common.MinecraftForge;
+
 import java.io.File;
 import java.util.List;
 
@@ -17,7 +20,7 @@ public class ClientProxy extends CommonProxy {
     public void init(cpw.mods.fml.common.event.FMLInitializationEvent event) {
         super.init(event);
         FMLCommonHandler.instance().bus().register(AnnounceManager.INSTANCE);
-
+        MinecraftForge.EVENT_BUS.register(new MetadataCopyHandler());
         this.registerRenderers();
     }
 
@@ -51,6 +54,11 @@ public class ClientProxy extends CommonProxy {
         ClientRegistry.bindTileEntitySpecialRenderer(
             TileEntityStopAnnouncer.class,
             new RendererStopAnnouncer()
+        );
+
+        ClientRegistry.bindTileEntitySpecialRenderer(
+            TileEntitySpeaker.class,
+            new RendererSpeaker()
         );
     }
 }

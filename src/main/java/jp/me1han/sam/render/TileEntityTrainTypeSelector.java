@@ -2,7 +2,6 @@ package jp.me1han.sam.render;
 
 import cpw.mods.fml.common.Loader;
 import jp.me1han.sam.api.TrainTypeCondition;
-import jp.me1han.sam.StationAnnounceModCore;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
@@ -70,10 +69,9 @@ public class TileEntityTrainTypeSelector extends TileEntity {
             }
         }
 
-        // 抽出したデータが存在すれば通信を試みる
         if (!this.extractedData.isEmpty()) {
             this.dispatchData(this.extractedData);
-            this.extractedData.clear(); // 連続送信防止
+            this.extractedData.clear();
         }
     }
 

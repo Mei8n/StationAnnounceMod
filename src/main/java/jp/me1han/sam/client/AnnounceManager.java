@@ -3,12 +3,17 @@ package jp.me1han.sam.client;
 import jp.me1han.sam.AnnouncePackLoader;
 import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.network.PacketAnnounce;
+import jp.me1han.sam.render.TileEntitySpeaker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
 import net.minecraft.client.audio.PositionedSoundRecord;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.world.World;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class AnnounceManager {
@@ -16,14 +21,15 @@ public class AnnounceManager {
 
     private final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
     private String loopSound = null;
+    private String currentLinkKey = null; // 現在の放送に紐付いたリンクキー
     private int waitTicks = 0;
     private volatile boolean isPlaying = false;
 
-    // 現在再生中のサウンドを保持する変数
-    private ISound currentSound = null;
+    private final List<ISound> activeSounds = new ArrayList<ISound>();
 
     public void startAnnounce(PacketAnnounce msg) {
         this.stopAnnounce();
+        this.currentLinkKey = msg.linkKey;
 
         if (msg.startMelo != null && !msg.startMelo.isEmpty()) {
             this.queue.add(msg.startMelo);
@@ -39,21 +45,19 @@ public class AnnounceManager {
         this.isPlaying = true;
     }
 
-    /**
-     * 即時停止処理
-     */
     public void stopAnnounce() {
         this.isPlaying = false;
 
-        // 1. 現在再生中の音を強制停止
-        if (this.currentSound != null) {
-            Minecraft.getMinecraft().getSoundHandler().stopSound(this.currentSound);
-            this.currentSound = null;
+        for (ISound s : activeSounds) {
+            if (s != null) {
+                Minecraft.getMinecraft().getSoundHandler().stopSound(s);
+            }
         }
+        activeSounds.clear();
 
-        // 2. 予約されているパーツをすべて破棄
         this.queue.clear();
         this.loopSound = null;
+        this.currentLinkKey = null;
         this.waitTicks = 0;
     }
 
@@ -69,15 +73,24 @@ public class AnnounceManager {
         String nextSound = queue.poll();
 
         if (nextSound != null) {
-            this.currentSound = playSound(nextSound);
+            this.playAndRegister(nextSound);
             setWaitTicks(nextSound);
         }
         else if (loopSound != null) {
-            this.currentSound = playSound(loopSound);
+            this.playAndRegister(loopSound);
             setWaitTicks(loopSound);
         }
         else {
             this.isPlaying = false;
+        }
+    }
+
+    private void playAndRegister(String soundId) {
+        activeSounds.clear();
+
+        List<ISound> playedSounds = playSound(soundId);
+        if (playedSounds != null) {
+            activeSounds.addAll(playedSounds);
         }
     }
 
@@ -90,20 +103,47 @@ public class AnnounceManager {
         this.waitTicks = (ticks != null) ? ticks : 20;
     }
 
-    /**
-     * サウンドを再生し、そのインスタンスを返す
-     */
-    private ISound playSound(String soundId) {
-        if (soundId == null || soundId.isEmpty() || !isPlaying) return null;
+    private List<ISound> playSound(String soundId) {
+        List<ISound> sounds = new ArrayList<ISound>();
+        if (soundId == null || soundId.isEmpty() || !isPlaying) return sounds;
 
         try {
             ResourceLocation res = new ResourceLocation(soundId);
-            PositionedSoundRecord psr = PositionedSoundRecord.func_147674_a(res, 1.0F);
-            Minecraft.getMinecraft().getSoundHandler().playSound(psr);
-            return psr; // 停止操作のためにインスタンスを返す
+            World world = Minecraft.getMinecraft().theWorld;
+            boolean speakerFound = false;
+
+            for (Object obj : world.loadedTileEntityList) {
+                if (obj instanceof TileEntitySpeaker) {
+                    TileEntitySpeaker speaker = (TileEntitySpeaker) obj;
+
+                    if (speaker.linkKey != null && speaker.linkKey.equals(this.currentLinkKey)) {
+
+                         float effectiveVolume = (speaker.range / 16.0F) * speaker.volume;
+
+                        PositionedSoundRecord psr = new PositionedSoundRecord(
+                            res,
+                            effectiveVolume, 1.0F,
+                            (float)speaker.xCoord + 0.5F,
+                            (float)speaker.yCoord + 0.5F,
+                            (float)speaker.zCoord + 0.5F
+                        );
+                        Minecraft.getMinecraft().getSoundHandler().playSound(psr);
+                        sounds.add(psr);
+                        speakerFound = true;
+                    }
+                }
+            }
+
+            if (!speakerFound) {
+                PositionedSoundRecord psr = PositionedSoundRecord.func_147674_a(res, 1.0F);
+                Minecraft.getMinecraft().getSoundHandler().playSound(psr);
+                sounds.add(psr);
+            }
+
         } catch (Exception e) {
-            StationAnnounceModCore.logger.error("[SAM] Sound Playback Error: " + soundId);
-            return null;
+            StationAnnounceModCore.logger.error("[SAM] Sound Playback Error: " + soundId, e);
         }
+
+        return sounds;
     }
 }
