@@ -2,18 +2,9 @@ package jp.me1han.sam.network;
 
 import cpw.mods.fml.common.network.IGuiHandler;
 import jp.me1han.sam.StationAnnounceModCore;
-import jp.me1han.sam.container.ContainerDebugReceiver;
-import jp.me1han.sam.container.ContainerStartAnnouncer;
-import jp.me1han.sam.gui.GuiAnnouncer;
-import jp.me1han.sam.gui.GuiDebugReceiver;
-import jp.me1han.sam.gui.GuiStartAnnouncer;
-import jp.me1han.sam.gui.GuiTrainTypeSelector;
-import jp.me1han.sam.render.TileEntityAnnouncer;
-import jp.me1han.sam.render.TileEntityDebugReceiver;
-import jp.me1han.sam.render.TileEntityStartAnnouncer;
-import jp.me1han.sam.render.TileEntityTrainTypeSelector;
-import jp.me1han.sam.container.ContainerAnnouncer;
-import jp.me1han.sam.container.ContainerTrainTypeSelector;
+import jp.me1han.sam.container.*;
+import jp.me1han.sam.gui.*;
+import jp.me1han.sam.render.*;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -48,6 +39,12 @@ public class SAMGuiHandler implements IGuiHandler {
             }
         }
 
+        if (ID == StationAnnounceModCore.GUI_ID_STOP_ANNOUNCER) {
+            if (tile instanceof TileEntityStopAnnouncer) {
+                return new ContainerStopAnnouncer((TileEntityStopAnnouncer) tile);
+            }
+        }
+
         return null;
     }
 
@@ -76,6 +73,12 @@ public class SAMGuiHandler implements IGuiHandler {
         if (ID == StationAnnounceModCore.GUI_ID_START_ANNOUNCER) {
             if (tile instanceof TileEntityStartAnnouncer) {
                 return new GuiStartAnnouncer((TileEntityStartAnnouncer) tile);
+            }
+        }
+
+        if (ID == StationAnnounceModCore.GUI_ID_STOP_ANNOUNCER) {
+            if (tile instanceof TileEntityStopAnnouncer) {
+                return new GuiStopAnnouncer((TileEntityStopAnnouncer) tile);
             }
         }
 

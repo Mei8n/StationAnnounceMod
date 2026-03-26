@@ -9,10 +9,7 @@ import cpw.mods.fml.common.registry.GameRegistry;
 import jp.me1han.sam.block.*;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.SAMGuiHandler;
-import jp.me1han.sam.render.TileEntityAnnouncer;
-import jp.me1han.sam.render.TileEntityDebugReceiver;
-import jp.me1han.sam.render.TileEntityStartAnnouncer;
-import jp.me1han.sam.render.TileEntityTrainTypeSelector;
+import jp.me1han.sam.render.*;
 import net.minecraft.block.Block;
 import net.minecraft.creativetab.CreativeTabs;
 import org.apache.logging.log4j.LogManager;
@@ -28,6 +25,7 @@ public class StationAnnounceModCore {
     public static final int GUI_ID_TRAIN_TYPE_SELECTOR = 1;
     public static final int GUI_ID_DEBUG_RECEIVER = 2;
     public static final int GUI_ID_START_ANNOUNCER = 4;
+    public static final int GUI_ID_STOP_ANNOUNCER = 5;
 
     @Mod.Instance("stationannouncemod")
     public static StationAnnounceModCore instance;
@@ -63,6 +61,7 @@ public class StationAnnounceModCore {
         GameRegistry.registerBlock(blockDebugReceiver, "blockDebugReceiver");
 
         GameRegistry.registerTileEntity(TileEntityStartAnnouncer.class, "tileStartAnnouncer");
+        GameRegistry.registerTileEntity(TileEntityStopAnnouncer.class, "tileStopAnnouncer");
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         GameRegistry.registerTileEntity(TileEntityTrainTypeSelector.class, "tileTrainTypeSelector");
         GameRegistry.registerTileEntity(TileEntityDebugReceiver.class, "tileDebugReceiver");

@@ -10,6 +10,7 @@ import jp.me1han.sam.client.AnnounceManager;
 import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.render.TileEntityAnnouncer;
 import jp.me1han.sam.render.TileEntityStartAnnouncer;
+import jp.me1han.sam.render.TileEntityStopAnnouncer;
 import jp.me1han.sam.render.TileEntityTrainTypeSelector;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -18,16 +19,18 @@ public class NetworkHandler {
     public static final SimpleNetworkWrapper INSTANCE = NetworkRegistry.INSTANCE.newSimpleChannel("SAM_CHANNEL");
 
     public static void init() {
-        // ID 0: サーバー -> クライアント (再生命令)
+        //音声再生処理のサーバー -> クライアント
         INSTANCE.registerMessage(AnnounceHandler.class, PacketAnnounce.class, 0, Side.CLIENT);
-        // ID 1: クライアント -> サーバー (設定保存)
+        //音声再生処理のクライアント -> サーバー
         INSTANCE.registerMessage(ConfigHandler.class, PacketConfig.class, 1, Side.SERVER);
-        // ID 2: クライアント -> サーバー (列車選別装置の設定保存)
+        // 列車選別装置
         INSTANCE.registerMessage(TrainTypeConfigHandler.class, PacketTrainTypeConfig.class, 2, Side.SERVER);
-        // ID 3: クライアント -> サーバー (デバッグレシーバーの設定保存)
+        //デバッグレシーバー
         INSTANCE.registerMessage(PacketDebugConfig.Handler.class, PacketDebugConfig.class, 3, Side.SERVER);
-
+        //放送開始装置
         INSTANCE.registerMessage(StartAnnouncerConfigHandler.class, PacketStartAnnouncerConfig.class, 4, Side.SERVER);
+        //放送停止装置
+        INSTANCE.registerMessage(StopAnnouncerConfigHandler.class, PacketStopAnnouncerConfig.class, 5, Side.SERVER);
     }
 
     public static class AnnounceHandler implements IMessageHandler<PacketAnnounce, IMessage> {
@@ -92,6 +95,21 @@ public class NetworkHandler {
                 TileEntityStartAnnouncer startAnnouncer = (TileEntityStartAnnouncer) te;
                 startAnnouncer.linkKey = message.linkKey;
                 startAnnouncer.markDirty();
+                world.markBlockForUpdate(message.x, message.y, message.z);
+            }
+            return null;
+        }
+    }
+
+    public static class StopAnnouncerConfigHandler implements IMessageHandler<PacketStopAnnouncerConfig, IMessage> {
+        @Override
+        public IMessage onMessage(PacketStopAnnouncerConfig message, MessageContext ctx) {
+            World world = ctx.getServerHandler().playerEntity.worldObj;
+            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
+            if (te instanceof TileEntityStopAnnouncer) {
+                TileEntityStopAnnouncer stopAnnouncer = (TileEntityStopAnnouncer) te;
+                stopAnnouncer.linkKey = message.linkKey;
+                stopAnnouncer.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
             }
             return null;
