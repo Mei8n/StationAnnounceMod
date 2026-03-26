@@ -59,7 +59,6 @@ public class TileEntityAnnouncer extends TileEntity {
 
         this.receivedData = new HashMap<String, String>(data);
         this.lastDataReceivedTime = System.currentTimeMillis();
-        this.startAnnounce();
     }
 
     public String getScriptName() { return this.scriptName; }
