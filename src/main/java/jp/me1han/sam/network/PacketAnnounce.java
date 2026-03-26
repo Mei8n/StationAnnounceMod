@@ -8,17 +8,17 @@ import jp.me1han.sam.api.AnnounceData;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MessageAnnounce implements IMessage {
+public class PacketAnnounce implements IMessage {
     public String startMelo;
     public List<String> bodySounds;
     public String arrMelo;
     public boolean stopCommand; // 停止命令かどうか
 
     // Forgeが内部で使用するための空のコンストラクタ
-    public MessageAnnounce() {}
+    public PacketAnnounce() {}
 
     // 放送開始用のコンストラクタ
-    public MessageAnnounce(AnnounceData data) {
+    public PacketAnnounce(AnnounceData data) {
         this.startMelo = data.startMelo != null ? data.startMelo : "";
         this.bodySounds = data.bodySounds;
         this.arrMelo = data.arrMelo != null ? data.arrMelo : "";
@@ -26,7 +26,7 @@ public class MessageAnnounce implements IMessage {
     }
 
     // 放送停止用のコンストラクタ
-    public MessageAnnounce(boolean stop) {
+    public PacketAnnounce(boolean stop) {
         this.stopCommand = stop;
         this.bodySounds = new ArrayList<>();
         this.startMelo = "";

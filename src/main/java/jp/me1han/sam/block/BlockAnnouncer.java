@@ -29,8 +29,9 @@ public class BlockAnnouncer extends Block {
 
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float hitX, float hitY, float hitZ) {
-        // クライアント・サーバー両方で実行（player.openGuiが内部でパケット処理を行うため）
-        player.openGui(StationAnnounceModCore.instance, 0, world, x, y, z);
+        if (!world.isRemote) {
+            player.openGui(StationAnnounceModCore.instance, StationAnnounceModCore.GUI_ID_ANNOUNCER, world, x, y, z);
+        }
         return true;
     }
 
