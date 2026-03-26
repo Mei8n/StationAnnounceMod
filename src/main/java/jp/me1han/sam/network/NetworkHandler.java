@@ -8,10 +8,7 @@ import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import cpw.mods.fml.relauncher.Side;
 import jp.me1han.sam.client.AnnounceManager;
 import jp.me1han.sam.StationAnnounceModCore;
-import jp.me1han.sam.render.TileEntityAnnouncer;
-import jp.me1han.sam.render.TileEntityStartAnnouncer;
-import jp.me1han.sam.render.TileEntityStopAnnouncer;
-import jp.me1han.sam.render.TileEntityTrainTypeSelector;
+import jp.me1han.sam.render.*;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
@@ -110,6 +107,21 @@ public class NetworkHandler {
                 TileEntityStopAnnouncer stopAnnouncer = (TileEntityStopAnnouncer) te;
                 stopAnnouncer.linkKey = message.linkKey;
                 stopAnnouncer.markDirty();
+                world.markBlockForUpdate(message.x, message.y, message.z);
+            }
+            return null;
+        }
+    }
+
+    public static class DebugConfigHandler implements IMessageHandler<PacketDebugConfig, IMessage> {
+        @Override
+        public IMessage onMessage(PacketDebugConfig message, MessageContext ctx) {
+            World world = ctx.getServerHandler().playerEntity.worldObj;
+            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
+            if (te instanceof TileEntityDebugReceiver) {
+                TileEntityDebugReceiver debug = (TileEntityDebugReceiver) te;
+                debug.linkKey = message.linkKey;
+                debug.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
             }
             return null;
