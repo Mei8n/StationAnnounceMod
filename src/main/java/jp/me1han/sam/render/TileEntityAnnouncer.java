@@ -28,7 +28,7 @@ public class TileEntityAnnouncer extends TileEntity {
         this.lastPowered = powered;
     }
 
-    private void startAnnounce() {
+    public void startAnnounce() {
         if (scriptName == null || scriptName.isEmpty()) return;
 
         AnnounceData data = AnnouncePackLoader.runScript(scriptName, this);

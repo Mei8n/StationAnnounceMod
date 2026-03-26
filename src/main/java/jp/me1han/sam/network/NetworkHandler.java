@@ -9,6 +9,7 @@ import cpw.mods.fml.relauncher.Side;
 import jp.me1han.sam.client.AnnounceManager;
 import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.render.TileEntityAnnouncer;
+import jp.me1han.sam.render.TileEntityStartAnnouncer;
 import jp.me1han.sam.render.TileEntityTrainTypeSelector;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -25,6 +26,8 @@ public class NetworkHandler {
         INSTANCE.registerMessage(TrainTypeConfigHandler.class, PacketTrainTypeConfig.class, 2, Side.SERVER);
         // ID 3: クライアント -> サーバー (デバッグレシーバーの設定保存)
         INSTANCE.registerMessage(PacketDebugConfig.Handler.class, PacketDebugConfig.class, 3, Side.SERVER);
+
+        INSTANCE.registerMessage(StartAnnouncerConfigHandler.class, PacketStartAnnouncerConfig.class, 4, Side.SERVER);
     }
 
     public static class AnnounceHandler implements IMessageHandler<PacketAnnounce, IMessage> {
@@ -75,6 +78,21 @@ public class NetworkHandler {
                 selector.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
                 StationAnnounceModCore.logger.info("TrainSelector Config saved: " + message.conditions.size() + " conditions.");
+            }
+            return null;
+        }
+    }
+
+    public static class StartAnnouncerConfigHandler implements IMessageHandler<PacketStartAnnouncerConfig, IMessage> {
+        @Override
+        public IMessage onMessage(PacketStartAnnouncerConfig message, MessageContext ctx) {
+            World world = ctx.getServerHandler().playerEntity.worldObj;
+            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
+            if (te instanceof TileEntityStartAnnouncer) {
+                TileEntityStartAnnouncer startAnnouncer = (TileEntityStartAnnouncer) te;
+                startAnnouncer.linkKey = message.linkKey;
+                startAnnouncer.markDirty();
+                world.markBlockForUpdate(message.x, message.y, message.z);
             }
             return null;
         }
