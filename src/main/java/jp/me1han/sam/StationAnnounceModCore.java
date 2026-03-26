@@ -26,6 +26,7 @@ public class StationAnnounceModCore {
     public static final int GUI_ID_DEBUG_RECEIVER = 2;
     public static final int GUI_ID_START_ANNOUNCER = 4;
     public static final int GUI_ID_STOP_ANNOUNCER = 5;
+    public static final int GUI_ID_SPEAKER = 6;
 
     @Mod.Instance("stationannouncemod")
     public static StationAnnounceModCore instance;
@@ -42,6 +43,7 @@ public class StationAnnounceModCore {
     public static Block blockStopAnnouncer;
     public static Block blockTrainTypeSelector;
     public static Block blockDebugReceiver;
+    public static Block blockSpeaker;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
@@ -60,11 +62,15 @@ public class StationAnnounceModCore {
         blockDebugReceiver = new BlockDebugReceiver();
         GameRegistry.registerBlock(blockDebugReceiver, "blockDebugReceiver");
 
+        blockSpeaker = new BlockSpeaker();
+        GameRegistry.registerBlock(blockSpeaker, "blockSpeaker");
+
         GameRegistry.registerTileEntity(TileEntityStartAnnouncer.class, "tileStartAnnouncer");
         GameRegistry.registerTileEntity(TileEntityStopAnnouncer.class, "tileStopAnnouncer");
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         GameRegistry.registerTileEntity(TileEntityTrainTypeSelector.class, "tileTrainTypeSelector");
         GameRegistry.registerTileEntity(TileEntityDebugReceiver.class, "tileDebugReceiver");
+        GameRegistry.registerTileEntity(TileEntitySpeaker.class, "tileSpeaker");
 
         NetworkHandler.init();
         proxy.preInit(event);

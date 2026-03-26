@@ -45,6 +45,10 @@ public class SAMGuiHandler implements IGuiHandler {
             }
         }
 
+        if (ID == StationAnnounceModCore.GUI_ID_SPEAKER) {
+            return new ContainerSpeaker((TileEntitySpeaker) world.getTileEntity(x, y, z));
+        }
+
         return null;
     }
 
@@ -80,6 +84,10 @@ public class SAMGuiHandler implements IGuiHandler {
             if (tile instanceof TileEntityStopAnnouncer) {
                 return new GuiStopAnnouncer((TileEntityStopAnnouncer) tile);
             }
+        }
+
+        if (ID == StationAnnounceModCore.GUI_ID_SPEAKER) {
+            return new GuiSpeaker((TileEntitySpeaker) world.getTileEntity(x, y, z));
         }
 
         return null;

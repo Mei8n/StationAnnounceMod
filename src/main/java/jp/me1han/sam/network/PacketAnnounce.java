@@ -12,23 +12,23 @@ public class PacketAnnounce implements IMessage {
     public String startMelo;
     public List<String> bodySounds;
     public String arrMelo;
-    public boolean stopCommand; // 停止命令かどうか
+    public String linkKey;
+    public boolean stopCommand;
 
-    // Forgeが内部で使用するための空のコンストラクタ
     public PacketAnnounce() {}
 
-    // 放送開始用のコンストラクタ
-    public PacketAnnounce(AnnounceData data) {
+    public PacketAnnounce(AnnounceData data, String linkKey) {
         this.startMelo = data.startMelo != null ? data.startMelo : "";
         this.bodySounds = data.bodySounds;
         this.arrMelo = data.arrMelo != null ? data.arrMelo : "";
+        this.linkKey = linkKey != null ? linkKey : "";
         this.stopCommand = false;
     }
 
-    // 放送停止用のコンストラクタ
-    public PacketAnnounce(boolean stop) {
+    public PacketAnnounce(boolean stop, String linkKey) {
         this.stopCommand = stop;
-        this.bodySounds = new ArrayList<>();
+        this.linkKey = linkKey != null ? linkKey : "";
+        this.bodySounds = new ArrayList<String>();
         this.startMelo = "";
         this.arrMelo = "";
     }
@@ -36,13 +36,15 @@ public class PacketAnnounce implements IMessage {
     @Override
     public void fromBytes(ByteBuf buf) {
         this.stopCommand = buf.readBoolean();
+        this.linkKey = ByteBufUtils.readUTF8String(buf);
+
         if (stopCommand) return;
 
         this.startMelo = ByteBufUtils.readUTF8String(buf);
         this.arrMelo = ByteBufUtils.readUTF8String(buf);
 
         int size = buf.readInt();
-        this.bodySounds = new ArrayList<>();
+        this.bodySounds = new ArrayList<String>();
         for (int i = 0; i < size; i++) {
             this.bodySounds.add(ByteBufUtils.readUTF8String(buf));
         }
@@ -51,6 +53,8 @@ public class PacketAnnounce implements IMessage {
     @Override
     public void toBytes(ByteBuf buf) {
         buf.writeBoolean(this.stopCommand);
+        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
+
         if (stopCommand) return;
 
         ByteBufUtils.writeUTF8String(buf, this.startMelo);

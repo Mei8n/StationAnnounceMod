@@ -28,6 +28,8 @@ public class NetworkHandler {
         INSTANCE.registerMessage(StartAnnouncerConfigHandler.class, PacketStartAnnouncerConfig.class, 4, Side.SERVER);
         //放送停止装置
         INSTANCE.registerMessage(StopAnnouncerConfigHandler.class, PacketStopAnnouncerConfig.class, 5, Side.SERVER);
+        //スピーカー
+        INSTANCE.registerMessage(NetworkHandler.SpeakerConfigHandler.class, PacketSpeakerConfig.class, 6, Side.SERVER);
     }
 
     public static class AnnounceHandler implements IMessageHandler<PacketAnnounce, IMessage> {
@@ -122,6 +124,23 @@ public class NetworkHandler {
                 TileEntityDebugReceiver debug = (TileEntityDebugReceiver) te;
                 debug.linkKey = message.linkKey;
                 debug.markDirty();
+                world.markBlockForUpdate(message.x, message.y, message.z);
+            }
+            return null;
+        }
+    }
+
+    public static class SpeakerConfigHandler implements IMessageHandler<PacketSpeakerConfig, IMessage> {
+        @Override
+        public IMessage onMessage(PacketSpeakerConfig message, MessageContext ctx) {
+            World world = ctx.getServerHandler().playerEntity.worldObj;
+            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
+            if (te instanceof TileEntitySpeaker) {
+                TileEntitySpeaker speaker = (TileEntitySpeaker) te;
+                speaker.linkKey = message.linkKey;
+                speaker.range = message.range;
+                speaker.volume = message.volume;
+                speaker.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
             }
             return null;

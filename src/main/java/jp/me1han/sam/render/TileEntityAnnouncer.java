@@ -35,12 +35,12 @@ public class TileEntityAnnouncer extends TileEntity {
 
         this.receivedData.clear();
         this.lastDataReceivedTime = 0;
-
         this.markDirty();
 
         if (data != null) {
+            // パケットに linkKey を含める
             NetworkHandler.INSTANCE.sendToAllAround(
-                new PacketAnnounce(data),
+                new PacketAnnounce(data, this.linkKey),
                 new NetworkRegistry.TargetPoint(this.worldObj.provider.dimensionId, xCoord, yCoord, zCoord, 64)
             );
         }
@@ -49,7 +49,7 @@ public class TileEntityAnnouncer extends TileEntity {
     public void forceStop() {
         if (this.worldObj.isRemote) return;
         NetworkHandler.INSTANCE.sendToAllAround(
-            new PacketAnnounce(true),
+            new PacketAnnounce(true, this.linkKey),
             new NetworkRegistry.TargetPoint(this.worldObj.provider.dimensionId, xCoord, yCoord, zCoord, 64)
         );
     }
