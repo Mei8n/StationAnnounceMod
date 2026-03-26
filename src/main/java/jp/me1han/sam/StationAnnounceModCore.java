@@ -6,18 +6,26 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.registry.GameRegistry;
-import jp.me1han.sam.block.BlockAnnouncer;
-import jp.me1han.sam.block.BlockStopAnnouncer;
+import jp.me1han.sam.block.*;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.SAMGuiHandler;
-import jp.me1han.sam.render.TileEntityAnnouncer;
+import jp.me1han.sam.render.*;
 import net.minecraft.block.Block;
-import net.minecraft.creativetab.CreativeTabs; // 追加
+import net.minecraft.creativetab.CreativeTabs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-@Mod(modid = "stationannouncemod", name = "Station Announce Mod", version = "1.0")
+@Mod(modid = StationAnnounceModCore.MOD_ID, name = StationAnnounceModCore.MOD_NAME, version = StationAnnounceModCore.VERSION)
 public class StationAnnounceModCore {
+    public static final String MOD_ID = "stationannouncemod";
+    public static final String MOD_NAME = "Station Announce Mod";
+    public static final String VERSION = "0.0.1-alpha";
+
+    public static final int GUI_ID_ANNOUNCER = 0;
+    public static final int GUI_ID_TRAIN_TYPE_SELECTOR = 1;
+    public static final int GUI_ID_DEBUG_RECEIVER = 2;
+    public static final int GUI_ID_START_ANNOUNCER = 4;
+    public static final int GUI_ID_STOP_ANNOUNCER = 5;
 
     @Mod.Instance("stationannouncemod")
     public static StationAnnounceModCore instance;
@@ -27,23 +35,37 @@ public class StationAnnounceModCore {
 
     public static final Logger logger = LogManager.getLogger("SAM");
 
-    // クリエイティブタブのインスタンス
     public static final CreativeTabs tabSAM = new CreativeTabSAM("SAM");
 
     public static Block blockAnnouncer;
+    public static Block blockStartAnnouncer;
     public static Block blockStopAnnouncer;
+    public static Block blockTrainTypeSelector;
+    public static Block blockDebugReceiver;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
-        // 放送装置
         blockAnnouncer = new BlockAnnouncer();
         GameRegistry.registerBlock(blockAnnouncer, "blockAnnouncer");
 
-        // 停止装置
+        blockStartAnnouncer = new BlockStartAnnouncer();
+        GameRegistry.registerBlock(blockStartAnnouncer, "blockStartAnnouncer");
+
         blockStopAnnouncer = new BlockStopAnnouncer();
         GameRegistry.registerBlock(blockStopAnnouncer, "blockStopAnnouncer");
 
+        blockTrainTypeSelector = new BlockTrainTypeSelector();
+        GameRegistry.registerBlock(blockTrainTypeSelector, "trainTypeSelector");
+
+        blockDebugReceiver = new BlockDebugReceiver();
+        GameRegistry.registerBlock(blockDebugReceiver, "blockDebugReceiver");
+
+        GameRegistry.registerTileEntity(TileEntityStartAnnouncer.class, "tileStartAnnouncer");
+        GameRegistry.registerTileEntity(TileEntityStopAnnouncer.class, "tileStopAnnouncer");
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
+        GameRegistry.registerTileEntity(TileEntityTrainTypeSelector.class, "tileTrainTypeSelector");
+        GameRegistry.registerTileEntity(TileEntityDebugReceiver.class, "tileDebugReceiver");
+
         NetworkHandler.init();
         proxy.preInit(event);
     }

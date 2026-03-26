@@ -1,9 +1,11 @@
 package jp.me1han.sam;
 
+import cpw.mods.fml.client.registry.ClientRegistry;
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.relauncher.ReflectionHelper;
 import jp.me1han.sam.client.AnnounceManager;
 import jp.me1han.sam.client.SAMResourcePack;
+import jp.me1han.sam.render.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.IResourcePack;
 import java.io.File;
@@ -14,10 +16,12 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void init(cpw.mods.fml.common.event.FMLInitializationEvent event) {
         super.init(event);
-        // AnnounceManagerを登録して、毎Tick処理が行われるようにする
         FMLCommonHandler.instance().bus().register(AnnounceManager.INSTANCE);
+
+        this.registerRenderers();
     }
 
+    @Override
     public void addResourcePack(File zipFile) {
         try {
             List<IResourcePack> defaultPacks = ReflectionHelper.getPrivateValue(
@@ -30,5 +34,23 @@ public class ClientProxy extends CommonProxy {
         } catch (Exception e) {
             StationAnnounceModCore.logger.error("Failed to register resource pack: " + zipFile.getName());
         }
+    }
+
+    @Override
+    public void registerRenderers() {
+        ClientRegistry.bindTileEntitySpecialRenderer(
+            TileEntityTrainTypeSelector.class,
+            new TrainTypeSelectorRenderer()
+        );
+
+        ClientRegistry.bindTileEntitySpecialRenderer(
+            TileEntityStartAnnouncer.class,
+            new StartAnnouncerRenderer()
+        );
+
+        ClientRegistry.bindTileEntitySpecialRenderer(
+            TileEntityStopAnnouncer.class,
+            new StopAnnouncerRenderer()
+        );
     }
 }
