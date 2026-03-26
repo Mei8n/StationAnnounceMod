@@ -14,6 +14,7 @@ import java.util.Map;
 
 public class TileEntityTrainTypeSelector extends TileEntity {
     public String linkKey = "";
+    public boolean isControlCar = false;
     public List<TrainTypeCondition> conditions = new ArrayList<TrainTypeCondition>();
     public Map<String, String> extractedData = new HashMap<String, String>();
     private int signalTicks = 0;
@@ -50,6 +51,17 @@ public class TileEntityTrainTypeSelector extends TileEntity {
         jp.ngt.rtm.entity.train.EntityTrainBase train = (jp.ngt.rtm.entity.train.EntityTrainBase) list.get(0);
         if (train.getEntityId() == this.lastTrainId) return;
         this.lastTrainId = train.getEntityId();
+
+        if (this.isControlCar) {
+            boolean isControl = false;
+            try {
+                java.lang.reflect.Method m = train.getClass().getMethod("isControlCar");
+                Object res = m.invoke(train);
+                if (res != null) isControl = (Boolean) res;
+            } catch (Exception e) {}
+
+            if (!isControl) return;
+        }
 
         for (TrainTypeCondition cond : conditions) {
             String val = jp.me1han.sam.api.TrainDataExtractor.extractData(train, cond.key, cond.type);
@@ -93,6 +105,7 @@ public class TileEntityTrainTypeSelector extends TileEntity {
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
         if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
+        nbt.setBoolean("isControlCar", this.isControlCar);
 
         NBTTagList list = new NBTTagList();
         for (TrainTypeCondition cond : conditions) {
@@ -108,6 +121,7 @@ public class TileEntityTrainTypeSelector extends TileEntity {
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
         this.linkKey = nbt.getString("linkKey");
+        this.isControlCar = nbt.getBoolean("isControlCar");
 
         if (nbt.hasKey("conditions", 9)) {
             NBTTagList list = nbt.getTagList("conditions", 10);

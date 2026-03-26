@@ -12,17 +12,19 @@ public class PacketTrainTypeConfig implements IMessage {
     public int x, y, z;
     public List<TrainTypeCondition> conditions;
     public String linkKey;
+    public boolean isControlCar; // 変数名を変更
 
     public PacketTrainTypeConfig() {
         this.conditions = new ArrayList<TrainTypeCondition>();
     }
 
-    public PacketTrainTypeConfig(int x, int y, int z, List<TrainTypeCondition> conditions, String linkKey) {
+    public PacketTrainTypeConfig(int x, int y, int z, List<TrainTypeCondition> conditions, String linkKey, boolean isControlCar) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.conditions = conditions;
         this.linkKey = linkKey;
+        this.isControlCar = isControlCar;
     }
 
     @Override
@@ -31,7 +33,6 @@ public class PacketTrainTypeConfig implements IMessage {
         this.y = buf.readInt();
         this.z = buf.readInt();
 
-        // リストの要素数を読み込む
         int size = buf.readInt();
         this.conditions = new ArrayList<TrainTypeCondition>();
         for (int i = 0; i < size; i++) {
@@ -41,6 +42,7 @@ public class PacketTrainTypeConfig implements IMessage {
         }
 
         this.linkKey = ByteBufUtils.readUTF8String(buf);
+        this.isControlCar = buf.readBoolean();
     }
 
     @Override
@@ -50,13 +52,12 @@ public class PacketTrainTypeConfig implements IMessage {
         buf.writeInt(this.z);
 
         buf.writeInt(this.conditions.size());
-
         for (TrainTypeCondition cond : this.conditions) {
-            ByteBufUtils.writeUTF8String(buf, cond.key != null ? cond.key : "");
+            ByteBufUtils.writeUTF8String(buf, cond.key);
             buf.writeInt(cond.type);
         }
 
-        // 最後に linkKey を書き込む（nullの場合は空文字にする安全対策付き）
-        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
+        ByteBufUtils.writeUTF8String(buf, this.linkKey);
+        buf.writeBoolean(this.isControlCar);
     }
 }

@@ -8,6 +8,7 @@ import jp.me1han.sam.container.ContainerTrainTypeSelector;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
+import cpw.mods.fml.client.config.GuiCheckBox;
 import org.lwjgl.input.Keyboard;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,14 +19,16 @@ public class GuiTrainTypeSelector extends GuiScreen {
     private ContainerTrainTypeSelector container;
     private TileEntityTrainTypeSelector tile;
 
-    // ★追加：リンクキー入力用のフィールドを宣言
     private GuiTextField linkKeyField;
+    private GuiCheckBox chkControlCar;
 
+    private boolean checkControlCar;
     private boolean needsRefresh = false;
 
     public GuiTrainTypeSelector(ContainerTrainTypeSelector container, TileEntityTrainTypeSelector tile) {
         this.container = container;
         this.tile = tile;
+        this.checkControlCar = tile.isControlCar;
         for (TrainTypeCondition cond : tile.conditions) {
             rows.add(new ConditionRow(cond.key, cond.type));
         }
@@ -36,26 +39,26 @@ public class GuiTrainTypeSelector extends GuiScreen {
         Keyboard.enableRepeatEvents(true);
         this.buttonList.clear();
 
-        // ★追加：リンクキー入力欄の初期化（再描画時に中身が消えないようにする）
+        this.chkControlCar = new GuiCheckBox(52, width / 2 - 100, 30, "Control Car Only", this.checkControlCar);
+        this.buttonList.add(this.chkControlCar);
+
         if (this.linkKeyField == null) {
-            this.linkKeyField = new GuiTextField(fontRendererObj, width / 2 - 60, 30, 180, 20);
+            this.linkKeyField = new GuiTextField(fontRendererObj, width / 2 - 60, 60, 180, 20);
             this.linkKeyField.setText(tile.linkKey != null ? tile.linkKey : "");
             this.linkKeyField.setMaxStringLength(32);
         } else {
             this.linkKeyField.xPosition = width / 2 - 60;
-            this.linkKeyField.yPosition = 30;
+            this.linkKeyField.yPosition = 60;
         }
 
-        // リンクキー欄の分、リストの開始位置を下にずらします
-        int y = 70;
+        int y = 105;
         for (int i = 0; i < rows.size(); i++) {
             rows.get(i).setup(this.width / 2 - 120, y, i);
             y += 25;
         }
 
-        // ボタンIDを重複しないように配置
-        this.buttonList.add(new GuiButton(50, width / 2 - 100, height - 55, 90, 20, "Add Key"));
-        this.buttonList.add(new GuiButton(51, width / 2 + 10, height - 55, 90, 20, "Done"));
+        this.buttonList.add(new GuiButton(50, width / 2 - 100, height - 30, 90, 20, "Add Key"));
+        this.buttonList.add(new GuiButton(51, width / 2 + 10, height - 30, 90, 20, "Done"));
     }
 
     @Override
@@ -83,12 +86,14 @@ public class GuiTrainTypeSelector extends GuiScreen {
             String keyToSend = this.linkKeyField != null ? this.linkKeyField.getText() : "";
 
             NetworkHandler.INSTANCE.sendToServer(new PacketTrainTypeConfig(
-                tile.xCoord, tile.yCoord, tile.zCoord, newConditions, keyToSend
+                tile.xCoord, tile.yCoord, tile.zCoord, newConditions, keyToSend, this.chkControlCar.isChecked()
             ));
 
             this.mc.thePlayer.closeScreen();
 
-        } else if (button.id >= 100 && button.id < 200) { // Type Toggle
+        } else if (button.id == 52) {
+            this.checkControlCar = this.chkControlCar.isChecked();
+        } else if (button.id >= 100 && button.id < 200) {
             ConditionRow row = rows.get(button.id - 100);
             row.type = (row.type + 1) % TYPE_NAMES.length;
             button.displayString = TYPE_NAMES[row.type];
@@ -103,15 +108,14 @@ public class GuiTrainTypeSelector extends GuiScreen {
         this.drawDefaultBackground();
         drawCenteredString(fontRendererObj, "Train Data Extractor Config", width / 2, 10, 0xFFFFFF);
 
-        // ★追加：リンクキーのラベルとフィールドの描画
-        drawString(fontRendererObj, "Link Key", width / 2 - 120, 35, 0xA0A0A0);
+        drawString(fontRendererObj, "Link Key", width / 2 - 120, 66, 0xA0A0A0);
         if (this.linkKeyField != null) {
             this.linkKeyField.drawTextBox();
         }
 
         if (!rows.isEmpty()) {
-            drawString(fontRendererObj, "Key Name", width / 2 - 120, 55, 0xA0A0A0);
-            drawString(fontRendererObj, "Type", width / 2 + 50, 55, 0xA0A0A0);
+            drawString(fontRendererObj, "Key Name", width / 2 - 120, 90, 0xA0A0A0);
+            drawString(fontRendererObj, "Type", width / 2 + 50, 90, 0xA0A0A0);
         }
 
         for (ConditionRow row : rows) {

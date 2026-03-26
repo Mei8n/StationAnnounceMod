@@ -63,16 +63,16 @@ public class NetworkHandler {
         @Override
         public IMessage onMessage(PacketTrainTypeConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
-            TileEntity te = ctx.getServerHandler().playerEntity.worldObj.getTileEntity(message.x, message.y, message.z);
+            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
 
             if (te instanceof TileEntityTrainTypeSelector) {
                 TileEntityTrainTypeSelector selector = (TileEntityTrainTypeSelector) te;
 
                 selector.conditions = message.conditions;
                 selector.linkKey = message.linkKey;
+                selector.isControlCar = message.isControlCar;
 
                 selector.markDirty();
-
                 world.markBlockForUpdate(message.x, message.y, message.z);
                 StationAnnounceModCore.logger.info("TrainSelector Config saved: " + message.conditions.size() + " conditions.");
             }
