@@ -32,6 +32,12 @@ public class TileEntityAnnouncer extends TileEntity {
         if (scriptName == null || scriptName.isEmpty()) return;
 
         AnnounceData data = AnnouncePackLoader.runScript(scriptName, this);
+
+        this.receivedData.clear();
+        this.lastDataReceivedTime = 0;
+
+        this.markDirty();
+
         if (data != null) {
             NetworkHandler.INSTANCE.sendToAllAround(
                 new PacketAnnounce(data),
