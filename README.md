@@ -6,13 +6,13 @@
 [![LatestRelease](https://img.shields.io/github/v/release/Mei8n/stationannouncemod)](https://github.com/Mei8n/stationannouncemod/releases/latest)
 [![LatestPreRelease](https://img.shields.io/github/v/release/Mei8n/stationannouncemod?include_prereleases)](https://github.com/Mei8n/stationannouncemod/releases)
 
-Minecraftで駅放送を流せるようにするmodです。\
+Minecraftで駅放送を流せるようにするModです。\
 現実の駅放送と同じく、パーツ単位で音声を用意しそれを組み合わせることができます。\
 また、RealTrainModと連携して詳細放送も流すことができます。
 
 ## 注意事項
-**当modはベータ版です。**\
-当modの導入によって生じた損害について、私は一切責任を負いません。\
+**本Modはベータ版です。**\
+本Modの導入によって生じた損害について、私は一切責任を負いません。\
 予告なしに破壊的変更が加えられることがあります。\
 ワールドデータの破損等が起こる可能性があるので使用前に必ずセーブデータのバックアップを取ってください。
 
