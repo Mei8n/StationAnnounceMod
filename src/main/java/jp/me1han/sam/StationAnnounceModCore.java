@@ -19,7 +19,7 @@ import org.apache.logging.log4j.Logger;
 public class StationAnnounceModCore {
     public static final String MOD_ID = "stationannouncemod";
     public static final String MOD_NAME = "Station Announce Mod";
-    public static final String VERSION = "0.0.1-alpha";
+    public static final String VERSION = "v0.1.0-beta";
 
     public static final int GUI_ID_ANNOUNCER = 0;
     public static final int GUI_ID_TRAIN_TYPE_SELECTOR = 1;
@@ -59,18 +59,18 @@ public class StationAnnounceModCore {
         blockTrainTypeSelector = new BlockTrainTypeSelector();
         GameRegistry.registerBlock(blockTrainTypeSelector, "trainTypeSelector");
 
-        blockDebugReceiver = new BlockDebugReceiver();
-        GameRegistry.registerBlock(blockDebugReceiver, "blockDebugReceiver");
-
         blockSpeaker = new BlockSpeaker();
         GameRegistry.registerBlock(blockSpeaker, "blockSpeaker");
 
+        blockDebugReceiver = new BlockDebugReceiver();
+        GameRegistry.registerBlock(blockDebugReceiver, "blockDebugReceiver");
+
+        GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         GameRegistry.registerTileEntity(TileEntityStartAnnouncer.class, "tileStartAnnouncer");
         GameRegistry.registerTileEntity(TileEntityStopAnnouncer.class, "tileStopAnnouncer");
-        GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         GameRegistry.registerTileEntity(TileEntityTrainTypeSelector.class, "tileTrainTypeSelector");
-        GameRegistry.registerTileEntity(TileEntityDebugReceiver.class, "tileDebugReceiver");
         GameRegistry.registerTileEntity(TileEntitySpeaker.class, "tileSpeaker");
+        GameRegistry.registerTileEntity(TileEntityDebugReceiver.class, "tileDebugReceiver");
 
         NetworkHandler.init();
         proxy.preInit(event);

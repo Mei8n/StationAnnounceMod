@@ -14,7 +14,6 @@ public class BlockDebugReceiver extends BlockContainer {
         super(Material.iron);
         this.setBlockName("debugReceiver");
         this.setBlockTextureName("stationannouncemod:debug_receiver");
-        this.setCreativeTab(StationAnnounceModCore.tabSAM);
     }
 
     @Override

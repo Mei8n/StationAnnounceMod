@@ -3,6 +3,7 @@ tile.sam.announcer.name=Station Announcer
 tile.sam.start_announcer.name=Announce Start Block
 tile.sam.stop_announcer.name=Announce Stop Block
 tile.trainTypeSelector.name=Train Type Selector
+tile.sam.speaker=Speaker
 
 # Creative Tab
 itemGroup.sam_tab=Station Announce Mod
