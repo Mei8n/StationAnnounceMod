@@ -13,6 +13,9 @@ public class PacketConfig implements IMessage {
     public int x, y, z;
     public String scriptName;
     public String linkKey;
+
+    public PacketConfig() {}
+
     public PacketConfig(int x, int y, int z, String scriptName, String linkKey) {
         this.x = x;
         this.y = y;

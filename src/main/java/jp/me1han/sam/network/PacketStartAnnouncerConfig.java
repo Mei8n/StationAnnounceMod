@@ -8,6 +8,8 @@ public class PacketStartAnnouncerConfig implements IMessage {
     public int x, y, z;
     public String linkKey;
 
+    public PacketStartAnnouncerConfig() {}
+
     public PacketStartAnnouncerConfig(int x, int y, int z, String linkKey) {
         this.x = x; this.y = y; this.z = z; this.linkKey = linkKey;
     }

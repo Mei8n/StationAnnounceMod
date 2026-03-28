@@ -9,6 +9,7 @@ public class PacketStopAnnouncerConfig implements IMessage {
     public String linkKey;
 
     public PacketStopAnnouncerConfig() {}
+
     public PacketStopAnnouncerConfig(int x, int y, int z, String linkKey) {
         this.x = x; this.y = y; this.z = z; this.linkKey = linkKey;
     }

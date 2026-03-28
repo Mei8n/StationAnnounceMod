@@ -15,6 +15,8 @@ public class PacketAnnounce implements IMessage {
     public String linkKey;
     public boolean stopCommand;
 
+    public PacketAnnounce() {}
+
     public PacketAnnounce(AnnounceData data, String linkKey) {
         this.startMelo = data.startMelo != null ? data.startMelo : "";
         this.bodySounds = data.bodySounds;
