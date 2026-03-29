@@ -18,7 +18,7 @@ public class NetworkHandler {
         //音声再生処理のサーバー -> クライアント
         INSTANCE.registerMessage(AnnounceHandler.class, PacketAnnounce.class, 0, Side.CLIENT);
         //音声再生処理のクライアント -> サーバー
-        INSTANCE.registerMessage(ConfigHandler.class, PacketConfig.class, 1, Side.SERVER);
+        INSTANCE.registerMessage(PacketConfig.Handler.class, PacketConfig.class, 1, Side.SERVER);
         // 列車選別装置
         INSTANCE.registerMessage(TrainTypeConfigHandler.class, PacketTrainTypeConfig.class, 2, Side.SERVER);
         //デバッグレシーバー
