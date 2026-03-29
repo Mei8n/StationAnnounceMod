@@ -21,7 +21,8 @@ public class AnnounceManager {
 
     private final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
     private String loopSound = null;
-    private String currentLinkKey = null; // 現在の放送に紐付いたリンクキー
+    private String currentLinkKey = null;
+    private boolean currentPlayLocalSound = false;
     private int waitTicks = 0;
     private volatile boolean isPlaying = false;
 
@@ -30,6 +31,7 @@ public class AnnounceManager {
     public void startAnnounce(PacketAnnounce msg) {
         this.stopAnnounce();
         this.currentLinkKey = msg.linkKey;
+        this.currentPlayLocalSound = msg.playLocalSound; // ★追加: パケットからフラグを受け取る
 
         if (msg.startMelo != null && !msg.startMelo.isEmpty()) {
             this.queue.add(msg.startMelo);
@@ -58,6 +60,7 @@ public class AnnounceManager {
         this.queue.clear();
         this.loopSound = null;
         this.currentLinkKey = null;
+        this.currentPlayLocalSound = false; // ★追加: 初期化
         this.waitTicks = 0;
     }
 
@@ -110,7 +113,6 @@ public class AnnounceManager {
         try {
             ResourceLocation res = new ResourceLocation(soundId);
             World world = Minecraft.getMinecraft().theWorld;
-            boolean speakerFound = false;
 
             for (Object obj : world.loadedTileEntityList) {
                 if (obj instanceof TileEntitySpeaker) {
@@ -118,7 +120,7 @@ public class AnnounceManager {
 
                     if (speaker.linkKey != null && speaker.linkKey.equals(this.currentLinkKey)) {
 
-                         float effectiveVolume = (speaker.range / 16.0F) * speaker.volume;
+                        float effectiveVolume = (speaker.range / 16.0F) * speaker.volume;
 
                         PositionedSoundRecord psr = new PositionedSoundRecord(
                             res,
@@ -129,12 +131,12 @@ public class AnnounceManager {
                         );
                         Minecraft.getMinecraft().getSoundHandler().playSound(psr);
                         sounds.add(psr);
-                        speakerFound = true;
+                        // speakerFound = true; // ★修正: 同上
                     }
                 }
             }
 
-            if (!speakerFound) {
+            if (this.currentPlayLocalSound) {
                 PositionedSoundRecord psr = PositionedSoundRecord.func_147674_a(res, 1.0F);
                 Minecraft.getMinecraft().getSoundHandler().playSound(psr);
                 sounds.add(psr);

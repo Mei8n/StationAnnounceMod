@@ -14,15 +14,17 @@ public class PacketAnnounce implements IMessage {
     public String arrMelo;
     public String linkKey;
     public boolean stopCommand;
+    public boolean playLocalSound;
 
     public PacketAnnounce() {}
 
-    public PacketAnnounce(AnnounceData data, String linkKey) {
+    public PacketAnnounce(AnnounceData data, String linkKey, boolean playLocalSound) {
         this.startMelo = data.startMelo != null ? data.startMelo : "";
         this.bodySounds = data.bodySounds;
         this.arrMelo = data.arrMelo != null ? data.arrMelo : "";
         this.linkKey = linkKey != null ? linkKey : "";
         this.stopCommand = false;
+        this.playLocalSound = playLocalSound; // ★代入
     }
 
     public PacketAnnounce(boolean stop, String linkKey) {
@@ -31,12 +33,14 @@ public class PacketAnnounce implements IMessage {
         this.bodySounds = new ArrayList<String>();
         this.startMelo = "";
         this.arrMelo = "";
+        this.playLocalSound = false;
     }
 
     @Override
     public void fromBytes(ByteBuf buf) {
         this.stopCommand = buf.readBoolean();
         this.linkKey = ByteBufUtils.readUTF8String(buf);
+        this.playLocalSound = buf.readBoolean();
 
         if (stopCommand) return;
 
@@ -54,15 +58,18 @@ public class PacketAnnounce implements IMessage {
     public void toBytes(ByteBuf buf) {
         buf.writeBoolean(this.stopCommand);
         ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
+        buf.writeBoolean(this.playLocalSound);
 
         if (stopCommand) return;
 
-        ByteBufUtils.writeUTF8String(buf, this.startMelo);
-        ByteBufUtils.writeUTF8String(buf, this.arrMelo);
+        ByteBufUtils.writeUTF8String(buf, this.startMelo != null ? this.startMelo : "");
+        ByteBufUtils.writeUTF8String(buf, this.arrMelo != null ? this.arrMelo : "");
 
-        buf.writeInt(this.bodySounds.size());
-        for (String s : this.bodySounds) {
-            ByteBufUtils.writeUTF8String(buf, s);
+        buf.writeInt(this.bodySounds != null ? this.bodySounds.size() : 0);
+        if (this.bodySounds != null) {
+            for (String s : this.bodySounds) {
+                ByteBufUtils.writeUTF8String(buf, s != null ? s : "");
+            }
         }
     }
 }
