@@ -2,13 +2,13 @@ package jp.me1han.sam.block;
 
 import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.render.TileEntityAnnouncer;
-import net.minecraft.block.Block;
+import net.minecraft.block.BlockContainer;
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
-public class BlockAnnouncer extends Block {
+public class BlockAnnouncer extends BlockContainer {
 
     public BlockAnnouncer() {
         super(Material.iron);
@@ -18,12 +18,7 @@ public class BlockAnnouncer extends Block {
     }
 
     @Override
-    public boolean hasTileEntity(int metadata) {
-        return true;
-    }
-
-    @Override
-    public TileEntity createTileEntity(World world, int metadata) {
+    public TileEntity createNewTileEntity(World world, int metadata) {
         return new TileEntityAnnouncer();
     }
 
@@ -36,22 +31,33 @@ public class BlockAnnouncer extends Block {
     }
 
     @Override
-    public void onNeighborBlockChange(World world, int x, int y, int z, Block block) {
+    public void onNeighborBlockChange(net.minecraft.world.World world, int x, int y, int z, net.minecraft.block.Block block) {
         if (!world.isRemote) {
-            TileEntity te = world.getTileEntity(x, y, z);
-            if (te instanceof TileEntityAnnouncer) {
-                ((TileEntityAnnouncer) te).onRedstoneUpdate(world.isBlockIndirectlyGettingPowered(x, y, z));
+            net.minecraft.tileentity.TileEntity te = world.getTileEntity(x, y, z);
+            if (te instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
+                boolean powered = world.isBlockIndirectlyGettingPowered(x, y, z);
+                ((jp.me1han.sam.render.TileEntityAnnouncer) te).onRedstoneUpdate(powered);
             }
         }
     }
 
     @Override
-    public void breakBlock(World world, int x, int y, int z, Block block, int meta) {
+    public void breakBlock(World world, int x, int y, int z, net.minecraft.block.Block block, int meta) {
         TileEntity te = world.getTileEntity(x, y, z);
         if (te instanceof TileEntityAnnouncer) {
             ((TileEntityAnnouncer) te).forceStop();
         }
 
         super.breakBlock(world, x, y, z, block, meta);
+    }
+
+    @Override
+    public boolean isOpaqueCube() {
+        return false;
+    }
+
+    @Override
+    public boolean renderAsNormalBlock() {
+        return false;
     }
 }

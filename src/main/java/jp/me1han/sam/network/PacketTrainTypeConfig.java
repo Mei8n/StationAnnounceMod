@@ -57,7 +57,7 @@ public class PacketTrainTypeConfig implements IMessage {
             buf.writeInt(cond.type);
         }
 
-        ByteBufUtils.writeUTF8String(buf, this.linkKey);
+        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
         buf.writeBoolean(this.isControlCar);
     }
 }

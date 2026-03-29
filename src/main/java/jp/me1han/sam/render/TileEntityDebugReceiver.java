@@ -2,6 +2,7 @@ package jp.me1han.sam.render;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.NetworkManager;
+import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentText;
@@ -43,7 +44,7 @@ public class TileEntityDebugReceiver extends TileEntity {
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
-                if (this.linkKey.equals(announcer.linkKey)) {
+                if (announcer.linkKey != null && this.linkKey.trim().equals(announcer.linkKey.trim())) {
                     this.printAnnouncerData(announcer, "§d[SAM-MANUAL]");
                     found = true;
                 }
@@ -84,10 +85,10 @@ public class TileEntityDebugReceiver extends TileEntity {
     }
 
     @Override
-    public net.minecraft.network.Packet getDescriptionPacket() {
+    public Packet getDescriptionPacket() {
         NBTTagCompound nbt = new NBTTagCompound();
         this.writeToNBT(nbt);
-        return new S35PacketUpdateTileEntity(xCoord, yCoord, zCoord, 1, nbt);
+        return new S35PacketUpdateTileEntity(this.xCoord, this.yCoord, this.zCoord, 1, nbt);
     }
 
     @Override

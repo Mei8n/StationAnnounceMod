@@ -37,6 +37,8 @@ public class GuiStartAnnouncer extends GuiScreen {
     protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
             NetworkHandler.INSTANCE.sendToServer(new PacketStartAnnouncerConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText(), chkControlCar.isChecked()));
+            this.tile.linkKey = this.linkKeyField.getText();
+            this.tile.isControlCar = this.chkControlCar.isChecked();
             this.mc.thePlayer.closeScreen();
         }
     }

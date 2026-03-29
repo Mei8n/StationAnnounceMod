@@ -6,7 +6,6 @@ import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.AnnouncePackLoader;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
-import cpw.mods.fml.common.network.NetworkRegistry;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -36,22 +35,24 @@ public class TileEntityAnnouncer extends TileEntity {
         AnnounceData data = AnnouncePackLoader.runScript(scriptName, this);
 
         this.receivedData.clear();
-        this.lastDataReceivedTime = 0;
+        this.lastDataReceivedTime = System.currentTimeMillis();
         this.markDirty();
 
         if (data != null) {
-            NetworkHandler.INSTANCE.sendToAllAround(
+            // Speaker playback is resolved client-side near loaded speakers,
+            // so the trigger packet must reach all clients in this dimension.
+            NetworkHandler.INSTANCE.sendToDimension(
                 new PacketAnnounce(data, this.linkKey, this.playLocalSound, this.xCoord, this.yCoord, this.zCoord),
-                new NetworkRegistry.TargetPoint(this.worldObj.provider.dimensionId, xCoord, yCoord, zCoord, 64)
+                this.worldObj.provider.dimensionId
             );
         }
     }
 
     public void forceStop() {
         if (this.worldObj.isRemote) return;
-        NetworkHandler.INSTANCE.sendToAllAround(
+        NetworkHandler.INSTANCE.sendToDimension(
             new PacketAnnounce(true, this.linkKey),
-            new NetworkRegistry.TargetPoint(this.worldObj.provider.dimensionId, xCoord, yCoord, zCoord, 64)
+            this.worldObj.provider.dimensionId
         );
     }
 

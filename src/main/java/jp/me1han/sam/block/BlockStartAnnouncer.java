@@ -27,11 +27,12 @@ public class BlockStartAnnouncer extends Block implements ITileEntityProvider {
     }
 
     @Override
-    public void onNeighborBlockChange(World world, int x, int y, int z, Block block) {
+    public void onNeighborBlockChange(net.minecraft.world.World world, int x, int y, int z, net.minecraft.block.Block block) {
         if (!world.isRemote) {
-            TileEntity te = world.getTileEntity(x, y, z);
-            if (te instanceof TileEntityStartAnnouncer) {
-                ((TileEntityStartAnnouncer) te).onRedstoneUpdate(world.isBlockIndirectlyGettingPowered(x, y, z));
+            net.minecraft.tileentity.TileEntity te = world.getTileEntity(x, y, z);
+            if (te instanceof jp.me1han.sam.render.TileEntityStartAnnouncer) {
+                boolean powered = world.isBlockIndirectlyGettingPowered(x, y, z);
+                ((jp.me1han.sam.render.TileEntityStartAnnouncer) te).onRedstoneUpdate(powered);
             }
         }
     }

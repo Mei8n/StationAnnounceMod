@@ -41,8 +41,8 @@ public class PacketConfig implements IMessage {
         buf.writeInt(this.x);
         buf.writeInt(this.y);
         buf.writeInt(this.z);
-        ByteBufUtils.writeUTF8String(buf, this.scriptName);
-        ByteBufUtils.writeUTF8String(buf, this.linkKey);
+        ByteBufUtils.writeUTF8String(buf, this.scriptName != null ? this.scriptName : "");
+        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
         buf.writeBoolean(this.playLocalSound);
     }
 
@@ -52,15 +52,18 @@ public class PacketConfig implements IMessage {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity tile = world.getTileEntity(message.x, message.y, message.z);
 
+            jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] Announcer Config Received! script=" + message.scriptName + ", linkKey=" + message.linkKey);
+
             if (tile instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) tile;
-
                 announcer.setScriptName(message.scriptName);
                 announcer.linkKey = message.linkKey;
                 announcer.playLocalSound = message.playLocalSound;
 
                 announcer.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
+            } else {
+                jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM-DEBUG] Error: TileEntity is not Announcer at " + message.x + "," + message.y + "," + message.z);
             }
             return null;
         }

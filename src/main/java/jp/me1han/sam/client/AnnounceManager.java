@@ -2,6 +2,7 @@ package jp.me1han.sam.client;
 
 import jp.me1han.sam.AnnouncePackLoader;
 import jp.me1han.sam.StationAnnounceModCore;
+import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketAnnounce;
 import jp.me1han.sam.render.TileEntitySpeaker;
 import net.minecraft.client.Minecraft;
@@ -59,25 +60,39 @@ public class AnnounceManager {
     }
 
     public void startAnnounce(PacketAnnounce msg) {
-        String key = msg.linkKey != null ? msg.linkKey : "GLOBAL_EMPTY";
+        String key = normalizeKey(msg.linkKey);
+
+        StationAnnounceModCore.logger.info("[SAM-DEBUG] Client startAnnounce received. key=[" + key + "], playLocal=" + msg.playLocalSound + ", pos=" + msg.x + "," + msg.y + "," + msg.z);
 
         if (activeSessions.containsKey(key)) {
             activeSessions.get(key).stop();
         }
 
         activeSessions.put(key, new AnnounceSession(msg));
+
+        // First sound for debug output
+        String firstSound = (msg.startMelo != null && !msg.startMelo.isEmpty()) ? msg.startMelo :
+                            (msg.bodySounds != null && !msg.bodySounds.isEmpty()) ? msg.bodySounds.get(0) : "";
+
+        // Send debug event (will be processed server-side)
+        NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent("START", key, firstSound, 0, msg.playLocalSound));
     }
 
     public void stopAnnounce(String linkKey) {
-        if (PacketAnnounce.GLOBAL_STOP_KEY.equals(linkKey) || linkKey == null) {
+        String normalizedKey = normalizeKey(linkKey);
+
+        if (PacketAnnounce.GLOBAL_STOP_KEY.equals(normalizedKey) || normalizedKey.isEmpty()) {
             for (AnnounceSession session : activeSessions.values()) {
+                NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent("STOP", session.linkKey, "", 0, session.playLocalSound));
                 session.stop();
             }
             activeSessions.clear();
         }
-        else if (activeSessions.containsKey(linkKey)) {
-            activeSessions.get(linkKey).stop();
-            activeSessions.remove(linkKey);
+        else if (activeSessions.containsKey(normalizedKey)) {
+            AnnounceSession session = activeSessions.get(normalizedKey);
+            NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent("STOP", normalizedKey, "", 0, session.playLocalSound));
+            session.stop();
+            activeSessions.remove(normalizedKey);
         }
     }
 
@@ -128,11 +143,23 @@ public class AnnounceManager {
         try {
             ResourceLocation res = new ResourceLocation(soundId);
             World world = Minecraft.getMinecraft().theWorld;
+            if (world == null) {
+                StationAnnounceModCore.logger.warn("[SAM-DEBUG] playInSession skipped: client world is null");
+                return;
+            }
+
+            int speakerCount = 0;
+            int matchedCount = 0;
+            String sessionKey = normalizeKey(session.linkKey);
 
             for (Object obj : world.loadedTileEntityList) {
                 if (obj instanceof TileEntitySpeaker) {
+                    speakerCount++;
                     TileEntitySpeaker speaker = (TileEntitySpeaker) obj;
-                    if (session.linkKey.equals(speaker.linkKey)) {
+                    String speakerKey = normalizeKey(speaker.linkKey);
+                    if (!speakerKey.isEmpty() && sessionKey.equals(speakerKey)) {
+                        matchedCount++;
+
                         float vol = (speaker.range / 16.0F) * speaker.volume;
                         PositionedSoundRecord psr = new PositionedSoundRecord(res, vol, 1.0F,
                             (float)speaker.xCoord + 0.5F, (float)speaker.yCoord + 0.5F, (float)speaker.zCoord + 0.5F);
@@ -142,6 +169,13 @@ public class AnnounceManager {
                 }
             }
 
+            StationAnnounceModCore.logger.info("[SAM-DEBUG] Speaker scan done. sessionKey=[" + sessionKey + "], loadedSpeakers=" + speakerCount + ", matched=" + matchedCount + ", sound=" + soundId);
+
+            // Update debug event packet with matched speaker count
+            if (!session.linkKey.isEmpty() && matchedCount > 0) {
+                NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent("PLAY", sessionKey, soundId, matchedCount, session.playLocalSound));
+            }
+
             if (session.playLocalSound) {
                 PositionedSoundRecord psr = new PositionedSoundRecord(res, 1.0F, 1.0F,
                     (float)session.x + 0.5F, (float)session.y + 0.5F, (float)session.z + 0.5F);
@@ -149,8 +183,17 @@ public class AnnounceManager {
                 session.activeSounds.add(psr);
             }
 
+            if (matchedCount == 0 && !session.playLocalSound) {
+                StationAnnounceModCore.logger.warn("[SAM-DEBUG] No speaker matched key=[" + sessionKey + "] on this client.");
+            }
+
         } catch (Exception e) {
             StationAnnounceModCore.logger.error("[SAM] Session Playback Error: " + soundId, e);
         }
+    }
+
+    private String normalizeKey(String key) {
+        if (key == null) return "";
+        return key.trim();
     }
 }

@@ -81,12 +81,17 @@ public class GuiAnnouncer extends GuiScreen {
                 scriptName = AnnouncePackLoader.availableScripts.get(selectedIndex).fileName;
             }
 
-            NetworkHandler.INSTANCE.sendToServer(new PacketConfig(
+             NetworkHandler.INSTANCE.sendToServer(new PacketConfig(
                 tile.xCoord, tile.yCoord, tile.zCoord,
                 scriptName,
                 linkKeyField.getText(),
                 chkPlayLocal.isChecked()
             ));
+
+            this.tile.setScriptName(scriptName);
+            this.tile.linkKey = this.linkKeyField.getText();
+            this.tile.playLocalSound = this.chkPlayLocal.isChecked();
+
             this.mc.thePlayer.closeScreen();
         }
     }

@@ -62,7 +62,8 @@ public class TileEntityStopAnnouncer extends TileEntity {
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
-                if (this.linkKey.equals(announcer.linkKey)) {
+                if (announcer.linkKey != null && !announcer.linkKey.trim().isEmpty() &&
+                    this.linkKey.trim().equals(announcer.linkKey.trim())) {
                     announcer.forceStop();
                 }
             }

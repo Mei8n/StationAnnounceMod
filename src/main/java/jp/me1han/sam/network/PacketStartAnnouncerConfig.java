@@ -27,7 +27,7 @@ public class PacketStartAnnouncerConfig implements IMessage {
     @Override
     public void toBytes(ByteBuf buf) {
         buf.writeInt(x); buf.writeInt(y); buf.writeInt(z);
-        ByteBufUtils.writeUTF8String(buf, linkKey);
+        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
         buf.writeBoolean(isControlCar);
     }
 }

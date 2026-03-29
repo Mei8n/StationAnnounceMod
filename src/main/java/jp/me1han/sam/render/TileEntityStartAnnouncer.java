@@ -61,14 +61,29 @@ public class TileEntityStartAnnouncer extends TileEntity {
     }
 
     private void dispatchTrigger() {
-        if (this.linkKey == null || this.linkKey.isEmpty()) return;
+        jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] dispatchTrigger() fired! My linkKey: [" + this.linkKey + "]");
+
+        if (this.linkKey == null || this.linkKey.trim().isEmpty()) {
+            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM-DEBUG] -> Ignored: linkKey is empty.");
+            return;
+        }
+
+        boolean foundAny = false;
         for (Object obj : this.worldObj.loadedTileEntityList) {
-            if (obj instanceof TileEntityAnnouncer) {
-                TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
-                if (this.linkKey.equals(announcer.linkKey)) {
+            if (obj instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
+                foundAny = true;
+                jp.me1han.sam.render.TileEntityAnnouncer announcer = (jp.me1han.sam.render.TileEntityAnnouncer) obj;
+                jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] Checking Announcer at " + announcer.xCoord + "," + announcer.yCoord + "," + announcer.zCoord + " | Key: [" + announcer.linkKey + "]");
+
+                if (announcer.linkKey != null && !announcer.linkKey.trim().isEmpty() &&
+                    this.linkKey.trim().equals(announcer.linkKey.trim())) {
+                    jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] -> MATCHED! Triggering startAnnounce().");
                     announcer.startAnnounce();
                 }
             }
+        }
+        if (!foundAny) {
+            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM-DEBUG] -> No TileEntityAnnouncer block found in the world!");
         }
     }
 

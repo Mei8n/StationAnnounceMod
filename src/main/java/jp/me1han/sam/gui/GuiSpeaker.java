@@ -42,7 +42,13 @@ public class GuiSpeaker extends GuiScreen {
             try {
                 int range = Integer.parseInt(rangeField.getText());
                 float vol = Float.parseFloat(volumeField.getText());
+
                 NetworkHandler.INSTANCE.sendToServer(new PacketSpeakerConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText(), range, vol));
+
+                this.tile.linkKey = this.linkKeyField.getText();
+                this.tile.range = range;
+                this.tile.volume = vol;
+
                 this.mc.thePlayer.closeScreen();
             } catch (Exception e) {
             }
