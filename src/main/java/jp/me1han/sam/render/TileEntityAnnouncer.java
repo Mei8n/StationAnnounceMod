@@ -41,7 +41,7 @@ public class TileEntityAnnouncer extends TileEntity {
 
         if (data != null) {
             NetworkHandler.INSTANCE.sendToAllAround(
-                new PacketAnnounce(data, this.linkKey, this.playLocalSound),
+                new PacketAnnounce(data, this.linkKey, this.playLocalSound, this.xCoord, this.yCoord, this.zCoord),
                 new NetworkRegistry.TargetPoint(this.worldObj.provider.dimensionId, xCoord, yCoord, zCoord, 64)
             );
         }

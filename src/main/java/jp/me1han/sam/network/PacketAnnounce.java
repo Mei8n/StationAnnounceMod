@@ -15,16 +15,20 @@ public class PacketAnnounce implements IMessage {
     public String linkKey;
     public boolean stopCommand;
     public boolean playLocalSound;
+    public int x, y, z;
 
     public PacketAnnounce() {}
 
-    public PacketAnnounce(AnnounceData data, String linkKey, boolean playLocalSound) {
+    public PacketAnnounce(AnnounceData data, String linkKey, boolean playLocalSound, int x, int y, int z) {
         this.startMelo = data.startMelo != null ? data.startMelo : "";
         this.bodySounds = data.bodySounds;
         this.arrMelo = data.arrMelo != null ? data.arrMelo : "";
         this.linkKey = linkKey != null ? linkKey : "";
         this.stopCommand = false;
-        this.playLocalSound = playLocalSound; // ★代入
+        this.playLocalSound = playLocalSound;
+        this.x = x;
+        this.y = y;
+        this.z = z;
     }
 
     public PacketAnnounce(boolean stop, String linkKey) {
@@ -34,6 +38,7 @@ public class PacketAnnounce implements IMessage {
         this.startMelo = "";
         this.arrMelo = "";
         this.playLocalSound = false;
+        this.x = 0; this.y = 0; this.z = 0;
     }
 
     @Override
@@ -41,6 +46,10 @@ public class PacketAnnounce implements IMessage {
         this.stopCommand = buf.readBoolean();
         this.linkKey = ByteBufUtils.readUTF8String(buf);
         this.playLocalSound = buf.readBoolean();
+
+        this.x = buf.readInt();
+        this.y = buf.readInt();
+        this.z = buf.readInt();
 
         if (stopCommand) return;
 
@@ -59,6 +68,10 @@ public class PacketAnnounce implements IMessage {
         buf.writeBoolean(this.stopCommand);
         ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
         buf.writeBoolean(this.playLocalSound);
+
+        buf.writeInt(this.x);
+        buf.writeInt(this.y);
+        buf.writeInt(this.z);
 
         if (stopCommand) return;
 

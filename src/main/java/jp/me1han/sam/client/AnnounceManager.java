@@ -20,10 +20,15 @@ public class AnnounceManager {
     public static final AnnounceManager INSTANCE = new AnnounceManager();
 
     private final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
+
     private String loopSound = null;
     private String currentLinkKey = null;
+
     private boolean currentPlayLocalSound = false;
+
+    private int currentX, currentY, currentZ;
     private int waitTicks = 0;
+
     private volatile boolean isPlaying = false;
 
     private final List<ISound> activeSounds = new ArrayList<ISound>();
@@ -31,7 +36,11 @@ public class AnnounceManager {
     public void startAnnounce(PacketAnnounce msg) {
         this.stopAnnounce();
         this.currentLinkKey = msg.linkKey;
-        this.currentPlayLocalSound = msg.playLocalSound; // ★追加: パケットからフラグを受け取る
+        this.currentPlayLocalSound = msg.playLocalSound;
+
+        this.currentX = msg.x;
+        this.currentY = msg.y;
+        this.currentZ = msg.z;
 
         if (msg.startMelo != null && !msg.startMelo.isEmpty()) {
             this.queue.add(msg.startMelo);
@@ -137,7 +146,13 @@ public class AnnounceManager {
             }
 
             if (this.currentPlayLocalSound) {
-                PositionedSoundRecord psr = PositionedSoundRecord.func_147674_a(res, 1.0F);
+                PositionedSoundRecord psr = new PositionedSoundRecord(
+                    res,
+                    1.0F, 1.0F,
+                    (float)this.currentX + 0.5F,
+                    (float)this.currentY + 0.5F,
+                    (float)this.currentZ + 0.5F
+                );
                 Minecraft.getMinecraft().getSoundHandler().playSound(psr);
                 sounds.add(psr);
             }
