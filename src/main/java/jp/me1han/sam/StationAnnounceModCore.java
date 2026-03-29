@@ -87,4 +87,9 @@ public class StationAnnounceModCore {
         AnnouncePackLoader.loadPacks();
         proxy.init(event);
     }
+
+    @Mod.EventHandler
+    public void serverStarting(cpw.mods.fml.common.event.FMLServerStartingEvent event) {
+        event.registerServerCommand(new CommandSAM());
+    }
 }
