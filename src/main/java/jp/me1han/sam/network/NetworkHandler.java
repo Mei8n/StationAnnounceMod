@@ -29,6 +29,34 @@ public class NetworkHandler {
         INSTANCE.registerMessage(DebugAnnounceEventHandler.class, PacketDebugAnnounceEvent.class, 7, Side.SERVER);
     }
 
+    /**
+     * Debug message to players if DebugReceiver with matching linkKey exists
+     */
+    public static void sendDebugMessage(World world, String linkKey, String message) {
+        if (world == null || world.isRemote) return;
+
+        // Check if any DebugReceiver with matching linkKey exists
+        boolean debugReceiverFound = false;
+        for (Object obj : world.loadedTileEntityList) {
+            if (obj instanceof TileEntityDebugReceiver) {
+                TileEntityDebugReceiver receiver = (TileEntityDebugReceiver) obj;
+                if (receiver.linkKey != null && linkKey != null &&
+                    receiver.linkKey.trim().equals(linkKey.trim())) {
+                    debugReceiverFound = true;
+                    break;
+                }
+            }
+        }
+
+        // Only send to chat if debug receiver exists
+        if (debugReceiverFound) {
+            for (Object obj : world.playerEntities) {
+                net.minecraft.entity.player.EntityPlayer player = (net.minecraft.entity.player.EntityPlayer) obj;
+                player.addChatMessage(new net.minecraft.util.ChatComponentText(message));
+            }
+        }
+    }
+
     // --- クライアント側受信 ---
     public static class AnnounceHandler implements IMessageHandler<PacketAnnounce, IMessage> {
         @Override
@@ -85,7 +113,7 @@ public class NetworkHandler {
         public IMessage onMessage(PacketStopAnnouncerConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            StationAnnounceModCore.logger.info("[SAM-DEBUG] StopAnnouncer Config Received! linkKey=" + message.linkKey);
+            NetworkHandler.sendDebugMessage(world, message.linkKey, "[SAM-DEBUG] StopAnnouncer Config Received! linkKey=" + message.linkKey);
 
             if (te instanceof TileEntityStopAnnouncer) {
                 TileEntityStopAnnouncer announcer = (TileEntityStopAnnouncer) te;

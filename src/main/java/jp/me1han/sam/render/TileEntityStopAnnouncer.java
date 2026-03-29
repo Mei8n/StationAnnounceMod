@@ -53,6 +53,9 @@ public class TileEntityStopAnnouncer extends TileEntity {
 
     public void onRedstoneUpdate(boolean powered) {
         if (this.worldObj.isRemote) return;
+
+        jp.me1han.sam.network.NetworkHandler.sendDebugMessage(this.worldObj, this.linkKey, "[SAM-DEBUG] StopAnnouncer RS Update: powered=" + powered + ", lastPowered=" + lastPowered);
+
         if (powered && !lastPowered) {
             this.dispatchStopTrigger();
         }

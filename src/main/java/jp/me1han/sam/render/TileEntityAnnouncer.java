@@ -19,6 +19,15 @@ public class TileEntityAnnouncer extends TileEntity {
     public Map<String, String> receivedData = new HashMap<String, String>();
     public long lastDataReceivedTime = 0;
 
+    @Override
+    public void updateEntity() {
+        // TileEntityがloadedTileEntityListに登録されるために必須
+        // サーバー側でのみ実行
+        if (this.worldObj != null && !this.worldObj.isRemote) {
+            // 特に処理は不要
+        }
+    }
+
     public void onRedstoneUpdate(boolean powered) {
         if (this.worldObj.isRemote) return;
 

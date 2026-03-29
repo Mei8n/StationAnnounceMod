@@ -2,13 +2,14 @@ package jp.me1han.sam.block;
 
 import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.render.TileEntityAnnouncer;
-import net.minecraft.block.BlockContainer;
+import net.minecraft.block.Block;
+import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
-public class BlockAnnouncer extends BlockContainer {
+public class BlockAnnouncer extends Block implements ITileEntityProvider {
 
     public BlockAnnouncer() {
         super(Material.iron);
@@ -49,15 +50,5 @@ public class BlockAnnouncer extends BlockContainer {
         }
 
         super.breakBlock(world, x, y, z, block, meta);
-    }
-
-    @Override
-    public boolean isOpaqueCube() {
-        return false;
-    }
-
-    @Override
-    public boolean renderAsNormalBlock() {
-        return false;
     }
 }

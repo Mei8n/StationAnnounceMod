@@ -55,6 +55,9 @@ public class TileEntityStartAnnouncer extends TileEntity {
 
     public void onRedstoneUpdate(boolean powered) {
         if (this.worldObj.isRemote) return;
+
+        jp.me1han.sam.network.NetworkHandler.sendDebugMessage(this.worldObj, this.linkKey, "[SAM-DEBUG] StartAnnouncer RS Update: powered=" + powered + ", lastPowered=" + lastPowered);
+
         if (powered && !lastPowered) {
             this.dispatchTrigger();
         }
@@ -67,15 +70,26 @@ public class TileEntityStartAnnouncer extends TileEntity {
         }
 
         String normalizedKey = this.linkKey.trim();
+        boolean foundAnnouncer = false;
+
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
+                foundAnnouncer = true;
                 jp.me1han.sam.render.TileEntityAnnouncer announcer = (jp.me1han.sam.render.TileEntityAnnouncer) obj;
 
                 if (announcer.linkKey != null && !announcer.linkKey.trim().isEmpty() &&
                     normalizedKey.equals(announcer.linkKey.trim())) {
+                    // デバッグレシーバーが存在する場合のみチャットに出力
+                    jp.me1han.sam.network.NetworkHandler.sendDebugMessage(this.worldObj, normalizedKey, "[SAM-DEBUG] StartAnnouncer triggered! linkKey=[" + normalizedKey + "]");
                     announcer.startAnnounce();
+                    return;
                 }
             }
+        }
+
+        // TileEntityAnnouncerが見つからない場合もログ出力
+        if (!foundAnnouncer) {
+            jp.me1han.sam.network.NetworkHandler.sendDebugMessage(this.worldObj, normalizedKey, "[SAM-DEBUG] ERROR: No TileEntityAnnouncer found!");
         }
     }
 
