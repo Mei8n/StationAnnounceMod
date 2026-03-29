@@ -56,7 +56,11 @@ public class AnnounceManager {
         this.isPlaying = true;
     }
 
-    public void stopAnnounce() {
+    public void stopAnnounce(String linkKey) {
+        if (linkKey != null && this.currentLinkKey != null && !linkKey.equals(this.currentLinkKey)) {
+            return;
+        }
+
         this.isPlaying = false;
 
         for (ISound s : activeSounds) {
@@ -69,8 +73,12 @@ public class AnnounceManager {
         this.queue.clear();
         this.loopSound = null;
         this.currentLinkKey = null;
-        this.currentPlayLocalSound = false; // ★追加: 初期化
+        this.currentPlayLocalSound = false;
         this.waitTicks = 0;
+    }
+
+    public void stopAnnounce() {
+        this.stopAnnounce(null);
     }
 
     @SubscribeEvent
@@ -140,7 +148,7 @@ public class AnnounceManager {
                         );
                         Minecraft.getMinecraft().getSoundHandler().playSound(psr);
                         sounds.add(psr);
-                        // speakerFound = true; // ★修正: 同上
+                        // speakerFound = true;
                     }
                 }
             }
