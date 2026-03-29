@@ -6,7 +6,6 @@ import com.google.gson.JsonParser;
 import jp.me1han.sam.api.AnnounceData;
 import jp.me1han.sam.api.AnnounceScriptInfo;
 import jp.me1han.sam.render.TileEntityAnnouncer;
-import net.minecraft.client.Minecraft;
 import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -31,8 +30,7 @@ public class AnnouncePackLoader {
         availableScripts.clear();
         scriptEngines.clear();
 
-        File mcDir = Minecraft.getMinecraft().mcDataDir;
-        File packDir = new File(mcDir, "mods" + File.separator + "SAMpacks");
+        File packDir = StationAnnounceModCore.samPacksDir;
 
         StationAnnounceModCore.logger.info("[SAM] Scanning directory: " + packDir.getAbsolutePath());
 

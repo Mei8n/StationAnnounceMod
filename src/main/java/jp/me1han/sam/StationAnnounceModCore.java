@@ -28,6 +28,8 @@ public class StationAnnounceModCore {
     public static final int GUI_ID_STOP_ANNOUNCER = 5;
     public static final int GUI_ID_SPEAKER = 6;
 
+    public static java.io.File samPacksDir;
+
     @Mod.Instance("stationannouncemod")
     public static StationAnnounceModCore instance;
 
@@ -47,6 +49,9 @@ public class StationAnnounceModCore {
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
+        java.io.File mcDir = event.getModConfigurationDirectory().getParentFile();
+        samPacksDir = new java.io.File(mcDir, "mods" + java.io.File.separator + "SAMpacks");
+
         blockAnnouncer = new BlockAnnouncer();
         GameRegistry.registerBlock(blockAnnouncer, "blockAnnouncer");
 
