@@ -1,0 +1,21 @@
+{
+  "stationannouncemod:mute_0.1s": {
+    "length": 0.1
+  },
+  "stationannouncemod:mute_0.2s": {
+    "length": 0.2
+  },
+  "stationannouncemod:mute_0.25s": {
+    "length": 0.25
+  },
+  "stationannouncemod:mute_0.5s": {
+    "length": 0.5
+  },
+  "stationannouncemod:mute_1s": {
+    "length": 1.0
+  },
+  "stationannouncemod:mute_2s": {
+    "length": 2.0
+  }
+}
+
