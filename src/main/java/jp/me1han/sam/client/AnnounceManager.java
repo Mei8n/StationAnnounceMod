@@ -69,7 +69,7 @@ public class AnnounceManager {
     }
 
     public void stopAnnounce(String linkKey) {
-        if (linkKey == null) {
+        if (linkKey == null || linkKey.equals("__ALL__")) {
             for (AnnounceSession session : activeSessions.values()) {
                 session.stop();
             }

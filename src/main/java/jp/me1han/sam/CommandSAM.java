@@ -28,8 +28,8 @@ public class CommandSAM extends CommandBase {
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
         if (args.length > 0 && args[0].equalsIgnoreCase("stopall")) {
-            NetworkHandler.INSTANCE.sendToAll(new PacketAnnounce(true, null));
-            sender.addChatMessage(new ChatComponentText("§a[SAM] All Sounds Stopped."));
+            NetworkHandler.INSTANCE.sendToAll(new PacketAnnounce(true, "__ALL__"));
+            sender.addChatMessage(new ChatComponentText("§a[SAM] All sounds stopped."));
         } else {
             sender.addChatMessage(new ChatComponentText("§c使用法: " + getCommandUsage(sender)));
         }
