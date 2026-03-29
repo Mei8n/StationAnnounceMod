@@ -18,7 +18,7 @@ public class NetworkHandler {
         //音声再生処理のサーバー -> クライアント
         INSTANCE.registerMessage(AnnounceHandler.class, PacketAnnounce.class, 0, Side.CLIENT);
         //音声再生処理のクライアント -> サーバー
-        INSTANCE.registerMessage(ConfigHandler.class, PacketConfig.class, 1, Side.SERVER);
+        INSTANCE.registerMessage(PacketConfig.Handler.class, PacketConfig.class, 1, Side.SERVER);
         // 列車選別装置
         INSTANCE.registerMessage(TrainTypeConfigHandler.class, PacketTrainTypeConfig.class, 2, Side.SERVER);
         //デバッグレシーバー
@@ -34,7 +34,12 @@ public class NetworkHandler {
     public static class AnnounceHandler implements IMessageHandler<PacketAnnounce, IMessage> {
         @Override
         public IMessage onMessage(PacketAnnounce message, MessageContext ctx) {
-            jp.me1han.sam.StationAnnounceModCore.proxy.handleAnnouncePacket(message);
+            if (message.stopCommand) {
+                jp.me1han.sam.client.AnnounceManager.INSTANCE.stopAnnounce(message.linkKey);
+            } else {
+                jp.me1han.sam.client.AnnounceManager.INSTANCE.startAnnounce(message);
+            }
+
             return null;
         }
     }
@@ -86,9 +91,10 @@ public class NetworkHandler {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
             if (te instanceof TileEntityStartAnnouncer) {
-                TileEntityStartAnnouncer startAnnouncer = (TileEntityStartAnnouncer) te;
-                startAnnouncer.linkKey = message.linkKey;
-                startAnnouncer.markDirty();
+                TileEntityStartAnnouncer announcer = (TileEntityStartAnnouncer) te;
+                announcer.linkKey = message.linkKey;
+                announcer.isControlCar = message.isControlCar;
+                announcer.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
             }
             return null;
@@ -101,9 +107,10 @@ public class NetworkHandler {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
             if (te instanceof TileEntityStopAnnouncer) {
-                TileEntityStopAnnouncer stopAnnouncer = (TileEntityStopAnnouncer) te;
-                stopAnnouncer.linkKey = message.linkKey;
-                stopAnnouncer.markDirty();
+                TileEntityStopAnnouncer announcer = (TileEntityStopAnnouncer) te;
+                announcer.linkKey = message.linkKey;
+                announcer.isControlCar = message.isControlCar;
+                announcer.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
             }
             return null;

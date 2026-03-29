@@ -44,4 +44,14 @@ public class BlockAnnouncer extends Block {
             }
         }
     }
+
+    @Override
+    public void breakBlock(World world, int x, int y, int z, Block block, int meta) {
+        TileEntity te = world.getTileEntity(x, y, z);
+        if (te instanceof TileEntityAnnouncer) {
+            ((TileEntityAnnouncer) te).forceStop();
+        }
+
+        super.breakBlock(world, x, y, z, block, meta);
+    }
 }

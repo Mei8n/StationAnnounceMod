@@ -24,6 +24,7 @@ Latest Pre-Release [Download](https://github.com/Mei8n/stationannouncemod/releas
 ## 追加ブロック、アイテムの説明
 ### ・放送装置ブロック
 親となるブロックです。レッドストーン入力で動作します。\
+単体動作用に、このブロックからも放送が鳴るようにできます。\
 設定画面でjsを読み込むことができます。\
 Link Keyフィールドに"リンクキー"を登録することで、後述のブロックとの連携が可能です。
 

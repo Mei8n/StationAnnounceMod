@@ -15,6 +15,8 @@ public class TileEntityAnnouncer extends TileEntity {
     private String scriptName = "";
     public String linkKey = "";
 
+    public boolean playLocalSound = false;
+
     public Map<String, String> receivedData = new HashMap<String, String>();
     public long lastDataReceivedTime = 0;
 
@@ -39,7 +41,7 @@ public class TileEntityAnnouncer extends TileEntity {
 
         if (data != null) {
             NetworkHandler.INSTANCE.sendToAllAround(
-                new PacketAnnounce(data, this.linkKey),
+                new PacketAnnounce(data, this.linkKey, this.playLocalSound, this.xCoord, this.yCoord, this.zCoord),
                 new NetworkRegistry.TargetPoint(this.worldObj.provider.dimensionId, xCoord, yCoord, zCoord, 64)
             );
         }
@@ -72,6 +74,7 @@ public class TileEntityAnnouncer extends TileEntity {
         if (this.linkKey != null) {
             nbt.setString("linkKey", this.linkKey);
         }
+        nbt.setBoolean("playLocalSound", this.playLocalSound);
     }
 
     @Override
@@ -79,6 +82,7 @@ public class TileEntityAnnouncer extends TileEntity {
         super.readFromNBT(nbt);
         this.scriptName = nbt.getString("scriptName");
         this.linkKey = nbt.getString("linkKey");
+        this.playLocalSound = nbt.getBoolean("playLocalSound");
     }
 
     @Override

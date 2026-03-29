@@ -19,7 +19,7 @@ import org.apache.logging.log4j.Logger;
 public class StationAnnounceModCore {
     public static final String MOD_ID = "stationannouncemod";
     public static final String MOD_NAME = "Station Announce Mod";
-    public static final String VERSION = "v0.1.1-beta";
+    public static final String VERSION = "v0.1.2-beta";
 
     public static final int GUI_ID_ANNOUNCER = 0;
     public static final int GUI_ID_TRAIN_TYPE_SELECTOR = 1;
@@ -86,5 +86,10 @@ public class StationAnnounceModCore {
         NetworkRegistry.INSTANCE.registerGuiHandler(instance, new SAMGuiHandler());
         AnnouncePackLoader.loadPacks();
         proxy.init(event);
+    }
+
+    @Mod.EventHandler
+    public void serverStarting(cpw.mods.fml.common.event.FMLServerStartingEvent event) {
+        event.registerServerCommand(new CommandSAM());
     }
 }
