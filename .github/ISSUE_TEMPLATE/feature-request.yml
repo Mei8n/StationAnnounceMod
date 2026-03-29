@@ -1,0 +1,33 @@
+# The below is the copyright notice of original file:
+# Copyright (c) 2021 anatawa12 and other contributors
+# This file is part of fixRTM, released under GNU LGPL v3 with few exceptions
+# See LICENSE at https://github.com/fixrtm/fixRTM for more details
+
+name: 新機能のリクエスト
+description: 追加機能のリクエスト
+labels: [enhancement]
+assignees:
+  - Mei8n
+body:
+
+  - type: markdown
+    attributes:
+      value: |
+        A
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Feature report check list
+      options:
+        - label: プレリリース版を含む最新のバージョンの本Modにその機能が存在しないこと
+          required: true
+        - label: issuesでそのリクエストがまだ無いこと
+          required: true
+
+  - type: textarea
+    attributes:
+      label: Describe the feature
+      description: 何を追加してほしいかを説明してください
+    validations:
+      required: true
