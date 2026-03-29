@@ -16,6 +16,8 @@ public class TileEntityStopAnnouncer extends TileEntity {
     public void updateEntity() {
         if (this.worldObj.isRemote) return;
         if (Loader.isModLoaded("RTM")) {
+            // RTM車両は高速で移動するため毎フレーム走査が必須
+            // （10フレーム周期では見落とされる可能性がある）
             this.scanTrain();
         }
     }
@@ -59,11 +61,12 @@ public class TileEntityStopAnnouncer extends TileEntity {
 
     private void dispatchStopTrigger() {
         if (this.linkKey == null || this.linkKey.isEmpty()) return;
+        String normalizedKey = this.linkKey.trim();
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
                 if (announcer.linkKey != null && !announcer.linkKey.trim().isEmpty() &&
-                    this.linkKey.trim().equals(announcer.linkKey.trim())) {
+                    normalizedKey.equals(announcer.linkKey.trim())) {
                     announcer.forceStop();
                 }
             }

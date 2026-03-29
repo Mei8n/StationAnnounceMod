@@ -12,20 +12,29 @@ public class TileEntityDebugReceiver extends TileEntity {
     public String linkKey = "";
     private long lastReadTime = 0;
     private boolean lastPowered = false;
+    private long lastCacheTime = 0;
+    private static final long CACHE_DURATION = 100; // Ticks（約5秒）
 
     @Override
     public void updateEntity() {
         if (this.worldObj.isRemote || this.linkKey == null || this.linkKey.isEmpty()) return;
 
-        if (this.worldObj.getTotalWorldTime() % 10 == 0) {
-            for (Object obj : this.worldObj.loadedTileEntityList) {
-                if (obj instanceof TileEntityAnnouncer) {
-                    TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
-                    if (this.linkKey.equals(announcer.linkKey)) {
-                        if (announcer.lastDataReceivedTime > this.lastReadTime) {
-                            this.lastReadTime = announcer.lastDataReceivedTime;
-                            this.printAnnouncerData(announcer, "§a[SAM-AUTO]");
-                        }
+        // 100フレーム毎にスキャン（毎10フレームから大幅削減）
+        if (this.worldObj.getTotalWorldTime() - this.lastCacheTime > CACHE_DURATION) {
+            this.lastCacheTime = this.worldObj.getTotalWorldTime();
+            this.scanForUpdates();
+        }
+    }
+
+    private void scanForUpdates() {
+        String normalizedKey = this.linkKey.trim();
+        for (Object obj : this.worldObj.loadedTileEntityList) {
+            if (obj instanceof TileEntityAnnouncer) {
+                TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
+                if (announcer.linkKey != null && normalizedKey.equals(announcer.linkKey.trim())) {
+                    if (announcer.lastDataReceivedTime > this.lastReadTime) {
+                        this.lastReadTime = announcer.lastDataReceivedTime;
+                        this.printAnnouncerData(announcer, "§a[SAM-AUTO]");
                     }
                 }
             }
@@ -41,10 +50,11 @@ public class TileEntityDebugReceiver extends TileEntity {
 
     private void forcePrintData() {
         boolean found = false;
+        String normalizedKey = this.linkKey.trim();
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
-                if (announcer.linkKey != null && this.linkKey.trim().equals(announcer.linkKey.trim())) {
+                if (announcer.linkKey != null && normalizedKey.equals(announcer.linkKey.trim())) {
                     this.printAnnouncerData(announcer, "§d[SAM-MANUAL]");
                     found = true;
                 }

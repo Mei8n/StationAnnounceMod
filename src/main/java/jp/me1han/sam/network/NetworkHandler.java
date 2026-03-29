@@ -103,7 +103,7 @@ public class NetworkHandler {
         public IMessage onMessage(PacketSpeakerConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            StationAnnounceModCore.logger.info("[SAM-DEBUG] Speaker Config Received! pos=" + message.x + "," + message.y + "," + message.z + " linkKey=" + message.linkKey + " range=" + message.range + " volume=" + message.volume);
+            NetworkHandler.sendDebugMessage(world, message.linkKey, "[SAM-DEBUG] Speaker Config Received! pos=" + message.x + "," + message.y + "," + message.z + " linkKey=" + message.linkKey + " range=" + message.range + " volume=" + message.volume);
 
             if (te instanceof TileEntitySpeaker) {
                 TileEntitySpeaker speaker = (TileEntitySpeaker) te;

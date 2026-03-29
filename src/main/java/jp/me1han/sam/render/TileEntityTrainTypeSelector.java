@@ -78,12 +78,13 @@ public class TileEntityTrainTypeSelector extends TileEntity {
     public void dispatchData(Map<String, String> dataMap) {
         if (this.worldObj.isRemote || this.linkKey == null || this.linkKey.isEmpty()) return;
 
+        String normalizedKey = this.linkKey.trim();
         String sourcePos = String.format("%d, %d, %d", xCoord, yCoord, zCoord);
 
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
                 jp.me1han.sam.render.TileEntityAnnouncer receiver = (jp.me1han.sam.render.TileEntityAnnouncer) obj;
-                if (this.linkKey.equals(receiver.linkKey)) {
+                if (receiver.linkKey != null && normalizedKey.equals(receiver.linkKey.trim())) {
                     receiver.onDataReceived(dataMap, sourcePos);
                 }
             }

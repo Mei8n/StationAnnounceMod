@@ -17,6 +17,8 @@ public class TileEntityStartAnnouncer extends TileEntity {
     public void updateEntity() {
         if (this.worldObj.isRemote) return;
         if (Loader.isModLoaded("RTM")) {
+            // RTM車両は高速で移動するため毎フレーム走査が必須
+            // （10フレーム周期では見落とされる可能性がある）
             this.scanTrain();
         }
     }
@@ -31,12 +33,10 @@ public class TileEntityStartAnnouncer extends TileEntity {
 
         for (Object obj : list) {
             if (obj == null) continue;
-            // ★修正: クラスの名前で判定する
             String className = obj.getClass().getName();
             if (className.equals("jp.ngt.rtm.entity.train.EntityTrainBase") || className.contains("EntityTrain")) {
                 net.minecraft.entity.Entity train = (net.minecraft.entity.Entity) obj;
                 currentTrainId = train.getEntityId();
-
                 break;
             }
         }
@@ -46,6 +46,7 @@ public class TileEntityStartAnnouncer extends TileEntity {
             return;
         }
 
+        // 列車ID変更時のみトリガー（状態変化時のみ処理）
         if (currentTrainId != this.lastTrainId) {
             this.lastTrainId = currentTrainId;
             this.dispatchTrigger();
@@ -61,29 +62,20 @@ public class TileEntityStartAnnouncer extends TileEntity {
     }
 
     private void dispatchTrigger() {
-        jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] dispatchTrigger() fired! My linkKey: [" + this.linkKey + "]");
-
         if (this.linkKey == null || this.linkKey.trim().isEmpty()) {
-            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM-DEBUG] -> Ignored: linkKey is empty.");
             return;
         }
 
-        boolean foundAny = false;
+        String normalizedKey = this.linkKey.trim();
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
-                foundAny = true;
                 jp.me1han.sam.render.TileEntityAnnouncer announcer = (jp.me1han.sam.render.TileEntityAnnouncer) obj;
-                jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] Checking Announcer at " + announcer.xCoord + "," + announcer.yCoord + "," + announcer.zCoord + " | Key: [" + announcer.linkKey + "]");
 
                 if (announcer.linkKey != null && !announcer.linkKey.trim().isEmpty() &&
-                    this.linkKey.trim().equals(announcer.linkKey.trim())) {
-                    jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] -> MATCHED! Triggering startAnnounce().");
+                    normalizedKey.equals(announcer.linkKey.trim())) {
                     announcer.startAnnounce();
                 }
             }
-        }
-        if (!foundAny) {
-            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM-DEBUG] -> No TileEntityAnnouncer block found in the world!");
         }
     }
 

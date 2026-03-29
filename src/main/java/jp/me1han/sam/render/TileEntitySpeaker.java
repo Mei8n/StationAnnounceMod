@@ -26,9 +26,6 @@ public class TileEntitySpeaker extends TileEntity {
         this.linkKey = nbt.getString("linkKey");
         this.range = nbt.hasKey("range") ? nbt.getInteger("range") : 16;
         this.volume = nbt.hasKey("volume") ? nbt.getFloat("volume") : 1.0f;
-        if (this.worldObj != null && this.worldObj.isRemote) {
-            StationAnnounceModCore.logger.info("[SAM-DEBUG] Client speaker sync at " + this.xCoord + "," + this.yCoord + "," + this.zCoord + " key=[" + this.linkKey + "], range=" + this.range + ", volume=" + this.volume);
-        }
     }
 
     @Override
