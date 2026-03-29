@@ -19,4 +19,10 @@ public class CommonProxy {
     public void registerRenderers() {}
 
     public void addResourcePack(File zipFile) {}
+
+    public void handleAnnouncePacket(jp.me1han.sam.network.PacketAnnounce message) {}
+
+    public Object getClientGuiElement(int ID, net.minecraft.entity.player.EntityPlayer player, net.minecraft.world.World world, int x, int y, int z) {
+        return null;
+    }
 }

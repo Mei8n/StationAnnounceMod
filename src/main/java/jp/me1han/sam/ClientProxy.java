@@ -61,4 +61,34 @@ public class ClientProxy extends CommonProxy {
             new RendererSpeaker()
         );
     }
+
+    @Override
+    public void handleAnnouncePacket(jp.me1han.sam.network.PacketAnnounce message) {
+        jp.me1han.sam.client.AnnounceManager.INSTANCE.startAnnounce(message);
+    }
+
+    @Override
+    public Object getClientGuiElement(int ID, net.minecraft.entity.player.EntityPlayer player, net.minecraft.world.World world, int x, int y, int z) {
+        net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
+
+        if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_ANNOUNCER) {
+            return new jp.me1han.sam.gui.GuiAnnouncer(new jp.me1han.sam.container.ContainerAnnouncer((jp.me1han.sam.render.TileEntityAnnouncer) tile), (jp.me1han.sam.render.TileEntityAnnouncer) tile);
+        }
+        if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_TRAIN_TYPE_SELECTOR) {
+            return new jp.me1han.sam.gui.GuiTrainTypeSelector(new jp.me1han.sam.container.ContainerTrainTypeSelector((jp.me1han.sam.render.TileEntityTrainTypeSelector) tile), (jp.me1han.sam.render.TileEntityTrainTypeSelector) tile);
+        }
+        if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_DEBUG_RECEIVER) {
+            return new jp.me1han.sam.gui.GuiDebugReceiver((jp.me1han.sam.render.TileEntityDebugReceiver) tile);
+        }
+        if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_START_ANNOUNCER) {
+            return new jp.me1han.sam.gui.GuiStartAnnouncer((jp.me1han.sam.render.TileEntityStartAnnouncer) tile);
+        }
+        if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_STOP_ANNOUNCER) {
+            return new jp.me1han.sam.gui.GuiStopAnnouncer((jp.me1han.sam.render.TileEntityStopAnnouncer) tile);
+        }
+        if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_SPEAKER) {
+            return new jp.me1han.sam.gui.GuiSpeaker((jp.me1han.sam.render.TileEntitySpeaker) world.getTileEntity(x, y, z));
+        }
+        return null;
+    }
 }
