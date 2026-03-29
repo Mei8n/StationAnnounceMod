@@ -13,68 +13,71 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class AnnounceManager {
     public static final AnnounceManager INSTANCE = new AnnounceManager();
 
-    private final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
+    private final Map<String, AnnounceSession> activeSessions = new ConcurrentHashMap<String, AnnounceSession>();
 
-    private String loopSound = null;
-    private String currentLinkKey = null;
+    private class AnnounceSession {
+        final String linkKey;
+        final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<String>();
+        String loopSound = null;
+        boolean playLocalSound = false;
+        int x, y, z;
+        int waitTicks = 0;
+        boolean isPlaying = true;
+        final List<ISound> activeSounds = new ArrayList<ISound>();
 
-    private boolean currentPlayLocalSound = false;
+        AnnounceSession(PacketAnnounce msg) {
+            this.linkKey = msg.linkKey != null ? msg.linkKey : "GLOBAL_EMPTY";
+            this.playLocalSound = msg.playLocalSound;
+            this.x = msg.x; this.y = msg.y; this.z = msg.z;
 
-    private int currentX, currentY, currentZ;
-    private int waitTicks = 0;
+            if (msg.startMelo != null && !msg.startMelo.isEmpty()) this.queue.add(msg.startMelo);
+            if (msg.bodySounds != null) {
+                for (String s : msg.bodySounds) {
+                    if (s != null && !s.isEmpty()) this.queue.add(s);
+                }
+            }
+            this.loopSound = (msg.arrMelo != null && !msg.arrMelo.isEmpty()) ? msg.arrMelo : null;
+        }
 
-    private volatile boolean isPlaying = false;
-
-    private final List<ISound> activeSounds = new ArrayList<ISound>();
+        void stop() {
+            this.isPlaying = false;
+            for (ISound s : activeSounds) {
+                if (s != null) Minecraft.getMinecraft().getSoundHandler().stopSound(s);
+            }
+            activeSounds.clear();
+            queue.clear();
+        }
+    }
 
     public void startAnnounce(PacketAnnounce msg) {
-        this.stopAnnounce();
-        this.currentLinkKey = msg.linkKey;
-        this.currentPlayLocalSound = msg.playLocalSound;
+        String key = msg.linkKey != null ? msg.linkKey : "GLOBAL_EMPTY";
 
-        this.currentX = msg.x;
-        this.currentY = msg.y;
-        this.currentZ = msg.z;
-
-        if (msg.startMelo != null && !msg.startMelo.isEmpty()) {
-            this.queue.add(msg.startMelo);
-        }
-        if (msg.bodySounds != null) {
-            for (String s : msg.bodySounds) {
-                if (s != null && !s.isEmpty()) this.queue.add(s);
-            }
+        if (activeSessions.containsKey(key)) {
+            activeSessions.get(key).stop();
         }
 
-        this.loopSound = (msg.arrMelo != null && !msg.arrMelo.isEmpty()) ? msg.arrMelo : null;
-        this.waitTicks = 0;
-        this.isPlaying = true;
+        activeSessions.put(key, new AnnounceSession(msg));
     }
 
     public void stopAnnounce(String linkKey) {
-        if (linkKey != null && this.currentLinkKey != null && !linkKey.equals(this.currentLinkKey)) {
-            return;
-        }
-
-        this.isPlaying = false;
-
-        for (ISound s : activeSounds) {
-            if (s != null) {
-                Minecraft.getMinecraft().getSoundHandler().stopSound(s);
+        if (linkKey == null) {
+            for (AnnounceSession session : activeSessions.values()) {
+                session.stop();
             }
+            activeSessions.clear();
+        } else if (activeSessions.containsKey(linkKey)) {
+            activeSessions.get(linkKey).stop();
+            activeSessions.remove(linkKey);
         }
-        activeSounds.clear();
-
-        this.queue.clear();
-        this.loopSound = null;
-        this.currentLinkKey = null;
-        this.currentPlayLocalSound = false;
-        this.waitTicks = 0;
     }
 
     public void stopAnnounce() {
@@ -83,50 +86,44 @@ public class AnnounceManager {
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.START || !isPlaying) return;
+        if (event.phase != TickEvent.Phase.START || activeSessions.isEmpty()) return;
 
-        if (waitTicks > 0) {
-            waitTicks--;
-            return;
-        }
+        Iterator<Map.Entry<String, AnnounceSession>> it = activeSessions.entrySet().iterator();
+        while (it.hasNext()) {
+            AnnounceSession session = it.next().getValue();
 
-        String nextSound = queue.poll();
+            if (!session.isPlaying) {
+                it.remove();
+                continue;
+            }
 
-        if (nextSound != null) {
-            this.playAndRegister(nextSound);
-            setWaitTicks(nextSound);
-        }
-        else if (loopSound != null) {
-            this.playAndRegister(loopSound);
-            setWaitTicks(loopSound);
-        }
-        else {
-            this.isPlaying = false;
+            if (session.waitTicks > 0) {
+                session.waitTicks--;
+                continue;
+            }
+
+            String nextSound = session.queue.poll();
+
+            if (nextSound != null) {
+                playInSession(session, nextSound);
+                session.waitTicks = getSoundTicks(nextSound);
+            } else if (session.loopSound != null) {
+                playInSession(session, session.loopSound);
+                session.waitTicks = getSoundTicks(session.loopSound);
+            } else {
+                session.isPlaying = false;
+                it.remove();
+            }
         }
     }
 
-    private void playAndRegister(String soundId) {
-        activeSounds.clear();
-
-        List<ISound> playedSounds = playSound(soundId);
-        if (playedSounds != null) {
-            activeSounds.addAll(playedSounds);
-        }
-    }
-
-    private void setWaitTicks(String soundId) {
-        if (soundId == null) {
-            this.waitTicks = 20;
-            return;
-        }
+    private int getSoundTicks(String soundId) {
         Integer ticks = AnnouncePackLoader.soundTicks.get(soundId);
-        this.waitTicks = (ticks != null) ? ticks : 20;
+        return (ticks != null) ? ticks : 20;
     }
 
-    private List<ISound> playSound(String soundId) {
-        List<ISound> sounds = new ArrayList<ISound>();
-        if (soundId == null || soundId.isEmpty() || !isPlaying) return sounds;
-
+    private void playInSession(AnnounceSession session, String soundId) {
+        session.activeSounds.clear();
         try {
             ResourceLocation res = new ResourceLocation(soundId);
             World world = Minecraft.getMinecraft().theWorld;
@@ -134,41 +131,25 @@ public class AnnounceManager {
             for (Object obj : world.loadedTileEntityList) {
                 if (obj instanceof TileEntitySpeaker) {
                     TileEntitySpeaker speaker = (TileEntitySpeaker) obj;
-
-                    if (speaker.linkKey != null && speaker.linkKey.equals(this.currentLinkKey)) {
-
-                        float effectiveVolume = (speaker.range / 16.0F) * speaker.volume;
-
-                        PositionedSoundRecord psr = new PositionedSoundRecord(
-                            res,
-                            effectiveVolume, 1.0F,
-                            (float)speaker.xCoord + 0.5F,
-                            (float)speaker.yCoord + 0.5F,
-                            (float)speaker.zCoord + 0.5F
-                        );
+                    if (session.linkKey.equals(speaker.linkKey)) {
+                        float vol = (speaker.range / 16.0F) * speaker.volume;
+                        PositionedSoundRecord psr = new PositionedSoundRecord(res, vol, 1.0F,
+                            (float)speaker.xCoord + 0.5F, (float)speaker.yCoord + 0.5F, (float)speaker.zCoord + 0.5F);
                         Minecraft.getMinecraft().getSoundHandler().playSound(psr);
-                        sounds.add(psr);
-                        // speakerFound = true;
+                        session.activeSounds.add(psr);
                     }
                 }
             }
 
-            if (this.currentPlayLocalSound) {
-                PositionedSoundRecord psr = new PositionedSoundRecord(
-                    res,
-                    1.0F, 1.0F,
-                    (float)this.currentX + 0.5F,
-                    (float)this.currentY + 0.5F,
-                    (float)this.currentZ + 0.5F
-                );
+            if (session.playLocalSound) {
+                PositionedSoundRecord psr = new PositionedSoundRecord(res, 1.0F, 1.0F,
+                    (float)session.x + 0.5F, (float)session.y + 0.5F, (float)session.z + 0.5F);
                 Minecraft.getMinecraft().getSoundHandler().playSound(psr);
-                sounds.add(psr);
+                session.activeSounds.add(psr);
             }
 
         } catch (Exception e) {
-            StationAnnounceModCore.logger.error("[SAM] Sound Playback Error: " + soundId, e);
+            StationAnnounceModCore.logger.error("[SAM] Session Playback Error: " + soundId, e);
         }
-
-        return sounds;
     }
 }
