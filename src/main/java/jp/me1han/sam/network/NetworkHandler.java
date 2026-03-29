@@ -34,7 +34,12 @@ public class NetworkHandler {
     public static class AnnounceHandler implements IMessageHandler<PacketAnnounce, IMessage> {
         @Override
         public IMessage onMessage(PacketAnnounce message, MessageContext ctx) {
-            jp.me1han.sam.StationAnnounceModCore.proxy.handleAnnouncePacket(message);
+            if (message.stopCommand) {
+                jp.me1han.sam.client.AnnounceManager.INSTANCE.stopAnnounce(message.linkKey);
+            } else {
+                jp.me1han.sam.client.AnnounceManager.INSTANCE.startAnnounce(message);
+            }
+
             return null;
         }
     }

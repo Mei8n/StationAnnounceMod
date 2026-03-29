@@ -69,12 +69,13 @@ public class AnnounceManager {
     }
 
     public void stopAnnounce(String linkKey) {
-        if (linkKey == null || linkKey.equals("__ALL__")) {
+        if (PacketAnnounce.GLOBAL_STOP_KEY.equals(linkKey) || linkKey == null) {
             for (AnnounceSession session : activeSessions.values()) {
                 session.stop();
             }
             activeSessions.clear();
-        } else if (activeSessions.containsKey(linkKey)) {
+        }
+        else if (activeSessions.containsKey(linkKey)) {
             activeSessions.get(linkKey).stop();
             activeSessions.remove(linkKey);
         }
