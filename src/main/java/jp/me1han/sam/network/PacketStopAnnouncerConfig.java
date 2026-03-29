@@ -7,24 +7,25 @@ import io.netty.buffer.ByteBuf;
 public class PacketStopAnnouncerConfig implements IMessage {
     public int x, y, z;
     public String linkKey;
+    public boolean isControlCar;
 
     public PacketStopAnnouncerConfig() {}
 
-    public PacketStopAnnouncerConfig(int x, int y, int z, String linkKey) {
-        this.x = x; this.y = y; this.z = z; this.linkKey = linkKey;
+    public PacketStopAnnouncerConfig(int x, int y, int z, String linkKey, boolean isControlCar) {
+        this.x = x; this.y = y; this.z = z; this.linkKey = linkKey; this.isControlCar = isControlCar;
     }
 
     @Override
     public void fromBytes(ByteBuf buf) {
-        this.x = buf.readInt();
-        this.y = buf.readInt();
-        this.z = buf.readInt();
+        this.x = buf.readInt(); this.y = buf.readInt(); this.z = buf.readInt();
         this.linkKey = ByteBufUtils.readUTF8String(buf);
+        this.isControlCar = buf.readBoolean();
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
         buf.writeInt(x); buf.writeInt(y); buf.writeInt(z);
         ByteBufUtils.writeUTF8String(buf, linkKey);
+        buf.writeBoolean(isControlCar);
     }
 }

@@ -6,15 +6,16 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
 import java.util.List;
 
+
 public class TileEntityStartAnnouncer extends TileEntity {
     public String linkKey = "";
+    public boolean isControlCar = false;
     private boolean lastPowered = false;
     private int lastTrainId = -1;
 
     @Override
     public void updateEntity() {
         if (this.worldObj.isRemote) return;
-
         if (Loader.isModLoaded("RTM")) {
             this.scanTrain();
         }
@@ -23,24 +24,36 @@ public class TileEntityStartAnnouncer extends TileEntity {
     private void scanTrain() {
         int r = 2;
         AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
-        List list = this.worldObj.getEntitiesWithinAABB(jp.ngt.rtm.entity.train.EntityTrainBase.class, aabb);
 
-        if (list.isEmpty()) {
+        List list = this.worldObj.getEntitiesWithinAABB(net.minecraft.entity.Entity.class, aabb);
+
+        int currentTrainId = -1;
+
+        for (Object obj : list) {
+            if (obj == null) continue;
+            // ★修正: クラスの名前で判定する
+            String className = obj.getClass().getName();
+            if (className.equals("jp.ngt.rtm.entity.train.EntityTrainBase") || className.contains("EntityTrain")) {
+                net.minecraft.entity.Entity train = (net.minecraft.entity.Entity) obj;
+                currentTrainId = train.getEntityId();
+
+                break;
+            }
+        }
+
+        if (currentTrainId == -1) {
             this.lastTrainId = -1;
             return;
         }
 
-        jp.ngt.rtm.entity.train.EntityTrainBase train = (jp.ngt.rtm.entity.train.EntityTrainBase) list.get(0);
-
-        if (train.getEntityId() != this.lastTrainId) {
-            this.lastTrainId = train.getEntityId();
+        if (currentTrainId != this.lastTrainId) {
+            this.lastTrainId = currentTrainId;
             this.dispatchTrigger();
         }
     }
 
     public void onRedstoneUpdate(boolean powered) {
         if (this.worldObj.isRemote) return;
-
         if (powered && !lastPowered) {
             this.dispatchTrigger();
         }
@@ -49,7 +62,6 @@ public class TileEntityStartAnnouncer extends TileEntity {
 
     private void dispatchTrigger() {
         if (this.linkKey == null || this.linkKey.isEmpty()) return;
-
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
@@ -64,12 +76,14 @@ public class TileEntityStartAnnouncer extends TileEntity {
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
         if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
+        nbt.setBoolean("isControlCar", this.isControlCar); // ★追加
     }
 
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
         this.linkKey = nbt.getString("linkKey");
+        this.isControlCar = nbt.getBoolean("isControlCar"); // ★追加
     }
 
     @Override

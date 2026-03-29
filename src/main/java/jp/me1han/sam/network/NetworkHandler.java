@@ -91,9 +91,10 @@ public class NetworkHandler {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
             if (te instanceof TileEntityStartAnnouncer) {
-                TileEntityStartAnnouncer startAnnouncer = (TileEntityStartAnnouncer) te;
-                startAnnouncer.linkKey = message.linkKey;
-                startAnnouncer.markDirty();
+                TileEntityStartAnnouncer announcer = (TileEntityStartAnnouncer) te;
+                announcer.linkKey = message.linkKey;
+                announcer.isControlCar = message.isControlCar;
+                announcer.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
             }
             return null;
@@ -106,9 +107,10 @@ public class NetworkHandler {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
             if (te instanceof TileEntityStopAnnouncer) {
-                TileEntityStopAnnouncer stopAnnouncer = (TileEntityStopAnnouncer) te;
-                stopAnnouncer.linkKey = message.linkKey;
-                stopAnnouncer.markDirty();
+                TileEntityStopAnnouncer announcer = (TileEntityStopAnnouncer) te;
+                announcer.linkKey = message.linkKey;
+                announcer.isControlCar = message.isControlCar;
+                announcer.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
             }
             return null;
