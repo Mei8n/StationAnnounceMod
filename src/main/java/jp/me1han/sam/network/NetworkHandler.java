@@ -14,6 +14,28 @@ import net.minecraft.world.World;
 public class NetworkHandler {
     public static final SimpleNetworkWrapper INSTANCE = NetworkRegistry.INSTANCE.newSimpleChannel("SAM_CHANNEL");
 
+    private static String normalizeKey(String key) {
+        return key == null ? "" : key.trim();
+    }
+
+    public static boolean hasDebugReceiverWithKey(World world, String linkKey) {
+        if (world == null || world.isRemote) return false;
+
+        String normalizedKey = normalizeKey(linkKey);
+        if (normalizedKey.isEmpty()) return false;
+
+        for (Object obj : world.loadedTileEntityList) {
+            if (obj instanceof TileEntityDebugReceiver) {
+                TileEntityDebugReceiver receiver = (TileEntityDebugReceiver) obj;
+                String receiverKey = normalizeKey(receiver.linkKey);
+                if (!receiverKey.isEmpty() && receiverKey.equals(normalizedKey)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static void init() {
         // 音声再生処理のサーバー -> クライアント
         INSTANCE.registerMessage(AnnounceHandler.class, PacketAnnounce.class, 0, Side.CLIENT);
@@ -34,22 +56,7 @@ public class NetworkHandler {
      */
     public static void sendDebugMessage(World world, String linkKey, String message) {
         if (world == null || world.isRemote) return;
-
-        // Check if any DebugReceiver with matching linkKey exists
-        boolean debugReceiverFound = false;
-        for (Object obj : world.loadedTileEntityList) {
-            if (obj instanceof TileEntityDebugReceiver) {
-                TileEntityDebugReceiver receiver = (TileEntityDebugReceiver) obj;
-                if (receiver.linkKey != null && linkKey != null &&
-                    receiver.linkKey.trim().equals(linkKey.trim())) {
-                    debugReceiverFound = true;
-                    break;
-                }
-            }
-        }
-
-        // Only send to chat if debug receiver exists
-        if (debugReceiverFound) {
+        if (hasDebugReceiverWithKey(world, linkKey)) {
             for (Object obj : world.playerEntities) {
                 net.minecraft.entity.player.EntityPlayer player = (net.minecraft.entity.player.EntityPlayer) obj;
                 player.addChatMessage(new net.minecraft.util.ChatComponentText(message));
@@ -76,7 +83,9 @@ public class NetworkHandler {
         public IMessage onMessage(PacketTrainTypeConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            StationAnnounceModCore.logger.info("[SAM-DEBUG] TrainTypeSelector Config Received! linkKey=" + message.linkKey);
+            if (NetworkHandler.hasDebugReceiverWithKey(world, message.linkKey)) {
+                StationAnnounceModCore.logger.info("[SAM-DEBUG] TrainTypeSelector Config Received! linkKey=" + message.linkKey);
+            }
 
             if (te instanceof TileEntityTrainTypeSelector) {
                 TileEntityTrainTypeSelector selector = (TileEntityTrainTypeSelector) te;
@@ -95,7 +104,9 @@ public class NetworkHandler {
         public IMessage onMessage(PacketStartAnnouncerConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            StationAnnounceModCore.logger.info("[SAM-DEBUG] StartAnnouncer Config Received! linkKey=" + message.linkKey);
+            if (NetworkHandler.hasDebugReceiverWithKey(world, message.linkKey)) {
+                StationAnnounceModCore.logger.info("[SAM-DEBUG] StartAnnouncer Config Received! linkKey=" + message.linkKey);
+            }
 
             if (te instanceof TileEntityStartAnnouncer) {
                 TileEntityStartAnnouncer announcer = (TileEntityStartAnnouncer) te;
@@ -149,6 +160,9 @@ public class NetworkHandler {
         @Override
         public IMessage onMessage(PacketDebugAnnounceEvent message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
+            if (!NetworkHandler.hasDebugReceiverWithKey(world, message.linkKey)) {
+                return null;
+            }
 
             String msg = "";
             if ("START".equals(message.eventType)) {

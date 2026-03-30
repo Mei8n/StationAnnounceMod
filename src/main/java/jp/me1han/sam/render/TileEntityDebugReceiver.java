@@ -42,6 +42,17 @@ public class TileEntityDebugReceiver extends TileEntity {
     }
 
     public void onRedstoneUpdate(boolean powered) {
+        if (this.worldObj == null || this.worldObj.isRemote) {
+            this.lastPowered = powered;
+            return;
+        }
+
+        String normalizedKey = this.linkKey == null ? "" : this.linkKey.trim();
+        if (normalizedKey.isEmpty()) {
+            this.lastPowered = powered;
+            return;
+        }
+
         if (powered && !lastPowered) {
             this.forcePrintData();
         }
@@ -50,7 +61,8 @@ public class TileEntityDebugReceiver extends TileEntity {
 
     private void forcePrintData() {
         boolean found = false;
-        String normalizedKey = this.linkKey.trim();
+        String normalizedKey = this.linkKey == null ? "" : this.linkKey.trim();
+        if (normalizedKey.isEmpty()) return;
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;

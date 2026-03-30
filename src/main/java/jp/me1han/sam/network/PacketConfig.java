@@ -51,8 +51,11 @@ public class PacketConfig implements IMessage {
         public IMessage onMessage(PacketConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity tile = world.getTileEntity(message.x, message.y, message.z);
+            boolean debugEnabled = NetworkHandler.hasDebugReceiverWithKey(world, message.linkKey);
 
-            jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] Announcer Config Received! script=" + message.scriptName + ", linkKey=" + message.linkKey);
+            if (debugEnabled) {
+                jp.me1han.sam.StationAnnounceModCore.logger.info("[SAM-DEBUG] Announcer Config Received! script=" + message.scriptName + ", linkKey=" + message.linkKey);
+            }
 
             if (tile instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) tile;
@@ -63,7 +66,9 @@ public class PacketConfig implements IMessage {
                 announcer.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
             } else {
-                jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM-DEBUG] Error: TileEntity is not Announcer at " + message.x + "," + message.y + "," + message.z);
+                if (debugEnabled) {
+                    jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM-DEBUG] Error: TileEntity is not Announcer at " + message.x + "," + message.y + "," + message.z);
+                }
             }
             return null;
         }
