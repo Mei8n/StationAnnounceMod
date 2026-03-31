@@ -10,15 +10,21 @@ public class PacketDebugAnnounceEvent implements IMessage {
     public String soundId;
     public int matchedSpeakers;
     public boolean playLocalSound;
+    public String detail;
 
     public PacketDebugAnnounceEvent() {}
 
     public PacketDebugAnnounceEvent(String eventType, String linkKey, String soundId, int matchedSpeakers, boolean playLocalSound) {
+        this(eventType, linkKey, soundId, matchedSpeakers, playLocalSound, "");
+    }
+
+    public PacketDebugAnnounceEvent(String eventType, String linkKey, String soundId, int matchedSpeakers, boolean playLocalSound, String detail) {
         this.eventType = eventType;
         this.linkKey = linkKey;
         this.soundId = soundId;
         this.matchedSpeakers = matchedSpeakers;
         this.playLocalSound = playLocalSound;
+        this.detail = detail;
     }
 
     @Override
@@ -28,6 +34,7 @@ public class PacketDebugAnnounceEvent implements IMessage {
         this.soundId = ByteBufUtils.readUTF8String(buf);
         this.matchedSpeakers = buf.readInt();
         this.playLocalSound = buf.readBoolean();
+        this.detail = ByteBufUtils.readUTF8String(buf);
     }
 
     @Override
@@ -37,6 +44,7 @@ public class PacketDebugAnnounceEvent implements IMessage {
         ByteBufUtils.writeUTF8String(buf, this.soundId != null ? this.soundId : "");
         buf.writeInt(this.matchedSpeakers);
         buf.writeBoolean(this.playLocalSound);
+        ByteBufUtils.writeUTF8String(buf, this.detail != null ? this.detail : "");
     }
 }
 

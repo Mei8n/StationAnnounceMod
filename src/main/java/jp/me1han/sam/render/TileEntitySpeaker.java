@@ -1,6 +1,6 @@
 package jp.me1han.sam.render;
 
-import jp.me1han.sam.StationAnnounceModCore;
+import jp.me1han.sam.SpeakerRegistry;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.Packet;
@@ -23,9 +23,29 @@ public class TileEntitySpeaker extends TileEntity {
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-        this.linkKey = nbt.getString("linkKey");
+        String key = nbt.getString("linkKey");
+        this.linkKey = key == null ? "" : key.trim();
         this.range = nbt.hasKey("range") ? nbt.getInteger("range") : 16;
         this.volume = nbt.hasKey("volume") ? nbt.getFloat("volume") : 1.0f;
+
+        syncRegistry();
+    }
+
+    @Override
+    public void updateEntity() {
+        syncRegistry();
+    }
+
+    @Override
+    public void invalidate() {
+        removeFromRegistry();
+        super.invalidate();
+    }
+
+    @Override
+    public void onChunkUnload() {
+        removeFromRegistry();
+        super.onChunkUnload();
     }
 
     @Override
@@ -38,5 +58,29 @@ public class TileEntitySpeaker extends TileEntity {
     @Override
     public void onDataPacket(NetworkManager net, S35PacketUpdateTileEntity pkt) {
         this.readFromNBT(pkt.func_148857_g());
+    }
+
+    private void syncRegistry() {
+        if (this.worldObj == null || this.worldObj.isRemote) {
+            return;
+        }
+
+        SpeakerRegistry.upsert(
+            this.worldObj.provider.dimensionId,
+            this.xCoord,
+            this.yCoord,
+            this.zCoord,
+            this.linkKey,
+            this.range,
+            this.volume
+        );
+    }
+
+    private void removeFromRegistry() {
+        if (this.worldObj == null || this.worldObj.isRemote) {
+            return;
+        }
+
+        SpeakerRegistry.removeAt(this.worldObj.provider.dimensionId, this.xCoord, this.yCoord, this.zCoord);
     }
 }

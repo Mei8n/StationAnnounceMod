@@ -1,5 +1,6 @@
 package jp.me1han.sam.gui;
 
+import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketSpeakerConfig;
 import jp.me1han.sam.render.TileEntitySpeaker;
@@ -40,17 +41,20 @@ public class GuiSpeaker extends GuiScreen {
     protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
             try {
-                int range = Integer.parseInt(rangeField.getText());
-                float vol = Float.parseFloat(volumeField.getText());
+                int range = Integer.parseInt(rangeField.getText().trim());
+                // 小数点にカンマが使われても保存できるようにする
+                float vol = Float.parseFloat(volumeField.getText().trim().replace(',', '.'));
+                String normalizedKey = linkKeyField.getText() == null ? "" : linkKeyField.getText().trim();
 
-                NetworkHandler.INSTANCE.sendToServer(new PacketSpeakerConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText(), range, vol));
+                NetworkHandler.INSTANCE.sendToServer(new PacketSpeakerConfig(tile.xCoord, tile.yCoord, tile.zCoord, normalizedKey, range, vol));
 
-                this.tile.linkKey = this.linkKeyField.getText();
+                this.tile.linkKey = normalizedKey;
                 this.tile.range = range;
                 this.tile.volume = vol;
 
                 this.mc.thePlayer.closeScreen();
             } catch (Exception e) {
+                StationAnnounceModCore.logger.warn("[SAM] Failed to save speaker config", e);
             }
         }
     }

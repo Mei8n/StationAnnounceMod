@@ -34,7 +34,7 @@ public class TileEntityDebugReceiver extends TileEntity {
                 if (announcer.linkKey != null && normalizedKey.equals(announcer.linkKey.trim())) {
                     if (announcer.lastDataReceivedTime > this.lastReadTime) {
                         this.lastReadTime = announcer.lastDataReceivedTime;
-                        this.printAnnouncerData(announcer, "§a[SAM-AUTO]");
+                        this.printAnnouncerData(announcer);
                     }
                 }
             }
@@ -60,31 +60,25 @@ public class TileEntityDebugReceiver extends TileEntity {
     }
 
     private void forcePrintData() {
-        boolean found = false;
         String normalizedKey = this.linkKey == null ? "" : this.linkKey.trim();
         if (normalizedKey.isEmpty()) return;
         for (Object obj : this.worldObj.loadedTileEntityList) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
                 if (announcer.linkKey != null && normalizedKey.equals(announcer.linkKey.trim())) {
-                    this.printAnnouncerData(announcer, "§d[SAM-MANUAL]");
-                    found = true;
+                    this.printAnnouncerData(announcer);
                 }
             }
         }
-        if (!found) this.sendMessage("§c[SAM-DEBUG] No Announcer found with key: " + this.linkKey);
     }
 
-    private void printAnnouncerData(TileEntityAnnouncer announcer, String prefix) {
-        String header = prefix + " §fAnnouncer (" + announcer.xCoord + "," + announcer.yCoord + "," + announcer.zCoord + ")";
-        this.sendMessage(header);
-
+    private void printAnnouncerData(TileEntityAnnouncer announcer) {
         if (announcer.receivedData == null || announcer.receivedData.isEmpty()) {
-            this.sendMessage("  §7- (Data is Empty/Cleared)");
-        } else {
-            for (Map.Entry<String, String> entry : announcer.receivedData.entrySet()) {
-                this.sendMessage("  §7- " + entry.getKey() + " : §f" + entry.getValue());
-            }
+            return;
+        }
+
+        for (Map.Entry<String, String> entry : announcer.receivedData.entrySet()) {
+            this.sendMessage("  §7- " + entry.getKey() + " : §f" + entry.getValue());
         }
     }
 

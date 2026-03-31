@@ -6,7 +6,7 @@ import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
 import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import cpw.mods.fml.relauncher.Side;
-import jp.me1han.sam.StationAnnounceModCore;
+import jp.me1han.sam.SpeakerRegistry;
 import jp.me1han.sam.render.*;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -55,13 +55,7 @@ public class NetworkHandler {
      * Debug message to players if DebugReceiver with matching linkKey exists
      */
     public static void sendDebugMessage(World world, String linkKey, String message) {
-        if (world == null || world.isRemote) return;
-        if (hasDebugReceiverWithKey(world, linkKey)) {
-            for (Object obj : world.playerEntities) {
-                net.minecraft.entity.player.EntityPlayer player = (net.minecraft.entity.player.EntityPlayer) obj;
-                player.addChatMessage(new net.minecraft.util.ChatComponentText(message));
-            }
-        }
+        // DebugReceiver is now dedicated to dataMap content output only.
     }
 
     // --- クライアント側受信 ---
@@ -83,9 +77,6 @@ public class NetworkHandler {
         public IMessage onMessage(PacketTrainTypeConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            if (NetworkHandler.hasDebugReceiverWithKey(world, message.linkKey)) {
-                StationAnnounceModCore.logger.info("[SAM-DEBUG] TrainTypeSelector Config Received! linkKey=" + message.linkKey);
-            }
 
             if (te instanceof TileEntityTrainTypeSelector) {
                 TileEntityTrainTypeSelector selector = (TileEntityTrainTypeSelector) te;
@@ -104,9 +95,6 @@ public class NetworkHandler {
         public IMessage onMessage(PacketStartAnnouncerConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            if (NetworkHandler.hasDebugReceiverWithKey(world, message.linkKey)) {
-                StationAnnounceModCore.logger.info("[SAM-DEBUG] StartAnnouncer Config Received! linkKey=" + message.linkKey);
-            }
 
             if (te instanceof TileEntityStartAnnouncer) {
                 TileEntityStartAnnouncer announcer = (TileEntityStartAnnouncer) te;
@@ -142,11 +130,14 @@ public class NetworkHandler {
         public IMessage onMessage(PacketSpeakerConfig message, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            NetworkHandler.sendDebugMessage(world, message.linkKey, "[SAM-DEBUG] Speaker Config Received! pos=" + message.x + "," + message.y + "," + message.z + " linkKey=" + message.linkKey + " range=" + message.range + " volume=" + message.volume);
+            String normalizedKey = normalizeKey(message.linkKey);
+            NetworkHandler.sendDebugMessage(world, normalizedKey, "[SAM-DEBUG] Speaker Config Received! pos=" + message.x + "," + message.y + "," + message.z + " linkKey=" + normalizedKey + " range=" + message.range + " volume=" + message.volume);
+
+            SpeakerRegistry.upsert(world.provider.dimensionId, message.x, message.y, message.z, normalizedKey, message.range, message.volume);
 
             if (te instanceof TileEntitySpeaker) {
                 TileEntitySpeaker speaker = (TileEntitySpeaker) te;
-                speaker.linkKey = message.linkKey;
+                speaker.linkKey = normalizedKey;
                 speaker.range = message.range;
                 speaker.volume = message.volume;
                 speaker.markDirty();
@@ -159,26 +150,6 @@ public class NetworkHandler {
     public static class DebugAnnounceEventHandler implements IMessageHandler<PacketDebugAnnounceEvent, IMessage> {
         @Override
         public IMessage onMessage(PacketDebugAnnounceEvent message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            if (!NetworkHandler.hasDebugReceiverWithKey(world, message.linkKey)) {
-                return null;
-            }
-
-            String msg = "";
-            if ("START".equals(message.eventType)) {
-                msg = "§b[SAM-PLAYBACK] START§f key=" + message.linkKey + " sound=" + message.soundId + (message.playLocalSound ? " +local" : "");
-            } else if ("STOP".equals(message.eventType)) {
-                msg = "§c[SAM-PLAYBACK] STOP§f key=" + message.linkKey;
-            } else if ("PLAY".equals(message.eventType)) {
-                msg = "§a[SAM-PLAYBACK] PLAYING§f key=" + message.linkKey + " speakers=" + message.matchedSpeakers + " sound=" + message.soundId;
-            }
-
-            if (!msg.isEmpty()) {
-                for (Object obj : world.playerEntities) {
-                    net.minecraft.entity.player.EntityPlayer player = (net.minecraft.entity.player.EntityPlayer) obj;
-                    player.addChatMessage(new net.minecraft.util.ChatComponentText(msg));
-                }
-            }
             return null;
         }
     }

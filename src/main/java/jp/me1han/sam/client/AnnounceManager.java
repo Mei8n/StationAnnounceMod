@@ -28,6 +28,9 @@ public class AnnounceManager {
     private static class AnnounceSession {
         final String linkKey;
         final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
+        final List<PacketAnnounce.SpeakerData> serverSpeakers;
+        final int serverTotalSpeakers;
+        final String serverSampleKeys;
         String loopSound;
         boolean playLocalSound;
         int x, y, z;
@@ -38,6 +41,8 @@ public class AnnounceManager {
         // Speakerキャッシュ: セッション開始時の1回だけスキャン
         List<TileEntitySpeaker> cachedSpeakers;
         boolean speakersInitialized = false;
+        boolean speakerCheckLogged = false;
+        boolean noMatchLogged = false;
 
         AnnounceSession(PacketAnnounce msg) {
             this.linkKey = normalizeKeyStatic(msg.linkKey);
@@ -45,6 +50,9 @@ public class AnnounceManager {
             this.x = msg.x;
             this.y = msg.y;
             this.z = msg.z;
+            this.serverSpeakers = msg.speakers != null ? new ArrayList<PacketAnnounce.SpeakerData>(msg.speakers) : new ArrayList<PacketAnnounce.SpeakerData>();
+            this.serverTotalSpeakers = msg.serverTotalSpeakers;
+            this.serverSampleKeys = msg.serverSampleKeys != null ? msg.serverSampleKeys : "";
 
             if (msg.startMelo != null && !msg.startMelo.isEmpty()) {
                 this.queue.add(msg.startMelo);
@@ -73,13 +81,10 @@ public class AnnounceManager {
 
     public void startAnnounce(PacketAnnounce msg) {
         if (msg == null || msg.linkKey == null) {
-            StationAnnounceModCore.logger.warn("[SAM-DEBUG] startAnnounce called with null message or linkKey");
             return;
         }
 
         String key = normalizeKey(msg.linkKey);
-
-        StationAnnounceModCore.logger.info("[SAM-DEBUG] Client startAnnounce received. key=[" + key + "], playLocal=" + msg.playLocalSound + ", pos=" + msg.x + "," + msg.y + "," + msg.z);
 
         AnnounceSession existingSession = activeSessions.get(key);
         if (existingSession != null) {
@@ -185,49 +190,64 @@ public class AnnounceManager {
             ResourceLocation res = new ResourceLocation(soundId);
             World world = Minecraft.getMinecraft().theWorld;
             if (world == null) {
-                StationAnnounceModCore.logger.warn("[SAM-DEBUG] playInSession skipped: client world is null");
                 return;
             }
 
-            // Speakerキャッシュの初期化（セッション開始時の1回のみ）
             if (!session.speakersInitialized) {
                 initializeSpeakerCache(session, world);
                 session.speakersInitialized = true;
             }
 
-            int matchedCount = 0;
-            if (session.cachedSpeakers != null) {
-                for (TileEntitySpeaker speaker : session.cachedSpeakers) {
-                    if (speaker != null && speaker.linkKey != null) {
-                        String speakerKey = normalizeKey(speaker.linkKey);
-                        if (!speakerKey.isEmpty() && session.linkKey.equals(speakerKey)) {
-                            matchedCount++;
-                            playSoundAtSpeaker(res, session, speaker);
-                        }
-                    }
+            int serverMatchedCount = playAtServerSpeakers(session, res);
+            int matchedCount = serverMatchedCount;
+            int firstMatchedCount = matchedCount;
+            int cachedCount = session.cachedSpeakers != null ? session.cachedSpeakers.size() : 0;
+            boolean rescanned = false;
+
+            if (serverMatchedCount == 0) {
+                matchedCount = playAtMatchedSpeakers(session, res);
+                firstMatchedCount = matchedCount;
+
+                // 専用サーバーではTE同期が遅れることがあるため、未一致時は一度だけ再スキャンする
+                if (matchedCount == 0) {
+                    initializeSpeakerCache(session, world);
+                    matchedCount = playAtMatchedSpeakers(session, res);
+                    rescanned = true;
+                    cachedCount = session.cachedSpeakers != null ? session.cachedSpeakers.size() : 0;
                 }
             }
 
-            // 初回スキャン時のみログ出力（毎フレームログ出力を廃止）
-            if (!session.speakersInitialized) {
-                StationAnnounceModCore.logger.info("[SAM-DEBUG] Speaker cache initialized for key=[" + session.linkKey + "], count=" + (session.cachedSpeakers != null ? session.cachedSpeakers.size() : 0));
+            if (!session.speakerCheckLogged) {
+                session.speakerCheckLogged = true;
+                String detail = "serverProvided=" + session.serverSpeakers.size()
+                    + ", serverTotal=" + session.serverTotalSpeakers
+                    + ", serverKeys=" + (session.serverSampleKeys.isEmpty() ? "none" : session.serverSampleKeys)
+                    + ", serverMatched=" + serverMatchedCount
+                    + ", cached=" + cachedCount
+                    + ", firstMatched=" + firstMatchedCount
+                    + ", rescanned=" + rescanned
+                    + ", finalMatched=" + matchedCount;
+                sendDebugEvent("SPEAKER_CHECK", session.linkKey, soundId, matchedCount, session.playLocalSound, detail);
             }
 
             // マッチしたスピーカーがある場合のみデバッグパケット送信
             if (matchedCount > 0) {
-                try {
-                    NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent("PLAY", session.linkKey, soundId, matchedCount, session.playLocalSound));
-                } catch (Exception e) {
-                    StationAnnounceModCore.logger.error("[SAM] Failed to send debug play event", e);
-                }
+                sendDebugEvent("PLAY", session.linkKey, soundId, matchedCount, session.playLocalSound, "");
             }
 
             if (session.playLocalSound) {
                 playLocalSound(res, session);
             }
 
-            if (matchedCount == 0 && !session.playLocalSound) {
-                StationAnnounceModCore.logger.warn("[SAM-DEBUG] No speaker matched key=[" + session.linkKey + "] on this client.");
+            if (matchedCount == 0 && !session.playLocalSound && !session.noMatchLogged) {
+                session.noMatchLogged = true;
+                sendDebugEvent("NO_MATCH", session.linkKey, soundId, 0, session.playLocalSound,
+                    "serverProvided=" + session.serverSpeakers.size()
+                        + ", serverTotal=" + session.serverTotalSpeakers
+                        + ", serverKeys=" + (session.serverSampleKeys.isEmpty() ? "none" : session.serverSampleKeys)
+                        + ", serverMatched=" + serverMatchedCount
+                        + ", cached=" + cachedCount
+                        + ", speakerKeys=" + sampleSpeakerKeys(session.cachedSpeakers, 5));
             }
 
         } catch (Exception e) {
@@ -235,9 +255,100 @@ public class AnnounceManager {
         }
     }
 
+    private String sampleSpeakerKeys(List<TileEntitySpeaker> speakers, int limit) {
+        if (speakers == null || speakers.isEmpty()) {
+            return "none";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        int appended = 0;
+        for (TileEntitySpeaker speaker : speakers) {
+            if (speaker == null) {
+                continue;
+            }
+            String key = normalizeKey(speaker.linkKey);
+            if (key.isEmpty()) {
+                continue;
+            }
+            if (appended > 0) {
+                sb.append(",");
+            }
+            sb.append(key);
+            appended++;
+            if (appended >= limit) {
+                break;
+            }
+        }
+
+        return appended == 0 ? "none" : sb.toString();
+    }
+
+    private void sendDebugEvent(String eventType, String linkKey, String soundId, int matchedSpeakers, boolean playLocalSound, String detail) {
+        try {
+            NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent(
+                eventType,
+                linkKey,
+                soundId,
+                matchedSpeakers,
+                playLocalSound,
+                detail
+            ));
+        } catch (Exception e) {
+            StationAnnounceModCore.logger.error("[SAM] Failed to send debug event: " + eventType, e);
+        }
+    }
+
+    private int playAtMatchedSpeakers(AnnounceSession session, ResourceLocation res) {
+        int matchedCount = 0;
+        if (session.cachedSpeakers == null) {
+            return 0;
+        }
+
+        for (TileEntitySpeaker speaker : session.cachedSpeakers) {
+            if (speaker == null || speaker.linkKey == null) {
+                continue;
+            }
+
+            String speakerKey = normalizeKey(speaker.linkKey);
+            if (!speakerKey.isEmpty() && session.linkKey.equals(speakerKey)) {
+                matchedCount++;
+                playSoundAtSpeaker(res, session, speaker);
+            }
+        }
+
+        return matchedCount;
+    }
+
+    private int playAtServerSpeakers(AnnounceSession session, ResourceLocation res) {
+        if (session.serverSpeakers == null || session.serverSpeakers.isEmpty()) {
+            return 0;
+        }
+
+        int matchedCount = 0;
+        for (PacketAnnounce.SpeakerData speaker : session.serverSpeakers) {
+            if (speaker == null || speaker.range < 1 || speaker.volume <= 0) {
+                continue;
+            }
+
+            try {
+                float vol = (speaker.range / 16.0F) * speaker.volume;
+                vol = Math.max(0.0F, Math.min(2.0F, vol));
+
+                PositionedSoundRecord psr = new PositionedSoundRecord(res, vol, 1.0F,
+                    (float) speaker.x + 0.5F, (float) speaker.y + 0.5F, (float) speaker.z + 0.5F);
+                Minecraft.getMinecraft().getSoundHandler().playSound(psr);
+                session.activeSounds.add(psr);
+                matchedCount++;
+            } catch (Exception e) {
+                StationAnnounceModCore.logger.error("[SAM] Failed to play sound at server speaker", e);
+            }
+        }
+
+        return matchedCount;
+    }
+
     private void initializeSpeakerCache(AnnounceSession session, World world) {
         session.cachedSpeakers = new ArrayList<>();
-        String sessionKey = normalizeKey(session.linkKey);
 
         for (Object obj : world.loadedTileEntityList) {
             if (!(obj instanceof TileEntitySpeaker)) {
@@ -245,7 +356,6 @@ public class AnnounceManager {
             }
 
             TileEntitySpeaker speaker = (TileEntitySpeaker) obj;
-            String speakerKey = normalizeKey(speaker.linkKey);
 
             // キャッシュには全Speakerを保持し、マッチング処理は再生時に実施
             session.cachedSpeakers.add(speaker);

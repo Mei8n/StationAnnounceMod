@@ -37,7 +37,8 @@ public class PacketDebugConfig implements IMessage {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             TileEntity te = world.getTileEntity(message.x, message.y, message.z);
             if (te instanceof TileEntityDebugReceiver) {
-                ((TileEntityDebugReceiver) te).linkKey = message.linkKey;
+                String normalizedKey = message.linkKey == null ? "" : message.linkKey.trim();
+                ((TileEntityDebugReceiver) te).linkKey = normalizedKey;
                 te.markDirty();
                 world.markBlockForUpdate(message.x, message.y, message.z);
             }
