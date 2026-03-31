@@ -11,7 +11,7 @@ public class TileEntityStartAnnouncer extends TileEntity {
     public String linkKey = "";
     public boolean isControlCar = false;
     private boolean lastPowered = false;
-    private int lastTrainId = -1;
+    private long lastFormationId = -1L;
 
     @Override
     public void updateEntity() {
@@ -23,34 +23,45 @@ public class TileEntityStartAnnouncer extends TileEntity {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void scanTrain() {
         int r = 2;
         AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
 
-        List list = this.worldObj.getEntitiesWithinAABB(net.minecraft.entity.Entity.class, aabb);
+        List<jp.ngt.rtm.entity.train.EntityTrainBase> list = (List<jp.ngt.rtm.entity.train.EntityTrainBase>) this.worldObj.getEntitiesWithinAABB(jp.ngt.rtm.entity.train.EntityTrainBase.class, aabb);
 
-        int currentTrainId = -1;
-
-        for (Object obj : list) {
-            if (obj == null) continue;
-            String className = obj.getClass().getName();
-            if (className.equals("jp.ngt.rtm.entity.train.EntityTrainBase") || className.contains("EntityTrain")) {
-                net.minecraft.entity.Entity train = (net.minecraft.entity.Entity) obj;
-                currentTrainId = train.getEntityId();
-                break;
-            }
+        long currentFormationId = -1L;
+        for (jp.ngt.rtm.entity.train.EntityTrainBase train : list) {
+            if (this.isControlCar && !this.isControlCar(train)) continue;
+            currentFormationId = this.resolveFormationId(train);
+            break;
         }
 
-        if (currentTrainId == -1) {
-            this.lastTrainId = -1;
+        if (currentFormationId == -1L) {
+            this.lastFormationId = -1L;
             return;
         }
 
-        // 列車ID変更時のみトリガー（状態変化時のみ処理）
-        if (currentTrainId != this.lastTrainId) {
-            this.lastTrainId = currentTrainId;
+        // ATSAssistModと同様に編成単位でトリガーする
+        if (currentFormationId != this.lastFormationId) {
+            this.lastFormationId = currentFormationId;
             this.dispatchTrigger();
         }
+    }
+
+    private boolean isControlCar(jp.ngt.rtm.entity.train.EntityTrainBase train) {
+        return train.isControlCar();
+    }
+
+    private long resolveFormationId(jp.ngt.rtm.entity.train.EntityTrainBase train) {
+        try {
+            if (train.getFormation() != null) {
+                return train.getFormation().id;
+            }
+        } catch (Exception e) {
+            // Fallback to entity id when formation info is unavailable.
+        }
+        return train.getEntityId();
     }
 
     public void onRedstoneUpdate(boolean powered) {
