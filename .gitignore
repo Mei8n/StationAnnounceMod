@@ -1,4 +1,5 @@
 .ai
+.ref
 .gradle
 .settings
 /.idea/
