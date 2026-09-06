@@ -27,6 +27,8 @@ public class StationAnnounceModCore {
     public static final int GUI_ID_START_ANNOUNCER = 4;
     public static final int GUI_ID_STOP_ANNOUNCER = 5;
     public static final int GUI_ID_SPEAKER = 6;
+    public static final int GUI_ID_AWARENESS_ANNOUNCER = 7;
+    public static final int GUI_ID_DEPARTURE_MELODY = 8;
 
     public static java.io.File samPacksDir;
 
@@ -46,6 +48,8 @@ public class StationAnnounceModCore {
     public static Block blockTrainTypeSelector;
     public static Block blockDebugReceiver;
     public static Block blockSpeaker;
+    public static Block blockAwarenessAnnouncer;
+    public static Block blockDepartureMelody;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
@@ -70,12 +74,20 @@ public class StationAnnounceModCore {
         blockDebugReceiver = new BlockDebugReceiver();
         GameRegistry.registerBlock(blockDebugReceiver, "blockDebugReceiver");
 
+        blockAwarenessAnnouncer = new BlockAwarenessAnnouncer();
+        GameRegistry.registerBlock(blockAwarenessAnnouncer, "blockAwarenessAnnouncer");
+
+        blockDepartureMelody = new BlockDepartureMelody();
+        GameRegistry.registerBlock(blockDepartureMelody, "blockDepartureMelody");
+
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         GameRegistry.registerTileEntity(TileEntityStartAnnouncer.class, "tileStartAnnouncer");
         GameRegistry.registerTileEntity(TileEntityStopAnnouncer.class, "tileStopAnnouncer");
         GameRegistry.registerTileEntity(TileEntityTrainTypeSelector.class, "tileTrainTypeSelector");
         GameRegistry.registerTileEntity(TileEntitySpeaker.class, "tileSpeaker");
         GameRegistry.registerTileEntity(TileEntityDebugReceiver.class, "tileDebugReceiver");
+        GameRegistry.registerTileEntity(TileEntityAwarenessAnnouncer.class, "tileAwarenessAnnouncer");
+        GameRegistry.registerTileEntity(TileEntityDepartureMelody.class, "tileDepartureMelody");
 
         NetworkHandler.init();
         proxy.preInit(event);

@@ -49,6 +49,8 @@ public class NetworkHandler {
         INSTANCE.registerMessage(StopAnnouncerConfigHandler.class, PacketStopAnnouncerConfig.class, 5, Side.SERVER);
         INSTANCE.registerMessage(SpeakerConfigHandler.class, PacketSpeakerConfig.class, 6, Side.SERVER);
         INSTANCE.registerMessage(DebugAnnounceEventHandler.class, PacketDebugAnnounceEvent.class, 7, Side.SERVER);
+        INSTANCE.registerMessage(AwarenessConfigHandler.class, PacketAwarenessConfig.class, 8, Side.SERVER);
+        INSTANCE.registerMessage(DepartureMelodyConfigHandler.class, PacketDepartureMelodyConfig.class, 9, Side.SERVER);
     }
 
     /**
@@ -150,6 +152,38 @@ public class NetworkHandler {
     public static class DebugAnnounceEventHandler implements IMessageHandler<PacketDebugAnnounceEvent, IMessage> {
         @Override
         public IMessage onMessage(PacketDebugAnnounceEvent message, MessageContext ctx) {
+            return null;
+        }
+    }
+
+    public static class AwarenessConfigHandler implements IMessageHandler<PacketAwarenessConfig, IMessage> {
+        @Override
+        public IMessage onMessage(PacketAwarenessConfig message, MessageContext ctx) {
+            World world = ctx.getServerHandler().playerEntity.worldObj;
+            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
+            if (te instanceof TileEntityAwarenessAnnouncer) {
+                TileEntityAwarenessAnnouncer awareness = (TileEntityAwarenessAnnouncer) te;
+                awareness.applyConfig(message.linkKey, message.soundList, message.intervalTicks,
+                    message.randomOrder, message.allowOverlap, message.playAfterDeparture,
+                    message.departureDelayTicks);
+                awareness.markDirty();
+                world.markBlockForUpdate(message.x, message.y, message.z);
+            }
+            return null;
+        }
+    }
+
+    public static class DepartureMelodyConfigHandler implements IMessageHandler<PacketDepartureMelodyConfig, IMessage> {
+        @Override
+        public IMessage onMessage(PacketDepartureMelodyConfig message, MessageContext ctx) {
+            World world = ctx.getServerHandler().playerEntity.worldObj;
+            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
+            if (te instanceof TileEntityDepartureMelody) {
+                TileEntityDepartureMelody melody = (TileEntityDepartureMelody) te;
+                melody.applyConfig(message.linkKey, message.soundId);
+                melody.markDirty();
+                world.markBlockForUpdate(message.x, message.y, message.z);
+            }
             return null;
         }
     }

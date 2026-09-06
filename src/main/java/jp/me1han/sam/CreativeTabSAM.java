@@ -40,6 +40,8 @@ public class CreativeTabSAM extends CreativeTabs {
                 if (item == Item.getItemFromBlock(StationAnnounceModCore.blockStartAnnouncer)) return 3;
                 if (item == Item.getItemFromBlock(StationAnnounceModCore.blockStopAnnouncer)) return 4;
                 if (item == Item.getItemFromBlock(StationAnnounceModCore.blockTrainTypeSelector)) return 5;
+                if (item == Item.getItemFromBlock(StationAnnounceModCore.blockAwarenessAnnouncer)) return 6;
+                if (item == Item.getItemFromBlock(StationAnnounceModCore.blockDepartureMelody)) return 7;
 
                 return 100;
             }

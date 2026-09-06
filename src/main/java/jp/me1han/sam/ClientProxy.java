@@ -89,6 +89,12 @@ public class ClientProxy extends CommonProxy {
         if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_SPEAKER) {
             return new jp.me1han.sam.gui.GuiSpeaker((jp.me1han.sam.render.TileEntitySpeaker) world.getTileEntity(x, y, z));
         }
+        if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_AWARENESS_ANNOUNCER && tile instanceof TileEntityAwarenessAnnouncer) {
+            return new jp.me1han.sam.gui.GuiAwarenessAnnouncer((TileEntityAwarenessAnnouncer) tile);
+        }
+        if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_DEPARTURE_MELODY && tile instanceof TileEntityDepartureMelody) {
+            return new jp.me1han.sam.gui.GuiDepartureMelody((TileEntityDepartureMelody) tile);
+        }
         return null;
     }
 }

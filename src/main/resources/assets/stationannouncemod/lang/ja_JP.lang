@@ -5,5 +5,9 @@ tile.sam.stop_announcer.name=放送停止ブロック
 tile.trainTypeSelector.name=列車選別装置
 tile.sam.speaker=スピーカー
 
+# Issue #7 blocks
+tile.sam.awareness_announcer.name=啓発放送ブロック
+tile.sam.departure_melody.name=発車メロディブロック
+
 # Creative Tab
 itemGroup.sam_tab=Station Announce Mod

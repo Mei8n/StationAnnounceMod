@@ -48,6 +48,14 @@ public class SAMGuiHandler implements IGuiHandler {
             return new ContainerSpeaker((TileEntitySpeaker) world.getTileEntity(x, y, z));
         }
 
+        if (ID == StationAnnounceModCore.GUI_ID_AWARENESS_ANNOUNCER && tile instanceof TileEntityAwarenessAnnouncer) {
+            return new ContainerAwarenessAnnouncer((TileEntityAwarenessAnnouncer) tile);
+        }
+
+        if (ID == StationAnnounceModCore.GUI_ID_DEPARTURE_MELODY && tile instanceof TileEntityDepartureMelody) {
+            return new ContainerDepartureMelody((TileEntityDepartureMelody) tile);
+        }
+
         return null;
     }
 

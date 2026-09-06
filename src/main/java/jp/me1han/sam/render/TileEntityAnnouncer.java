@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 
 public class TileEntityAnnouncer extends TileEntity {
     private static class SpeakerCollectResult {
@@ -65,6 +66,37 @@ public class TileEntityAnnouncer extends TileEntity {
                     scanResult.speakers, scanResult.totalSpeakers, scanResult.sampleKeys),
                 this.worldObj.provider.dimensionId
             );
+        }
+    }
+
+    public void startDirectSound(String soundId, int priority, boolean allowOverlap) {
+        if (this.worldObj == null || this.worldObj.isRemote || soundId == null || soundId.trim().isEmpty()) {
+            return;
+        }
+
+        String normalizedSound = soundId.trim();
+        SpeakerCollectResult scanResult = collectSpeakersByKey(this.linkKey);
+        AnnounceData data = new AnnounceData("", Collections.singletonList(normalizedSound), "");
+        NetworkHandler.INSTANCE.sendToDimension(
+            new PacketAnnounce(data, this.linkKey, this.playLocalSound, this.xCoord, this.yCoord, this.zCoord,
+                scanResult.speakers, scanResult.totalSpeakers, scanResult.sampleKeys, priority, allowOverlap),
+            this.worldObj.provider.dimensionId
+        );
+    }
+
+    public void notifyDepartureMelodyFinished() {
+        if (this.worldObj == null || this.worldObj.isRemote || this.linkKey == null || this.linkKey.trim().isEmpty()) {
+            return;
+        }
+
+        String normalizedKey = this.linkKey.trim();
+        for (Object obj : this.worldObj.loadedTileEntityList) {
+            if (obj instanceof TileEntityAwarenessAnnouncer) {
+                TileEntityAwarenessAnnouncer awareness = (TileEntityAwarenessAnnouncer) obj;
+                if (normalizedKey.equals(awareness.getNormalizedLinkKey())) {
+                    awareness.scheduleAfterDeparture();
+                }
+            }
         }
     }
 

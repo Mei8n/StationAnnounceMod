@@ -27,6 +27,8 @@ public class AnnounceManager {
 
     private static class AnnounceSession {
         final String linkKey;
+        final int priority;
+        final boolean allowOverlap;
         final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
         final List<PacketAnnounce.SpeakerData> serverSpeakers;
         final int serverTotalSpeakers;
@@ -36,6 +38,7 @@ public class AnnounceManager {
         int x, y, z;
         int waitTicks = 0;
         boolean isPlaying = true;
+        boolean hasStartedPlayback = false;
         final List<ISound> activeSounds = new ArrayList<>();
 
         // Speakerキャッシュ: セッション開始時の1回だけスキャン
@@ -46,6 +49,8 @@ public class AnnounceManager {
 
         AnnounceSession(PacketAnnounce msg) {
             this.linkKey = normalizeKeyStatic(msg.linkKey);
+            this.priority = msg.priority;
+            this.allowOverlap = msg.allowOverlap;
             this.playLocalSound = msg.playLocalSound;
             this.x = msg.x;
             this.y = msg.y;
@@ -85,13 +90,36 @@ public class AnnounceManager {
         }
 
         String key = normalizeKey(msg.linkKey);
+        String sessionKey = getSessionKey(key, msg.priority);
 
-        AnnounceSession existingSession = activeSessions.get(key);
-        if (existingSession != null) {
-            existingSession.stop();
+        // Decide whether the new session may start before mutating any active session.
+        // This keeps a rejected lower-priority request from stopping unrelated audio.
+        for (Map.Entry<String, AnnounceSession> entry : activeSessions.entrySet()) {
+            AnnounceSession existing = entry.getValue();
+            if (!key.equals(existing.linkKey)) {
+                continue;
+            }
+
+            if (existing.priority > msg.priority && !msg.allowOverlap
+                && msg.priority != PacketAnnounce.PRIORITY_AWARENESS) {
+                return;
+            }
         }
 
-        activeSessions.put(key, new AnnounceSession(msg));
+        for (Map.Entry<String, AnnounceSession> entry : activeSessions.entrySet()) {
+            AnnounceSession existing = entry.getValue();
+            if (!key.equals(existing.linkKey)) {
+                continue;
+            }
+            boolean interruptLower = existing.priority < msg.priority && !existing.allowOverlap
+                && (existing.priority != PacketAnnounce.PRIORITY_AWARENESS || existing.hasStartedPlayback);
+            if (existing.priority == msg.priority || interruptLower) {
+                existing.stop();
+                activeSessions.remove(entry.getKey(), existing);
+            }
+        }
+
+        activeSessions.put(sessionKey, new AnnounceSession(msg));
 
         // First sound for debug output
         String firstSound = getFirstSound(msg);
@@ -120,14 +148,18 @@ public class AnnounceManager {
             }
             activeSessions.clear();
         } else {
-            AnnounceSession session = activeSessions.remove(normalizedKey);
-            if (session != null) {
+            for (Map.Entry<String, AnnounceSession> entry : activeSessions.entrySet()) {
+                AnnounceSession session = entry.getValue();
+                if (!normalizedKey.equals(session.linkKey)) {
+                    continue;
+                }
                 try {
                     NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent("STOP", normalizedKey, "", 0, session.playLocalSound));
                 } catch (Exception e) {
                     StationAnnounceModCore.logger.error("[SAM] Failed to send debug stop event", e);
                 }
                 session.stop();
+                activeSessions.remove(entry.getKey(), session);
             }
         }
     }
@@ -149,6 +181,10 @@ public class AnnounceManager {
 
             if (!session.isPlaying) {
                 it.remove();
+                continue;
+            }
+
+            if (isBlockedByHigherPriority(session)) {
                 continue;
             }
 
@@ -180,12 +216,27 @@ public class AnnounceManager {
         return (ticks != null) ? ticks : 20;
     }
 
+    private boolean isBlockedByHigherPriority(AnnounceSession session) {
+        if (session.allowOverlap || session.priority != PacketAnnounce.PRIORITY_AWARENESS) {
+            return false;
+        }
+
+        for (AnnounceSession other : activeSessions.values()) {
+            if (other != session && other.isPlaying && session.linkKey.equals(other.linkKey)
+                && other.priority > session.priority) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void playInSession(AnnounceSession session, String soundId) {
         if (session == null || soundId == null || soundId.isEmpty()) {
             return;
         }
 
         session.activeSounds.clear();
+        session.hasStartedPlayback = true;
         try {
             ResourceLocation res = new ResourceLocation(soundId);
             World world = Minecraft.getMinecraft().theWorld;
@@ -414,6 +465,8 @@ public class AnnounceManager {
         }
         return key.trim();
     }
+
+    private String getSessionKey(String linkKey, int priority) {
+        return linkKey + "\u0000" + priority;
+    }
 }
-
-

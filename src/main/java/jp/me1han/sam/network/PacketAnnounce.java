@@ -8,6 +8,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PacketAnnounce implements IMessage {
+    public static final int PRIORITY_AWARENESS = 0;
+    public static final int PRIORITY_ANNOUNCE = 10;
+    public static final int PRIORITY_DEPARTURE_MELODY = 20;
+
     public static class SpeakerData {
         public int x;
         public int y;
@@ -36,6 +40,8 @@ public class PacketAnnounce implements IMessage {
     public List<SpeakerData> speakers;
     public int serverTotalSpeakers;
     public String serverSampleKeys;
+    public int priority;
+    public boolean allowOverlap;
 
     public static final String GLOBAL_STOP_KEY = "__SAM_STOP_ALL_SIGNAL__";
 
@@ -56,12 +62,22 @@ public class PacketAnnounce implements IMessage {
         this.speakers = speakers != null ? speakers : new ArrayList<SpeakerData>();
         this.serverTotalSpeakers = 0;
         this.serverSampleKeys = "";
+        this.priority = PRIORITY_ANNOUNCE;
+        this.allowOverlap = false;
     }
 
     public PacketAnnounce(AnnounceData data, String linkKey, boolean playLocalSound, int x, int y, int z, List<SpeakerData> speakers, int serverTotalSpeakers, String serverSampleKeys) {
         this(data, linkKey, playLocalSound, x, y, z, speakers);
         this.serverTotalSpeakers = serverTotalSpeakers;
         this.serverSampleKeys = serverSampleKeys != null ? serverSampleKeys : "";
+    }
+
+    public PacketAnnounce(AnnounceData data, String linkKey, boolean playLocalSound, int x, int y, int z,
+                          List<SpeakerData> speakers, int serverTotalSpeakers, String serverSampleKeys,
+                          int priority, boolean allowOverlap) {
+        this(data, linkKey, playLocalSound, x, y, z, speakers, serverTotalSpeakers, serverSampleKeys);
+        this.priority = priority;
+        this.allowOverlap = allowOverlap;
     }
 
     public PacketAnnounce(boolean stop, String linkKey) {
@@ -75,6 +91,8 @@ public class PacketAnnounce implements IMessage {
         this.speakers = new ArrayList<SpeakerData>();
         this.serverTotalSpeakers = 0;
         this.serverSampleKeys = "";
+        this.priority = PRIORITY_ANNOUNCE;
+        this.allowOverlap = false;
     }
 
     @Override
@@ -90,6 +108,9 @@ public class PacketAnnounce implements IMessage {
         this.serverSampleKeys = "";
 
         if (stopCommand) return;
+
+        this.priority = buf.readInt();
+        this.allowOverlap = buf.readBoolean();
 
         this.startMelo = ByteBufUtils.readUTF8String(buf);
         this.arrMelo = ByteBufUtils.readUTF8String(buf);
@@ -125,6 +146,9 @@ public class PacketAnnounce implements IMessage {
         buf.writeInt(this.z);
 
         if (stopCommand) return;
+
+        buf.writeInt(this.priority);
+        buf.writeBoolean(this.allowOverlap);
 
         ByteBufUtils.writeUTF8String(buf, this.startMelo != null ? this.startMelo : "");
         ByteBufUtils.writeUTF8String(buf, this.arrMelo != null ? this.arrMelo : "");
