@@ -8,6 +8,7 @@ import jp.me1han.sam.render.TileEntityAwarenessAnnouncer;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
+import net.minecraft.client.resources.I18n;
 import org.lwjgl.input.Keyboard;
 
 public class GuiAwarenessAnnouncer extends GuiScreen {
@@ -46,13 +47,13 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
         this.departureDelayField = new GuiTextField(this.fontRendererObj, left + 130, top + 100, 110, 20);
         this.departureDelayField.setText(formatSeconds(this.tile.departureDelayTicks));
 
-        this.randomOrderCheck = new GuiCheckBox(1, left, top + 130, "Random order", this.tile.randomOrder);
-        this.allowOverlapCheck = new GuiCheckBox(2, left, top + 150, "Allow overlap with other announcements", this.tile.allowOverlap);
-        this.playAfterDepartureCheck = new GuiCheckBox(3, left, top + 170, "Play after departure melody", this.tile.playAfterDeparture);
+        this.randomOrderCheck = new GuiCheckBox(1, left, top + 130, I18n.format("gui.sam.awareness.random_order"), this.tile.randomOrder);
+        this.allowOverlapCheck = new GuiCheckBox(2, left, top + 150, I18n.format("gui.sam.awareness.allow_overlap"), this.tile.allowOverlap);
+        this.playAfterDepartureCheck = new GuiCheckBox(3, left, top + 170, I18n.format("gui.sam.awareness.after_departure"), this.tile.playAfterDeparture);
         this.buttonList.add(this.randomOrderCheck);
         this.buttonList.add(this.allowOverlapCheck);
         this.buttonList.add(this.playAfterDepartureCheck);
-        this.buttonList.add(new GuiButton(0, left, top + 200, 240, 20, "Done"));
+        this.buttonList.add(new GuiButton(0, left, top + 200, 240, 20, I18n.format("gui.done")));
     }
 
     @Override
@@ -86,11 +87,11 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
         int left = this.width / 2 - 120;
         int top = this.height / 2 - 120;
 
-        drawCenteredString(this.fontRendererObj, "Awareness Announcer Config", this.width / 2, top, 0xFFFFFF);
-        drawString(this.fontRendererObj, "Link Key", left, top + 10, 0xA0A0A0);
-        drawString(this.fontRendererObj, "Sound IDs (comma separated, one complete file each)", left, top + 50, 0xA0A0A0);
-        drawString(this.fontRendererObj, "Interval (seconds)", left, top + 90, 0xA0A0A0);
-        drawString(this.fontRendererObj, "After melody (seconds)", left + 130, top + 90, 0xA0A0A0);
+        drawCenteredString(this.fontRendererObj, I18n.format("gui.sam.awareness.title"), this.width / 2, top, 0xFFFFFF);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.link_key"), left, top + 10, 0xA0A0A0);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.sound_ids"), left, top + 50, 0xA0A0A0);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.interval"), left, top + 90, 0xA0A0A0);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.departure_delay"), left + 130, top + 90, 0xA0A0A0);
 
         this.linkKeyField.drawTextBox();
         this.soundListField.drawTextBox();

@@ -6,6 +6,7 @@ import jp.me1han.sam.render.TileEntityDepartureMelody;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
+import net.minecraft.client.resources.I18n;
 import org.lwjgl.input.Keyboard;
 
 public class GuiDepartureMelody extends GuiScreen {
@@ -30,7 +31,7 @@ public class GuiDepartureMelody extends GuiScreen {
         this.soundIdField = new GuiTextField(this.fontRendererObj, left, top + 60, 220, 20);
         this.soundIdField.setMaxStringLength(256);
         this.soundIdField.setText(this.tile.soundId == null ? "" : this.tile.soundId);
-        this.buttonList.add(new GuiButton(0, left, top + 95, 220, 20, "Done"));
+        this.buttonList.add(new GuiButton(0, left, top + 95, 220, 20, I18n.format("gui.done")));
     }
 
     @Override
@@ -50,9 +51,9 @@ public class GuiDepartureMelody extends GuiScreen {
         this.drawDefaultBackground();
         int left = this.width / 2 - 110;
         int top = this.height / 2 - 70;
-        drawCenteredString(this.fontRendererObj, "Departure Melody Config", this.width / 2, top, 0xFFFFFF);
-        drawString(this.fontRendererObj, "Link Key", left, top + 10, 0xA0A0A0);
-        drawString(this.fontRendererObj, "Sound ID (one complete file)", left, top + 50, 0xA0A0A0);
+        drawCenteredString(this.fontRendererObj, I18n.format("gui.sam.departure.title"), this.width / 2, top, 0xFFFFFF);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.link_key"), left, top + 10, 0xA0A0A0);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.departure.sound_id"), left, top + 50, 0xA0A0A0);
         this.linkKeyField.drawTextBox();
         this.soundIdField.drawTextBox();
         super.drawScreen(mouseX, mouseY, partialTicks);

@@ -9,5 +9,21 @@ tile.sam.speaker=スピーカー
 tile.sam.awareness_announcer.name=啓発放送ブロック
 tile.sam.departure_melody.name=発車メロディブロック
 
+# Common GUI
+gui.sam.link_key=Link Key
+
+# Awareness Announcer GUI
+gui.sam.awareness.title=啓発放送設定
+gui.sam.awareness.sound_ids=音声ID（カンマ区切り、1項目につき1音声ファイル）
+gui.sam.awareness.interval=放送間隔（秒）
+gui.sam.awareness.departure_delay=メロディ終了後（秒）
+gui.sam.awareness.random_order=ランダムな順番で再生
+gui.sam.awareness.allow_overlap=ほかの放送と重ねて再生
+gui.sam.awareness.after_departure=発車メロディ終了後にも再生
+
+# Departure Melody GUI
+gui.sam.departure.title=発車メロディ設定
+gui.sam.departure.sound_id=音声ID（1つの音声ファイルを指定）
+
 # Creative Tab
 itemGroup.sam_tab=Station Announce Mod

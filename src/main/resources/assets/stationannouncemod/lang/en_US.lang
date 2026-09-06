@@ -7,5 +7,21 @@ tile.sam.speaker=Speaker
 tile.sam.awareness_announcer.name=Awareness Announcer
 tile.sam.departure_melody.name=Departure Melody Block
 
+# Common GUI
+gui.sam.link_key=Link Key
+
+# Awareness Announcer GUI
+gui.sam.awareness.title=Awareness Announcer Config
+gui.sam.awareness.sound_ids=Sound IDs (comma-separated, one complete file each)
+gui.sam.awareness.interval=Interval (seconds)
+gui.sam.awareness.departure_delay=After melody (seconds)
+gui.sam.awareness.random_order=Play in random order
+gui.sam.awareness.allow_overlap=Allow overlap with other announcements
+gui.sam.awareness.after_departure=Also play after departure melody
+
+# Departure Melody GUI
+gui.sam.departure.title=Departure Melody Config
+gui.sam.departure.sound_id=Sound ID (one complete file)
+
 # Creative Tab
 itemGroup.sam_tab=Station Announce Mod
