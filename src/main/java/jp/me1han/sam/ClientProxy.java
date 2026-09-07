@@ -41,6 +41,12 @@ public class ClientProxy extends CommonProxy {
 
     @Override
     public void registerRenderers() {
+        RendererDepartureSwitch switchRenderer = new RendererDepartureSwitch();
+        ClientRegistry.bindTileEntitySpecialRenderer(TileEntityDepartureSwitch.class, switchRenderer);
+        net.minecraftforge.client.MinecraftForgeClient.registerItemRenderer(
+            net.minecraft.item.Item.getItemFromBlock(StationAnnounceModCore.blockDepartureSwitch), switchRenderer);
+        ((net.minecraft.client.resources.IReloadableResourceManager) Minecraft.getMinecraft().getResourceManager())
+            .registerReloadListener(jp.me1han.sam.client.SwitchMeshRenderer.INSTANCE);
         ClientRegistry.bindTileEntitySpecialRenderer(
             TileEntityTrainTypeSelector.class,
             new RendererTrainTypeSelector()
@@ -64,8 +70,9 @@ public class ClientProxy extends CommonProxy {
 
     @Override
     public void handleAnnouncePacket(jp.me1han.sam.network.PacketAnnounce message) {
-        jp.me1han.sam.client.AnnounceManager.INSTANCE.startAnnounce(message);
+        jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message);
     }
+
 
     @Override
     public Object getClientGuiElement(int ID, net.minecraft.entity.player.EntityPlayer player, net.minecraft.world.World world, int x, int y, int z) {
@@ -94,6 +101,9 @@ public class ClientProxy extends CommonProxy {
         }
         if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_DEPARTURE_MELODY && tile instanceof TileEntityDepartureMelody) {
             return new jp.me1han.sam.gui.GuiDepartureMelody((TileEntityDepartureMelody) tile);
+        }
+        if (ID == StationAnnounceModCore.GUI_ID_DEPARTURE_SWITCH && DepartureSwitchLink.isSwitch(tile)) {
+            return new jp.me1han.sam.gui.GuiDepartureSwitch(tile);
         }
         return null;
     }

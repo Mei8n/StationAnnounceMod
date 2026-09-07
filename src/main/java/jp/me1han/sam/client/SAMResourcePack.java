@@ -1,6 +1,5 @@
 package jp.me1han.sam.client;
 
-import com.google.common.collect.ImmutableSet;
 import net.minecraft.client.resources.IResourcePack;
 import net.minecraft.client.resources.data.IMetadataSection;
 import net.minecraft.client.resources.data.IMetadataSerializer; // Iを追加
@@ -26,7 +25,11 @@ public class SAMResourcePack implements IResourcePack {
             zip.close();
             throw new FileNotFoundException(loc.getResourcePath());
         }
-        return zip.getInputStream(entry);
+        return new FilterInputStream(zip.getInputStream(entry)) {
+            @Override public void close() throws IOException {
+                try { super.close(); } finally { zip.close(); }
+            }
+        };
     }
 
     @Override
@@ -40,7 +43,15 @@ public class SAMResourcePack implements IResourcePack {
 
     @Override
     public Set<String> getResourceDomains() {
-        return ImmutableSet.of("sound_rkkdev", "minecraft", "stationannouncemod");
+        Set<String> domains = new java.util.HashSet<>();
+        try (ZipFile zip = new ZipFile(zipFile)) {
+            java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                String[] segments = entries.nextElement().getName().split("/", 3);
+                if (segments.length == 3 && segments[0].equals("assets")) domains.add(segments[1]);
+            }
+        } catch (IOException ignored) { }
+        return domains;
     }
 
     @Override

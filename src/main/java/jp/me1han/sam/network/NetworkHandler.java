@@ -51,6 +51,8 @@ public class NetworkHandler {
         INSTANCE.registerMessage(DebugAnnounceEventHandler.class, PacketDebugAnnounceEvent.class, 7, Side.SERVER);
         INSTANCE.registerMessage(AwarenessConfigHandler.class, PacketAwarenessConfig.class, 8, Side.SERVER);
         INSTANCE.registerMessage(DepartureMelodyConfigHandler.class, PacketDepartureMelodyConfig.class, 9, Side.SERVER);
+        INSTANCE.registerMessage(DepartureControlHandler.class, PacketDepartureControl.class, 10, Side.CLIENT);
+        INSTANCE.registerMessage(PacketDepartureSwitchConfig.Handler.class, PacketDepartureSwitchConfig.class, 11, Side.SERVER);
     }
 
     /**
@@ -64,11 +66,14 @@ public class NetworkHandler {
     public static class AnnounceHandler implements IMessageHandler<PacketAnnounce, IMessage> {
         @Override
         public IMessage onMessage(PacketAnnounce message, MessageContext ctx) {
-            if (message.stopCommand) {
-                jp.me1han.sam.client.AnnounceManager.INSTANCE.stopAnnounce(message.linkKey);
-            } else {
-                jp.me1han.sam.client.AnnounceManager.INSTANCE.startAnnounce(message);
-            }
+            jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message);
+            return null;
+        }
+    }
+
+    public static class DepartureControlHandler implements IMessageHandler<PacketDepartureControl, IMessage> {
+        @Override public IMessage onMessage(PacketDepartureControl message, MessageContext ctx) {
+            jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message);
             return null;
         }
     }
@@ -176,14 +181,18 @@ public class NetworkHandler {
     public static class DepartureMelodyConfigHandler implements IMessageHandler<PacketDepartureMelodyConfig, IMessage> {
         @Override
         public IMessage onMessage(PacketDepartureMelodyConfig message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            if (te instanceof TileEntityDepartureMelody) {
-                TileEntityDepartureMelody melody = (TileEntityDepartureMelody) te;
-                melody.applyConfig(message.linkKey, message.soundId);
-                melody.markDirty();
-                world.markBlockForUpdate(message.x, message.y, message.z);
-            }
+            final net.minecraft.entity.player.EntityPlayerMP player = ctx.getServerHandler().playerEntity;
+            jp.me1han.sam.DepartureEvents.INSTANCE.enqueue(() -> {
+                World world = player.worldObj;
+                if (player.isDead || message.linkKey.length() > 64 || message.scriptName.length() > 256
+                    || message.soundId.length() > 256 || !world.blockExists(message.x, message.y, message.z)) return;
+                TileEntity te = world.getTileEntity(message.x, message.y, message.z);
+                if (te instanceof TileEntityDepartureMelody
+                    && new jp.me1han.sam.container.ContainerDepartureMelody((TileEntityDepartureMelody) te).canInteractWith(player)
+                    && player.canPlayerEdit(message.x, message.y, message.z, 1, player.getHeldItem())) {
+                    ((TileEntityDepartureMelody) te).applyConfig(message.linkKey, message.soundId, message.scriptName);
+                }
+            });
             return null;
         }
     }

@@ -1,0 +1,4235 @@
+{
+ "stop": {
+    "category": "neutral",
+    "sounds": [
+      "stop.ogg"
+    ]
+  },"shower1": {
+    "category": "neutral",
+    "sounds": [
+      "shower1.ogg"
+    ]
+  },"shower2": {
+    "category": "neutral",
+    "sounds": [
+      "shower2.ogg"
+    ]
+  },"shower3": {
+    "category": "neutral",
+    "sounds": [
+      "shower3.ogg"
+    ]
+  },"waita": {
+    "category": "neutral",
+    "sounds": [
+      "waita.ogg"
+    ]
+  },"pipipi": {
+    "category": "neutral",
+    "sounds": [
+      "pipipi.ogg"
+    ]
+  },"mousugu": {
+    "category": "neutral",
+    "sounds": [
+      "mousugu.ogg"
+    ]
+  },"wakimashita": {
+    "category": "neutral",
+    "sounds": [
+      "wakimashita.ogg"
+    ]
+  },
+
+
+ "fumikiri1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri1"]
+ },
+ 
+ "fumikiri2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri2"]
+ },
+ 
+ "fumikiri3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri3"]
+ },
+
+ "fumikiri4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri4"]
+ },
+
+ "fumikiri5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri5"]
+ },
+
+ "fumikiri6":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri6"]
+ },
+
+ "fumikiri7":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri7"]
+ },
+
+ "fumikiri8":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri8"]
+ },
+
+ "fumikiri9":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri9"]
+ },
+
+ "fumikiri10":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri10"]
+ },
+
+ "fumikiri11":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri11"]
+ },
+
+ "fumikiri12":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri12"]
+ },
+
+ "fumikiri13":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri13"]
+ },
+
+ "fumikiri14":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri14"]
+ },
+
+ "fumikiri15":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri15"]
+ },
+
+ "fumikiri16":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri16"]
+ },
+
+ "fumikiri_yamamoto1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri_yamamoto1"]
+ },
+
+ "fumikiri_yamamoto2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri_yamamoto2"]
+ },
+
+ "fumikiri_yao6":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri_yao6"]
+ },
+
+ "fumikiri_tobuc":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri_tobuc"]
+ },
+
+ "fumikiri_jre":{
+ 	"category":"neutral",
+ 	"sounds":["machine/fumikiri_jre"]
+ },
+
+
+
+
+
+
+ "kounai":{
+ 	"category":"neutral",
+ 	"sounds":["machine/kounai"]
+ },
+ "kounai2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/kounai2"]
+ },
+ "kounai3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/kounai3"]
+ },
+ "kounai4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/kounai4"]
+ },
+
+
+  "train.toilet_sound": {
+    "category": "neutral",
+    "sounds": [
+      "train/toilet_sound"
+    ]
+  },
+
+
+
+ "Mbell_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/1"]
+ },
+ 
+ "Mbell_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/2"]
+ },
+ 
+ "Mbell_3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/3"]
+ },
+
+ "Mbell_4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/4"]
+ },
+ 
+ "Mbell_jrw1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jrw1"]
+ },
+ 
+ "Mbell_jrw2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jrw2"]
+ },
+
+ "Mbell_jrw3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jrw3"]
+ },
+ 
+ "Mbell_jrc":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jrc"]
+ },
+
+ "Mbell_jrc2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jrc2"]
+ },
+ 
+ "Mbell_jrh":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jrh"]
+ },
+
+ "Mbell_hankyu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/hankyu"]
+ },
+
+ "Mbell_JRE":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE"]
+ },
+
+ "Mbell_JREMOUDOUREI":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JREMOUDOUREI"]
+ },
+
+ "Mbell_TAKESHIBA":{
+ 	"category":"neutral",
+ 	"sounds":["machine/TAKESHIBA"]
+ },
+
+ "Mbell_KEIO":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KEIO"]
+ },
+
+ "Mbell_NANKAI":{
+ 	"category":"neutral",
+ 	"sounds":["machine/NANKAI"]
+ },
+
+
+
+
+
+ "super1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/super1"]
+ },
+ "super2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/super2"]
+ },
+ "super3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/super3"]
+ },
+ "super4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/super4"]
+ },
+ "super5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/super5"]
+ },
+ "super6":{
+ 	"category":"neutral",
+ 	"sounds":["machine/super6"]
+ },
+ "super7":{
+ 	"category":"neutral",
+ 	"sounds":["machine/super7"]
+ },
+
+
+
+ "jrwest_opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jrwest_opn"]
+ },
+
+ "jrwest_cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jrwest_cls"]
+ },
+
+
+ "jreast_opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jreast_opn"]
+ },
+
+ "jreast_cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/jreast_cls"]
+ },
+
+
+ "oc_opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/oc_opn"]
+ },
+
+ "oc_cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/oc_cls"]
+ },
+
+
+ "nagoya_opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/nagoya_opn"]
+ },
+
+ "nagoya_cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/nagoya_cls"]
+ },
+
+
+ "HK_Cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/HK_Cls"]
+ },
+
+ "HK_Opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/HK_Opn"]
+ },
+
+
+ "KO_Cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KO_Cls"]
+ },
+
+ "KO_Opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KO_Opn"]
+ },
+
+
+ "Mita_Cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Mita_Cls"]
+ },
+
+ "Mita_Opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Mita_Opn"]
+ },
+
+
+ "Mita_Cls2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Mita_Cls2"]
+ },
+
+ "Mita_Opn2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Mita_Opn2"]
+ },
+
+
+ "OER_Cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/OER_Cls"]
+ },
+
+ "OER_Opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/OER_Opn"]
+ },
+
+
+ "TMT_F_Cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/TMT_F_Cls"]
+ },
+
+ "TMT_F_Opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/TMT_F_Opn"]
+ },
+
+
+ "HANEDA_Opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/HANEDA_Opn"]
+ },
+
+ "HANEDA_Cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/HANEDA_Cls"]
+ },
+
+
+ "KCS_Cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KCS_Cls"]
+ },
+
+ "KCS_Opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KCS_Opn"]
+ },
+
+
+
+ "RTM_Haijima_Cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Haijima_Cls"]
+ },
+ "RTM_Haijima_Opn":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Haijima_Opn"]
+ },
+
+
+
+ "inaka_sound":{
+ 	"category":"neutral",
+ 	"sounds":["machine/inaka_sound"]
+ },
+ "inaka_sound2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/inaka_sound2"]
+ },
+ "inaka_sound3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/inaka_sound3"]
+ },
+
+ "tokai_sound":{
+ 	"category":"neutral",
+ 	"sounds":["machine/tokai_sound"]
+ },
+ "tokai_sound2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/tokai_sound2"]
+ },
+
+
+
+ "RTM_SUNTRAS_0a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_0a"]
+ },
+ "RTM_SUNTRAS_0b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_0b"]
+ },
+
+ "RTM_SUNTRAS_1a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_1a"]
+ },
+ "RTM_SUNTRAS_1ap":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_1ap"]
+ },
+ "RTM_SUNTRAS_1b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_1b"]
+ },
+ "RTM_SUNTRAS_1bp":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_1bp"]
+ },
+
+ "RTM_SUNTRAS_2a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_2a"]
+ },
+ "RTM_SUNTRAS_2ap":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_2ap"]
+ },
+ "RTM_SUNTRAS_2b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_2b"]
+ },
+ "RTM_SUNTRAS_2bp":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_2bp"]
+ },
+
+ "RTM_SUNTRAS_3a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_3a"]
+ },
+ "RTM_SUNTRAS_3ap":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_3ap"]
+ },
+ "RTM_SUNTRAS_3b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_3b"]
+ },
+ "RTM_SUNTRAS_3bp":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_3bp"]
+ },
+
+ "RTM_SUNTRAS_4a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_4a"]
+ },
+ "RTM_SUNTRAS_4ap":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_4ap"]
+ },
+ "RTM_SUNTRAS_4b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_4b"]
+ },
+ "RTM_SUNTRAS_4bp":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_4bp"]
+ },
+
+ "RTM_SUNTRAS_5a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_5a"]
+ },
+ "RTM_SUNTRAS_5b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_5b"]
+ },
+
+ "RTM_SUNTRAS_6a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_6a"]
+ },
+ "RTM_SUNTRAS_6b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_6b"]
+ },
+
+ "RTM_SUNTRAS_7a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_7a"]
+ },
+ "RTM_SUNTRAS_7b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_7b"]
+ },
+
+ "RTM_SUNTRAS_8a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_8a"]
+ },
+ "RTM_SUNTRAS_8b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_8b"]
+ },
+
+ "RTM_SUNTRAS_9a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_9a"]
+ },
+ "RTM_SUNTRAS_9b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_9b"]
+ },
+
+ "RTM_SUNTRAS_10a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_10a"]
+ },
+ "RTM_SUNTRAS_10b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_10b"]
+ },
+
+ "RTM_SUNTRAS_sakura":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_sakura"]
+ },
+
+
+
+ "RTM_HikariChime":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HikariChime"]
+ },
+
+
+
+ "RTM_Knt_Around_The_World":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Around_The_World"]
+ },
+
+ "RTM_Knt_Hikarinokane":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Hikarinokane"]
+ },
+ "RTM_Knt_Hikarinokane_Nagoya":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Hikarinokane_Nagoya"]
+ },
+
+ "RTM_Knt_Call_Me_Up":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Call_Me_Up"]
+ },
+
+ "RTM_Knt_Donau":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Donau"]
+ },
+
+ "RTM_Knt_Eni":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Eni"]
+ },
+
+ "RTM_Knt_Eni_Kashi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Eni_Kashi"]
+ },
+
+ "RTM_Knt_Aoniyoshi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Aoniyoshi"]
+ },
+
+ "RTM_Knt_Keihanna1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Keihanna1"]
+ },
+ "RTM_Knt_Keihanna2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Keihanna2"]
+ },
+
+ "RTM_Knt_Shinju":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Shinju"]
+ },
+ "RTM_Knt_Shinju_Nagoya":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Shinju_Nagoya"]
+ },
+ "RTM_Knt_Suijo":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Suijo"]
+ },
+ "RTM_Knt_Suijo_Kashi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Suijo_Kashi"]
+ },
+ "RTM_Knt_Tokei":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Tokei"]
+ },
+
+
+ "RTM_Knt_1_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_1_1"]
+ },
+ "RTM_Knt_1_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_1_2"]
+ },
+ "RTM_Knt_2_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_2_1"]
+ },
+ "RTM_Knt_2_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_2_2"]
+ },
+
+
+ "RTM_Knt_Announce1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Announce1"]
+ },
+ "RTM_Knt_Announce2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Announce2"]
+ },
+
+
+ "RTM_Knt_Chime1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Chime1"]
+ },
+ "RTM_Knt_Chime2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Chime2"]
+ },
+
+
+ "RTM_Knt_Pass_1_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Pass_1_2"]
+ },
+ "RTM_Knt_Pass_2_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Pass_2_2"]
+ },
+
+
+ "RTM_Knt_M1a":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M1a"]
+},
+"RTM_Knt_M1b":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M1b"]
+},
+"RTM_Knt_M2a":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M2a"]
+},
+"RTM_Knt_M2b":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M2b"]
+},
+"RTM_Knt_M3a":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M3a"]
+},
+"RTM_Knt_M3b":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M3b"]
+},
+"RTM_Knt_M4a":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M4a"]
+},
+"RTM_Knt_M4b":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M4b"]
+},
+"RTM_Knt_M5a":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M5a"]
+},
+"RTM_Knt_M5b":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M5b"]
+},
+"RTM_Knt_M6a":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M6a"]
+},
+"RTM_Knt_M6b":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M6b"]
+},
+"RTM_Knt_M7a":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M7a"]
+},
+"RTM_Knt_M8a":{
+	"category":"neutral",
+	"sounds":["machine/RTM_Knt_M8a"]
+},
+
+
+ "RTM_Knt_Tsuruhashi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Tsuruhashi"]
+ },
+
+ "RTM_Knt_Tsuruhashi_Osaka":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Tsuruhashi_Osaka"]
+ },
+
+ "RTM_Knt_Tsuruhashi_Nara":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Knt_Tsuruhashi_Nara"]
+ },
+
+
+
+
+ "RTM_hokuriku_buzzer":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hokuriku_buzzer"]
+ },
+
+
+
+ "RTM_Sanyo_yokoku":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sanyo_yokoku"]
+ },
+ "RTM_Sanyo_hassya":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sanyo_hassya"]
+ },
+ "RTM_Sanyo_arrive":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sanyo_arrive"]
+ },
+ "RTM_Sanyo_pass1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sanyo_pass1"]
+ },
+ "RTM_Sanyo_pass2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sanyo_pass2"]
+ },
+ "RTM_Sanyo_PrincessSamba":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sanyo_PrincessSamba"]
+ },
+
+
+
+ "RTM_Super_Bell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Super_Bell"]
+ },
+ "RTM_kanku_JR_buzzer":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_kanku_JR_buzzer"]
+ },
+ "RTM_kanku_JR_harukahassha":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_kanku_JR_harukahassha"]
+ },
+ "RTM_kanku_JR_localsekkin":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_kanku_JR_localsekkin"]
+ },
+ "RTM_Kanku_JR_yokoku":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kanku_JR_yokoku"]
+ },
+ "RTM_kanku_NK_bell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_kanku_NK_bell"]
+ },
+ "RTM_kanku_NK_yokoku":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_kanku_NK_yokoku"]
+ },
+
+
+
+ "RTM_HS_bell1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_bell1"]
+ },
+
+ "RTM_HS_bell2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_bell2"]
+ },
+
+ "RTM_HS_ar_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_ar_1"]
+ },
+
+ "RTM_HS_ar_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_ar_2"]
+ },
+
+ "RTM_HS_ar_3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_ar_3"]
+ },
+
+ "RTM_HS_ar_4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_ar_4"]
+ },
+
+ "RTM_HS_ar_a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_ar_a"]
+ },
+
+ "RTM_HS_ar_b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_ar_b"]
+ },
+
+ "RTM_HS_ar_melo":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_ar_melo"]
+ },
+
+ "RTM_HS_ar_melo_old":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_ar_melo_old"]
+ },
+
+ "RTM_HS_b_door_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_b_door_1"]
+ },
+
+ "RTM_HS_b_door_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_b_door_2"]
+ },
+
+ "RTM_HS_dep_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_dep_1"]
+ },
+
+ "RTM_HS_dep_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_dep_2"]
+ },
+
+ "RTM_HS_dep_melo":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_dep_melo"]
+ },
+
+ "RTM_HS_dep_melo_old1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_dep_melo_old1"]
+ },
+
+ "RTM_HS_dep_melo_old2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_dep_melo_old2"]
+ },
+
+ "RTM_HS_depnotice_melo":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_depnotice_melo"]
+ },
+
+ "RTM_HS_depnotice_melo_old1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_depnotice_melo_old1"]
+ },
+
+ "RTM_HS_depnotice_melo_old2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_depnotice_melo_old2"]
+ },
+
+
+ "RTM_HS_arr_melo_arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_arr_melo_arr"]
+ },
+
+ "RTM_HS_pass_melo_arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_pass_melo_arr"]
+ },
+
+
+ "RTM_HS_door_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_door_1"]
+ },
+ "RTM_HS_door_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_door_2"]
+ },
+
+
+ "RTM_HS_pass_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_pass_1"]
+ },
+ "RTM_HS_pass_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_pass_2"]
+ },
+
+
+ "RTM_HS_pass_melo":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_pass_melo"]
+ },
+ "RTM_HS_pass_melo_old":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HS_pass_melo_old"]
+ },
+
+
+ "RTM_Toq_bell1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_bell1"]
+ },
+ "RTM_Toq_bell2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_bell2"]
+ },
+ "RTM_Toq_bell3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_bell3"]
+ },
+ "RTM_Toq_bell4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_bell4"]
+ },
+ "RTM_Toq_bell5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_bell5"]
+ },
+
+ "RTM_Toq_Passagebell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_Passagebell"]
+ },
+
+ "RTM_Toq_OMbell1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_OMbell1"]
+ },
+ "RTM_Toq_OMbell2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_OMbell2"]
+ },
+
+ "RTM_Toq_DT1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_DT1"]
+ },
+
+ "RTM_Toq_DT2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_DT2"]
+ },
+
+ "RTM_Toq_IKTM1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_IKTM1"]
+ },
+ "RTM_Toq_IKTM2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toq_IKTM2"]
+ },
+
+
+ "RTM_NK_buzzer":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NK_buzzer"]
+ },
+
+ "RTM_NK_track1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NK_track1"]
+ },
+
+ "RTM_NK_track2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NK_track2"]
+ },
+
+ "RTM_NK_HashimotoBell1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NK_HashimotoBell1"]
+ },
+
+ "RTM_NK_HashimotoBell2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NK_HashimotoBell2"]
+ },
+
+ "RTM_NK_NambaBell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NK_NambaBell"]
+ },
+
+
+
+ "RTM_NFS_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NFS_1"]
+ },
+
+ "RTM_NFS_1_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NFS_1_1"]
+ },
+
+ "RTM_NFS_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NFS_2"]
+ },
+
+ "RTM_NFS_3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NFS_3"]
+ },
+
+ "RTM_NFS_4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NFS_4"]
+ },
+
+
+
+ "RTM_semboku_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_semboku_1"]
+ },
+ "RTM_semboku_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_semboku_2"]
+ },
+
+
+ "RTM_semboku_track1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_semboku_track1"]
+ },
+ "RTM_semboku_track2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_semboku_track2"]
+ },
+
+
+ "RTM_semboku_dep1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_semboku_dep1"]
+ },
+ "RTM_semboku_dep2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_semboku_dep2"]
+ },
+
+
+
+ "RTM_hiroden":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hiroden"]
+ },
+
+
+
+ "RTM_shimamoto":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shimamoto"]
+ },
+
+
+ "RTM_SUNTRAS_doorcls1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_doorcls1"]
+ },
+ "RTM_SUNTRAS_doorcls2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SUNTRAS_doorcls2"]
+ },
+
+
+ "RTM_osakahigashi_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_osakahigashi_1"]
+ },
+ "RTM_osakahigashi_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_osakahigashi_2"]
+ },
+ "RTM_osakaloop":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_osakaloop"]
+ },
+
+
+ "RTM_JRW_hanyou1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_hanyou1"]
+ },
+ "RTM_JRW_hanyou2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_hanyou2"]
+ },
+ "RTM_JRW_hanyou3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_hanyou3"]
+ },
+
+
+ "RTM_JRW_Geibi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_Geibi"]
+ },
+
+ "RTM_JRW_Kirameki":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_Kirameki"]
+ },
+
+
+ "RTM_Hokuriku_Kanazawa":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Hokuriku_Kanazawa"]
+ },
+
+ "RTM_Hokuriku_AnnieLaurie":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Hokuriku_AnnieLaurie"]
+ },
+
+ "RTM_Hokuriku_Elise":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Hokuriku_Elise"]
+ },
+
+ "RTM_Hokuriku_Kajiya":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Hokuriku_Kajiya"]
+ },
+
+ "RTM_tonami_sakura":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_tonami_sakura"]
+ },
+ "RTM_tonami_elise":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_tonami_elise"]
+ },
+
+ "RTM_Nanao_momiji":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Nanao_momiji"]
+ },
+
+ "RTM_Nanao_wareha":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Nanao_wareha"]
+ },
+
+
+
+ "RTM_JRW_Sanyo_bell1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_Sanyo_bell1"]
+ },
+
+ "RTM_JRW_Sanyo_bell2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_Sanyo_bell2"]
+ },
+
+ "RTM_JRW_Sanyo_bell3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_Sanyo_bell3"]
+ },
+
+ "RTM_JRW_UbeLine":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_UbeLine"]
+ },
+
+
+ "RTM_JRW_hanyou_a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_hanyou_a"]
+ },
+ "RTM_JRW_hanyou_b":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_hanyou_b"]
+ },
+
+
+
+ "RTM_hidamari_v1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hidamari_v1"]
+ },
+ "RTM_hidamari_v2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hidamari_v2"]
+ },
+ "RTM_Hidamari_dramatic":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Hidamari_dramatic"]
+ },
+
+ "RTM_moonstone":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_moonstone"]
+ },
+
+ "RTM_JRE_moonstone":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_moonstone"]
+ },
+
+
+
+ "RTM_newfukushimazone":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_newfukushimazone"]
+ },
+
+
+
+ "RTM_tel0_opn":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_opn"]
+ },
+
+ "RTM_tel0_cls":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_cls"]
+ },
+
+ "RTM_tel0_horn":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_horn"]
+ },
+
+ "RTM_tel0_air":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_air"]
+ },
+
+ "RTM_tel0_loop":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_loop"]
+ },
+
+ "RTM_tel0_kishimi1":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_kishimi1"]
+ },
+
+ "RTM_tel0_kishimi2":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_kishimi2"]
+ },
+
+ "RTM_tel0_ATC":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_ATC"]
+ },
+
+ "RTM_tel0_ATC2":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_ATC2"]
+ },
+
+ "RTM_tel0_tojime":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_tojime"]
+ },
+
+ "RTM_tel0_tojime2":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_tel0_tojime2"]
+ },
+
+
+ "RTM_chime_kodama1":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_chime_kodama1"]
+ },
+
+ "RTM_chime_kodama3":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_chime_kodama3"]
+ },
+
+ "RTM_chime_nozomi1":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_chime_nozomi1"]
+ },
+
+ "RTM_chime_nozomi2":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_chime_nozomi2"]
+ },
+
+ "RTM_chime_ambitious1":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_chime_ambitious1"]
+ },
+
+ "RTM_chime_ambitious2":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_chime_ambitious2"]
+ },
+
+ "RTM_chime_iihi1":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_chime_iihi1"]
+ },
+
+ "RTM_chime_iihi2":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_chime_iihi2"]
+ },
+
+
+
+ "RTM_JRW_eiraku_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_eiraku_1"]
+ },
+ "RTM_JRW_eiraku_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_eiraku_2"]
+ },
+
+ "RTM_JRW_bell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRW_bell"]
+ },
+
+
+
+ "RTM_TOA_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TOA_1"]
+ },
+ "RTM_TOA_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TOA_2"]
+ },
+ "RTM_TOA_simple":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TOA_simple"]
+ },
+
+
+
+ "RTM_Kanno_4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kanno_4"]
+ },
+
+ "RTM_Kanno_arr_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kanno_arr_1"]
+ },
+ "RTM_Kanno_arr_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kanno_arr_2"]
+ },
+
+ "RTM_Kanno_arr_melo":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kanno_arr_melo"]
+ },
+ "RTM_Kanno_bell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kanno_bell"]
+ },
+
+ "RTM_Kanno_dep_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kanno_dep_1"]
+ },
+ "RTM_Kanno_dep_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kanno_dep_2"]
+ },
+
+
+
+ "RTM_Tokai_5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tokai_5"]
+ },
+ "RTM_Hofu_Melo":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Hofu_Melo"]
+ },
+
+
+
+ "RTM_old_ATOS":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_old_ATOS"]
+ },
+
+
+
+ "RTM_UNIPEX_melo":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_melo"]
+ },
+
+ "RTM_UNIPEX_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_2"]
+ },
+
+
+ "RTM_UNIPEX_track1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_track1"]
+ },
+
+ "RTM_UNIPEX_track5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_track5"]
+ },
+
+ "RTM_UNIPEX_track2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_track2"]
+ },
+
+ "RTM_UNIPEX_track6":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_track6"]
+ },
+
+
+
+ "RTM_UNIPEX_cls_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_cls_1"]
+ },
+
+ "RTM_UNIPEX_cls_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_cls_2"]
+ },
+
+ "RTM_UNIPEX_cls_5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_cls_5"]
+ },
+
+ "RTM_UNIPEX_cls_6":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_cls_6"]
+ },
+
+
+
+ "RTM_UNIPEX_simple":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_UNIPEX_simple"]
+ },
+
+
+
+ "RTM_NFS_MH":{
+ 	"category":"neutral",
+ 	"sounds":["train/RTM_NFS_MH"]
+ },
+
+
+
+ "RTM_KT_old":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KT_old"]
+ },
+
+
+
+ "RTM_shio_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shio_1"]
+ },
+ "RTM_shio_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shio_2"]
+ },
+
+
+
+ "RTM_hokuriku_n_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hokuriku_n_1"]
+ },
+ "RTM_hokuriku_n_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hokuriku_n_2"]
+ },
+
+
+
+ "RTM_hokuriku_TOKAI_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hokuriku_TOKAI_1"]
+ },
+ "RTM_hokuriku_TOKAI_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hokuriku_TOKAI_2"]
+ },
+ "RTM_hokuriku_TOKAI_3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hokuriku_TOKAI_3"]
+ },
+ "RTM_hokuriku_TOKAI_4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hokuriku_TOKAI_4"]
+ },
+ "RTM_hokuriku_TOKAI_5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hokuriku_TOKAI_5"]
+ },
+ "RTM_hokuriku_TOKAI_6":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_hokuriku_TOKAI_6"]
+ },
+
+
+
+ "RTM_Kosei_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kosei_1"]
+ },
+ "RTM_Kosei_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kosei_2"]
+ },
+ "RTM_Kosei_3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kosei_3"]
+ },
+ "RTM_Kosei_4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kosei_4"]
+ },
+
+ "RTM_Kosei_melo1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kosei_melo1"]
+ },
+ "RTM_Kosei_melo2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Kosei_melo2"]
+ },
+
+
+
+ "RTM_ryugasaki_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_ryugasaki_dep"]
+ },
+
+
+ "RTM_patlite_bell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_patlite_bell"]
+ },
+
+ "RTM_shiojiri_1_ar":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_1_ar"]
+ },
+ "RTM_shiojiri_1_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_1_dep"]
+ },
+
+ "RTM_shiojiri_2_ar":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_2_ar"]
+ },
+ "RTM_shiojiri_2_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_2_dep"]
+ },
+
+ "RTM_shiojiri_3_ar":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_3_ar"]
+ },
+ "RTM_shiojiri_3_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_3_dep"]
+ },
+
+ "RTM_shiojiri_4_ar":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_4_ar"]
+ },
+ "RTM_shiojiri_4_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_4_dep"]
+ },
+
+ "RTM_shiojiri_5_ar":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_5_ar"]
+ },
+ "RTM_shiojiri_5_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_5_dep"]
+ },
+
+ "RTM_shiojiri_6_ar":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_6_ar"]
+ },
+ "RTM_shiojiri_6_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_6_dep"]
+ },
+
+ "RTM_shiojiri_bell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_shiojiri_bell"]
+ },
+
+
+ "RTM_izumoshi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_izumoshi"]
+ },
+ "RTM_izumoshi_old":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_izumoshi_old"]
+ },
+
+
+ "RTM_ATOS_0_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_ATOS_0_dep"]
+ },
+
+
+ "RTM_seiryu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_seiryu"]
+ },
+
+
+
+ "RTM_pass_uragawara":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_pass_uragawara"]
+ },
+ "RTM_pass_mushikawa":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_pass_mushikawa"]
+ },
+ "RTM_pass_oikeikoi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_pass_oikeikoi"]
+ },
+
+ "RTM_Misashima_Kudari":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Misashima_Kudari"]
+ },
+ "RTM_Misashima_Nobori":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Misashima_Nobori"]
+ },
+
+
+
+ "RTM_NTokai_arr_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NTokai_arr_1"]
+ },
+ "RTM_NTokai_arr_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NTokai_arr_2"]
+ },
+
+ "RTM_NTokai_chime1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NTokai_chime1"]
+ },
+ "RTM_NTokai_chime2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NTokai_chime2"]
+ },
+
+ "RTM_NTokai_dep_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NTokai_dep_1"]
+ },
+ "RTM_NTokai_dep_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_NTokai_dep_2"]
+ },
+
+
+ "RTM_Rinkai_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Rinkai_1"]
+ },
+ "RTM_Rinkai_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Rinkai_2"]
+ },
+
+
+ "RTM_sagami_arr_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_sagami_arr_1"]
+ },
+ "RTM_sagami_arr_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_sagami_arr_2"]
+ },
+ "RTM_sagami_chime":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_sagami_chime"]
+ },
+
+
+ "RTM_JRE_Amaririsu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Amaririsu"]
+ },
+ "RTM_JRE_Amaririsu_Akabane":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Amaririsu_Akabane"]
+ },
+ "RTM_JRE_Amaririsu_Akabanelong":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Amaririsu_Akabanelong"]
+ },
+ "RTM_JRE_Amaririsu_Long":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Amaririsu_Long"]
+ },
+ "RTM_JRE_Amaririsu_Tachikawa":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Amaririsu_Tachikawa"]
+ },
+
+ "RTM_JRE_Awai-Koigokoro":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Awai-Koigokoro"]
+ },
+
+ "RTM_JRE_Bokujounoasa":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Bokujounoasa"]
+ },
+ "RTM_JRE_Bokujounoasa_Akabane":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Bokujounoasa_Akabane"]
+ },
+ "RTM_JRE_Bokujounoasa_Hakonegasaki":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Bokujounoasa_Hakonegasaki"]
+ },
+ "RTM_JRE_Bokujounoasa_Kuroiso":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Bokujounoasa_Kuroiso"]
+ },
+
+ "RTM_JRE_Furusato_Minakami":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Furusato_Minakami"]
+ },
+
+
+ "RTM_JRE_Hamachidori":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Hamachidori"]
+ },
+
+ "RTM_JRE_Hamachidori_Nogi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Hamachidori_Nogi"]
+ },
+
+ "RTM_JRE_Hamachidori_Tateyama":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Hamachidori_Tateyama"]
+ },
+
+ "RTM_JRE_Hamachidori_Nambu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Hamachidori_Nambu"]
+ },
+
+ "RTM_JRE_Hamachidori_Nasushiobara":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Hamachidori_Nasushiobara"]
+ },
+
+
+ "RTM_JRE_HananoHokorobi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_HananoHokorobi"]
+ },
+
+ "RTM_JRE_Haru_Oji":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Haru_Oji"]
+ },
+ "RTM_JRE_Haru_Nishikawaguchi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Haru_Nishikawaguchi"]
+ },
+ "RTM_JRE_Haru_Omori":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Haru_Omori"]
+ },
+
+ "RTM_JRE_Kanki":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Kanki"]
+ },
+
+ "RTM_JRE_Komorebino":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Komorebino"]
+ },
+
+ "RTM_JRE_HolidayV1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_HolidayV1"]
+ },
+
+ "RTM_JRE_HolidayV2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_HolidayV2"]
+ },
+
+ "RTM_JRE_Moonriver":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Moonriver"]
+ },
+ "RTM_JRE_Moonriver_tachikawa":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Moonriver_tachikawa"]
+ },
+ "RTM_JRE_Moonriver_toro":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Moonriver_toro"]
+ },
+
+ "RTM_JRE_Nobara_Kuroiso":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Nobara_Kuroiso"]
+ },
+
+ "RTM_JRE_OgawaNoSeseragiV1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_OgawaNoSeseragiV1"]
+ },
+ "RTM_JRE_OgawaNoSeseragiV2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_OgawaNoSeseragiV2"]
+ },
+
+
+ "RTM_JRE_Sekkin1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Sekkin1"]
+ },
+
+ "RTM_JRE_Sekkin2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Sekkin2"]
+ },
+
+
+ "RTM_JRE_Sumireno":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Sumireno"]
+ },
+ "RTM_JRE_Sumire_Sawara":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Sumire_Sawara"]
+ },
+
+ "RTM_JRE_farewell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_farewell"]
+ },
+
+ "RTM_JRE_Aratana_kisetsu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Aratana_kisetsu"]
+ },
+
+ "RTM_JRE_Humpty_Dumpty":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Humpty_Dumpty"]
+ },
+
+ "RTM_JRE_HarukazeV1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_HarukazeV1"]
+ },
+
+ "RTM_JRE_HarukazeV2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_HarukazeV2"]
+ },
+
+ "RTM_JRE_Open_Happiness":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Open_Happiness"]
+ },
+
+ "RTM_JRE_Airly":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Airly"]
+ },
+
+ "RTM_JRE_Asatsuyu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Asatsuyu"]
+ },
+
+ "RTM_JRE_coralreef":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_coralreef"]
+ },
+
+ "RTM_JRE_Humpty_Dumpty_Tokaido3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Humpty_Dumpty_Tokaido3"]
+ },
+
+ "RTM_JRE_Humpty_Dumpty_Tokaido4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Humpty_Dumpty_Tokaido4"]
+ },
+
+ "RTM_JRE_Morino_Yousei":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Morino_Yousei"]
+ },
+
+
+ "RTM_JRE_Susukino_Kogen_V1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Susukino_Kogen_V1"]
+ },
+
+ "RTM_JRE_Susukino_Kogen_V2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Susukino_Kogen_V2"]
+ },
+
+
+ "RTM_JRE_Tokaido_5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Tokaido_5"]
+ },
+
+ "RTM_JRE_Tokaido_5_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Tokaido_5_1"]
+ },
+
+
+ "RTM_JRE_SF-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_SF-1"]
+ },
+
+ "RTM_JRE_SF10-12_for_tomorrow":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_SF10-12_for_tomorrow"]
+ },
+
+ "RTM_JRE_SF10-60":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_SF10-60"]
+ },
+
+ "RTM_JRE_SF10-68":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_SF10-68"]
+ },
+
+ "RTM_JRE_SF22-43_full":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_SF22-43_full"]
+ },
+
+ "RTM_JRE_SF22-43_Myokaku":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_SF22-43_Myokaku"]
+ },
+
+ "RTM_JRE_bell_ueno":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_bell_ueno"]
+ },
+
+
+ "RTM_JRE_Dream_Time":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Dream_Time"]
+ },
+
+ "RTM_JRE_Furui_orugoru":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Furui_orugoru"]
+ },
+
+ "RTM_JRE_Hanatosora":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Hanatosora"]
+ },
+
+ "RTM_JRE_Kaigandori":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Kaigandori"]
+ },
+
+
+ "RTM_JRE_Kiginomezame_V1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Kiginomezame_V1"]
+ },
+
+ "RTM_JRE_Kiginomezame_V2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Kiginomezame_V2"]
+ },
+
+
+ "RTM_JRE_Koendori":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Koendori"]
+ },
+
+ "RTM_JRE_Koenno_Kaede":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Koenno_Kaede"]
+ },
+
+ "RTM_JRE_Kugatsuno_Kaze":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Kugatsuno_Kaze"]
+ },
+
+ "RTM_JRE_Natsuirono_Jikan":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Natsuirono_Jikan"]
+ },
+
+ "RTM_JRE_Pacific":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Pacific"]
+ },
+
+ "RTM_JRE_Yukidoke_Madika":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Yukidoke_Madika"]
+ },
+
+ "RTM_JRE_Oh_Champs_Elysees":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Oh_Champs_Elysees"]
+ },
+
+ "RTM_JRE_Shojojino_Tanukibayashi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Shojojino_Tanukibayashi"]
+ },
+
+
+
+ "RTM_JRE_Yuuyakekoyake_A":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Yuuyakekoyake_A"]
+ },
+
+ "RTM_JRE_Yuuyakekoyake_B":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Yuuyakekoyake_B"]
+ },
+
+ "RTM_JRE_Yuuyakekoyake_C":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Yuuyakekoyake_C"]
+ },
+
+ "RTM_JRE_Yuuyakekoyake_D":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Yuuyakekoyake_D"]
+ },
+
+ "RTM_JRE_Yuuyakekoyake_E":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Yuuyakekoyake_E"]
+ },
+
+ "RTM_JRE_Yuuyakekoyake_F":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Yuuyakekoyake_F"]
+ },
+
+
+ "RTM_JRE_Atsuki_Hoshitachiyo_A":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Atsuki_Hoshitachiyo_A"]
+ },
+
+ "RTM_JRE_Atsuki_Hoshitachiyo_B":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Atsuki_Hoshitachiyo_B"]
+ },
+
+
+ "RTM_JRE_bell_no_hibiki":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_bell_no_hibiki"]
+ },
+
+
+ "RTM_JRE_Hamabenouta_A":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Hamabenouta_A"]
+ },
+
+ "RTM_JRE_Hamabenouta_B":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Hamabenouta_B"]
+ },
+
+
+ "RTM_JRE_Oborozukiyo_A":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Oborozukiyo_A"]
+ },
+
+ "RTM_JRE_Oborozukiyo_B":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Oborozukiyo_B"]
+ },
+
+
+ "RTM_JRE_Osaruno_Kagoya_V1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Osaruno_Kagoya_V1"]
+ },
+
+ "RTM_JRE_Osaruno_Kagoya_V2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Osaruno_Kagoya_V2"]
+ },
+
+ "RTM_JRE_Osaruno_Kagoya_V3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Osaruno_Kagoya_V3"]
+ },
+
+ "RTM_JRE_Osaruno_Kagoya_V4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Osaruno_Kagoya_V4"]
+ },
+
+
+ "RTM_JRE_Sunny_islands":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Sunny_islands"]
+ },
+
+
+ "RTM_JRE_Sunrise":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Sunrise"]
+ },
+
+
+ "RTM_JRE_KotonoMaikosan":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_KotonoMaikosan"]
+ },
+
+ "RTM_JRE_999_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_999_1"]
+ },
+
+ "RTM_JRE_999_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_999_2"]
+ },
+
+ "RTM_JRE_Yumenosora":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Yumenosora"]
+ },
+
+ "RTM_JRE_ShiawaseChime":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_ShiawaseChime"]
+ },
+
+ "RTM_JRE_SweetCall":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_SweetCall"]
+ },
+
+ "RTM_JRE_Sendagaya1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Sendagaya1"]
+ },
+
+ "RTM_JRE_Sendagaya2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Sendagaya2"]
+ },
+
+
+ "RTM_JRE_SH1a":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_SH1a"]
+ },
+
+
+ "RTM_JRE_escalator":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_escalator"]
+ },
+ "RTM_JRE_escalator2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_escalator2"]
+ },
+
+
+ "RTM_JRE_Keihatsu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Keihatsu"]
+ },
+
+
+ "RTM_JRE_Arrive_JR-SH1-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Arrive_JR-SH1-2"]
+ },
+ "RTM_JRE_Arrive_JR-SH1-3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Arrive_JR-SH1-3"]
+ },
+ "RTM_JRE_Arrive_JR-SH2-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Arrive_JR-SH2-2"]
+ },
+ "RTM_JRE_Arrive_JR-SH2-3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Arrive_JR-SH2-3"]
+ },
+ "RTM_JRE_Arrive_JR-SH3-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Arrive_JR-SH3-2"]
+ },
+ "RTM_JRE_Arrive_JR-SH4-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Arrive_JR-SH4-2"]
+ },
+ "RTM_JRE_Arrive_JR-SH8-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Arrive_JR-SH8-1"]
+ },
+ "RTM_JRE_Arrive_JR-SH8-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Arrive_JR-SH8-2"]
+ },
+ "RTM_JRE_Arrive_JR-SH8-3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Arrive_JR-SH8-3"]
+ },
+
+ "RTM_JRE_JR-SH1-1h":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH1-1h"]
+ },
+ "RTM_JRE_JR-SH1-1l":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH1-1l"]
+ },
+ "RTM_JRE_JR-SH2-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH2-1"]
+ },
+ "RTM_JRE_JR-SH2-3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH2-3"]
+ },
+ "RTM_JRE_JR-SH3-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH3-1"]
+ },
+ "RTM_JRE_JR-SH3-3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH3-3"]
+ },
+ "RTM_JRE_JR-SH3-3_TYO":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH3-3_TYO"]
+ },
+ "RTM_JRE_JR-SH4-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH4-1"]
+ },
+ "RTM_JRE_JR-SH5-1_TYO":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH5-1_TYO"]
+ },
+ "RTM_JRE_JR-SH5-1_TYO_old":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH5-1_TYO_old"]
+ },
+ "RTM_JRE_JR-SH5-3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH5-3"]
+ },
+ "RTM_JRE_JR-SH6-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH6-1"]
+ },
+ "RTM_JRE_JR-SH7-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH7-1"]
+ },
+ "RTM_JRE_JR-SH8-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH8-1"]
+ },
+ "RTM_JRE_JR-SH8-1_Futaba":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH8-1_Futaba"]
+ },
+ "RTM_JRE_JR-SH8-3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_JR-SH8-3"]
+ },
+
+
+
+ "RTM_JRE_Keto_Old1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Keto_Old1"]
+ },
+
+ "RTM_JRE_Keto_Old2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Keto_Old2"]
+ },
+
+
+ "RTM_JRE_FuyunoHidamari":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_FuyunoHidamari"]
+ },
+
+ "RTM_JRE_FuyunoHidamari_Hinohara":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_FuyunoHidamari_Hinohara"]
+ },
+
+
+ "RTM_JRE_joetsu_buz":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_joetsu_buz"]
+ },
+
+
+
+ "RTM_JRE_Senseki_Kawabe1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Senseki_Kawabe1"]
+ },
+
+ "RTM_JRE_Senseki_Kawabe2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Senseki_Kawabe2"]
+ },
+
+ "RTM_JRE_Senseki_Kawabe3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Senseki_Kawabe3"]
+ },
+
+
+ "RTM_JRE_Senseki_Odawara1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Senseki_Odawara1"]
+ },
+
+ "RTM_JRE_Senseki_Odawara2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Senseki_Odawara2"]
+ },
+
+ "RTM_JRE_Senseki_Odawara1dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Senseki_Odawara1dep"]
+ },
+
+ "RTM_JRE_Senseki_Odawara2dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Senseki_Odawara2dep"]
+ },
+
+
+ "RTM_JRE_Senseki_Senseki1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Senseki_Senseki1"]
+ },
+
+ "RTM_JRE_Senseki_Senseki2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRE_Senseki_Senseki2"]
+ },
+
+
+
+
+
+ "RTM_JRC_NagoyaOldBell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRC_NagoyaOldBell"]
+ },
+
+
+
+ "RTM_JRH_Chime4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_JRH_Chime4"]
+ },
+
+
+
+ "RTM_escalator_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_escalator_1"]
+ },
+ "RTM_escalator_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_escalator_2"]
+ },
+ "RTM_escalator_3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_escalator_3"]
+ },
+
+
+
+ "RTM_IRT_Chime":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_IRT_Chime"]
+ },
+
+
+
+ "RTM_KB_1arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_1arr"]
+ },
+
+ "RTM_KB_1dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_1dep"]
+ },
+
+ "RTM_KB_2arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_2arr"]
+ },
+
+ "RTM_KB_2dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_2dep"]
+ },
+
+ "RTM_KB_3arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_3arr"]
+ },
+
+ "RTM_KB_3dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_3dep"]
+ },
+
+ "RTM_KB_4arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_4arr"]
+ },
+
+ "RTM_KB_4dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_4dep"]
+ },
+
+
+ "RTM_KB_Italia":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_Italia"]
+ },
+
+
+ "RTM_KB_KosokuBuzzer":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_KosokuBuzzer"]
+ },
+
+
+ "RTM_KB_KosokuBuz1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_KosokuBuz1"]
+ },
+
+ "RTM_KB_KosokuBuz2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_KB_KosokuBuz2"]
+ },
+
+
+
+ "RTM_Keiyo_Tokai_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Keiyo_Tokai_1"]
+ },
+ "RTM_Keiyo_Tokai_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Keiyo_Tokai_2"]
+ },
+
+
+ "RTM_Minami_Matsumoto_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Minami_Matsumoto_1"]
+ },
+ "RTM_Minami_Matsumoto_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Minami_Matsumoto_2"]
+ },
+
+
+ "RTM_OC_arrive1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OC_arrive1"]
+ },
+ "RTM_OC_arrive2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OC_arrive2"]
+ },
+ "RTM_OC_arrive2_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OC_arrive2_2"]
+ },
+
+
+ "RTM_OC_NewTram_bell1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OC_NewTram_bell1"]
+ },
+ "RTM_OC_NewTram_bell2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OC_NewTram_bell2"]
+ },
+
+ "RTM_OC_CosmosquareBell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OC_CosmosquareBell"]
+ },
+
+
+ "RTM_OT_Kitakami_01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_01"]
+ },
+ "RTM_OT_Kitakami_02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_02"]
+ },
+ "RTM_OT_Kitakami_03":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_03"]
+ },
+ "RTM_OT_Kitakami_04":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_04"]
+ },
+
+ "RTM_OT_Kitakami_11":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_11"]
+ },
+ "RTM_OT_Kitakami_12":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_12"]
+ },
+
+ "RTM_OT_Kitakami_21":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_21"]
+ },
+ "RTM_OT_Kitakami_22":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_22"]
+ },
+ "RTM_OT_Kitakami_23":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_23"]
+ },
+ "RTM_OT_Kitakami_24":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Kitakami_24"]
+ },
+
+
+ "RTM_OT_Toilet":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Toilet"]
+ },
+
+
+
+ "RTM_OT_Dp01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Dp01"]
+ },
+
+ "RTM_OT_Dp02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Dp02"]
+ },
+
+
+ "RTM_OT_Dp11":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Dp11"]
+ },
+
+ "RTM_OT_Dp12":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Dp12"]
+ },
+
+
+ "RTM_OT_Dp21-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Dp21-1"]
+ },
+
+ "RTM_OT_Dp21-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Dp21-2"]
+ },
+
+
+ "RTM_OT_Dp31":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Dp31"]
+ },
+
+
+
+ "RTM_Taka_1_Arrive":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Taka_1_Arrive"]
+ },
+ "RTM_Taka_1_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Taka_1_dep"]
+ },
+ "RTM_Taka_1_Renko":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Taka_1_Renko"]
+ },
+ "RTM_Taka_2_Arrive":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Taka_2_Arrive"]
+ },
+ "RTM_Taka_2_dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Taka_2_dep"]
+ },
+ "RTM_Taka_2_Renko":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Taka_2_Renko"]
+ },
+
+
+ "RTM_OT_landing":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_landing"]
+ },
+
+ "RTM_OT_Sakura":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Sakura"]
+ },
+
+ "RTM_OT_Seibu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_Seibu"]
+ },
+
+
+
+ "RTM_OTS_arrive":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OTS_arrive"]
+ },
+ "RTM_OTS_arriving":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OTS_arriving"]
+ },
+
+
+
+
+
+ "RTM_Tobu_Chime":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_Chime"]
+ },
+
+ "RTM_Tobu_Chime2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_Chime2"]
+ },
+
+ "RTM_Tobu_Chime3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_Chime3"]
+ },
+
+
+ "RTM_Tobu_Wakoshi":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_Wakoshi"]
+ },
+
+ "RTM_Tobu_Yokoku":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_Yokoku"]
+ },
+
+
+ "RTM_Tobu_ike1arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_ike1arr"]
+ },
+
+ "RTM_Tobu_ike23arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_ike23arr"]
+ },
+
+ "RTM_Tobu_ike45arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_ike45arr"]
+ },
+
+ "RTM_Tobu_ike1dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_ike1dep"]
+ },
+
+ "RTM_Tobu_ike2dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_ike2dep"]
+ },
+
+ "RTM_Tobu_ike3dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_ike3dep"]
+ },
+
+ "RTM_Tobu_ike4dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_ike4dep"]
+ },
+
+ "RTM_Tobu_ike5dep":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tobu_ike5dep"]
+ },
+
+
+
+
+
+ "RTM_Toei_Arrive":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toei_Arrive"]
+ },
+
+ "RTM_Toei_Pass":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toei_Pass"]
+ },
+
+
+ "RTM_Toei_Otonashigawa_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toei_Otonashigawa_1"]
+ },
+
+ "RTM_Toei_Otonashigawa_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Toei_Otonashigawa_2"]
+ },
+
+
+
+ "RTM_Tokai_Old1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tokai_Old1"]
+ },
+ "RTM_Tokai_Old2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Tokai_Old2"]
+ },
+
+ "RTM_TokaiI_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TokaiI_1"]
+ },
+ "RTM_TokaiI_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TokaiI_2"]
+ },
+ "RTM_TokaiI_3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TokaiI_3"]
+ },
+
+
+
+ "RTM_Mhn_IC":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Mhn_IC"]
+ },
+
+
+
+ "RTM_Windows_Server_2003":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Windows_Server_2003"]
+ },
+
+ "RTM_Windows_Server_2003_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Windows_Server_2003_"]
+ },
+
+
+
+ "RTM_SEKKIN_KEIHOU":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SEKKIN_KEIHOU"]
+ },
+
+ "RTM_SEKKIN_KEIHOU2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SEKKIN_KEIHOU2"]
+ },
+
+ "RTM_SEKKIN_KEIHOU3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SEKKIN_KEIHOU3"]
+ },
+
+ "RTM_SEKKIN_KEIHOU4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SEKKIN_KEIHOU4"]
+ },
+
+ "RTM_SEKKIN_KEIHOU5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SEKKIN_KEIHOU5"]
+ },
+
+ "RTM_SEKKIN_KEIHOU6":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_SEKKIN_KEIHOU6"]
+ },
+
+
+
+
+
+ "RTM_Keio_Keioliner":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Keio_Keioliner"]
+ },
+
+
+
+ "RTM_Akibakentei":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Akibakentei"]
+ },
+
+
+ "RTM_Dengo_End_Pro":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Dengo_End_Pro"]
+ },
+
+ "RTM_Dengo_End_Mei":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Dengo_End_Mei"]
+ },
+
+
+
+ "RTM_Meitetsu_Chime":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Meitetsu_Chime"]
+ },
+
+
+
+ "RTM_Oume_Chime":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Oume_Chime"]
+ },
+
+
+
+ "RTM_Takaoka_Chime":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Takaoka_Chime"]
+ },
+
+
+
+ "RTM_OT_bell":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_bell"]
+ },
+
+ "RTM_OT_bell2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_bell2"]
+ },
+
+ "RTM_OT_bell3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_bell3"]
+ },
+
+ "RTM_OT_bell4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OT_bell4"]
+ },
+
+
+
+ "RTM_HK_Umeda1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda1"]
+ },
+
+ "RTM_HK_Umeda2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda2"]
+ },
+
+ "RTM_HK_Umeda3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda3"]
+ },
+
+ "RTM_HK_Umeda4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda4"]
+ },
+
+ "RTM_HK_Umeda5":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda5"]
+ },
+
+ "RTM_HK_Umeda6":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda6"]
+ },
+
+
+ "RTM_HK_Umeda_Kyoto":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda_Kyoto"]
+ },
+
+ "RTM_HK_Umeda_Kyoto_Master":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda_Kyoto_Master"]
+ },
+
+
+ "RTM_HK_Umeda_Kobe":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda_Kobe"]
+ },
+
+ "RTM_HK_Umeda_Kobe_Master":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda_Kobe_Master"]
+ },
+
+
+ "RTM_HK_Umeda_Takarazuka":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda_Takarazuka"]
+ },
+
+ "RTM_HK_Umeda_Takarazuka_Master":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_HK_Umeda_Takarazuka_Master"]
+ },
+
+
+
+
+
+ "RTM_Shinsakuradai":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Shinsakuradai"]
+ },
+
+
+
+
+
+ "RTM_OER_arr_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OER_arr_1"]
+ },
+
+ "RTM_OER_arr_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OER_arr_2"]
+ },
+
+
+ "RTM_OER_dep_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OER_dep_1"]
+ },
+
+ "RTM_OER_dep_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_OER_dep_2"]
+ },
+
+
+
+
+
+ "RTM_Sotetsu_arr_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sotetsu_arr_1"]
+ },
+
+ "RTM_Sotetsu_arr_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sotetsu_arr_2"]
+ },
+
+
+ "RTM_Sotetsu_dep_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sotetsu_dep_1"]
+ },
+
+ "RTM_Sotetsu_dep_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Sotetsu_dep_2"]
+ },
+
+
+
+
+
+ "RTM_TMT_C_Dep1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TMT_C_Dep1"]
+ },
+
+ "RTM_TMT_C_Dep2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TMT_C_Dep2"]
+ },
+
+
+ "RTM_TMT_F_Dep1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TMT_F_Dep1"]
+ },
+
+ "RTM_TMT_F_Dep2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TMT_F_Dep2"]
+ },
+
+
+ "RTM_TMT_N_Dep1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TMT_N_Dep1"]
+ },
+
+ "RTM_TMT_N_Dep2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TMT_N_Dep2"]
+ },
+
+
+ "RTM_TMT_T_Dep1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TMT_T_Dep1"]
+ },
+
+ "RTM_TMT_T_Dep2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_TMT_T_Dep2"]
+ },
+
+
+
+
+
+ "RTM_4Chime":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_4Chime"]
+ },
+
+
+
+
+
+ "RTM_Amaririsu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Amaririsu"]
+ },
+
+
+
+ "RTM_Notice_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Notice_1"]
+ },
+
+ "RTM_Notice_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Notice_2"]
+ },
+
+
+
+
+
+ "RTM_Chofu_1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Chofu_1"]
+ },
+
+ "RTM_Chofu_2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Chofu_2"]
+ },
+
+ "RTM_Chofu_3":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Chofu_3"]
+ },
+
+ "RTM_Chofu_4":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Chofu_4"]
+ },
+
+
+
+
+
+
+
+ "MhnSwitch":{
+ 	"category":"neutral",
+ 	"sounds":["machine/MhnSwitch"]
+ },
+
+
+
+
+
+ "RTM_KS-Dep1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KS-Dep1"]
+ },
+
+
+ "RTM_KS-Asunoyozora1-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KS-Asunoyozora1-1"]
+ },
+
+ "RTM_KS-Asunoyozora1-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KS-Asunoyozora1-2"]
+ },
+
+ "RTM_KS-Asunoyozora1s-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KS-Asunoyozora1s-1"]
+ },
+
+ "RTM_KS-Asunoyozora1s-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KS-Asunoyozora1s-2"]
+ },
+
+ "RTM_KS-Asunoyozora2-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KS-Asunoyozora2-1"]
+ },
+
+ "RTM_KS-Asunoyozora2-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KS-Asunoyozora2-2"]
+ },
+
+ "RTM_KS-Asunoyozora2s-1":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KS-Asunoyozora2s-1"]
+ },
+
+ "RTM_KS-Asunoyozora2s-2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/KS-Asunoyozora2s-2"]
+ },
+
+
+
+
+
+
+
+ "Go_Select":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Go_Select"]
+ },
+
+ "Go_Train":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Go_Train"]
+ },
+
+ "Go_Good":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Go_Good"]
+ },
+
+ "Go_Great":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Go_Great"]
+ },
+
+ "Go_Bonus":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Go_Bonus"]
+ },
+
+
+
+  "train.DenD2000_1": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_1"
+    ]
+  },
+
+  "train.DenD2000_2": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_2"
+    ]
+  },
+
+  "train.DenD2000_3": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_3"
+    ]
+  },
+
+  "train.DenD2000_4": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_4"
+    ]
+  },
+
+  "train.DenD2000_5": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_5"
+    ]
+  },
+
+  "train.DenD2000_6": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_6"
+    ]
+  },
+
+  "train.DenD2000_7": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_7"
+    ]
+  },
+
+  "train.DenDVVVF_1": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDVVVF_1"
+    ]
+  },
+
+  "train.DenDVVVF_2": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDVVVF_2"
+    ]
+  },
+
+  "train.DenDVVVF_3": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDVVVF_3"
+    ]
+  },
+
+  "train.DenDVVVF_4": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDVVVF_4"
+    ]
+  },
+
+  "train.DenDVVVF_5": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDVVVF_5"
+    ]
+  },
+
+  "train.DenDVVVF_6": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDVVVF_6"
+    ]
+  },
+
+  "train.DenD2000_brake1": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_brake1"
+    ]
+  },
+
+  "train.DenD2000_brake2": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_brake2"
+    ]
+  },
+
+  "train.DenD2000_Horn": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_Horn"
+    ]
+  },
+
+  "train.DenD8200_Horn": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD8200_Horn"
+    ]
+  },
+
+  "train.DenD2000_brakesound": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_brakesound"
+    ]
+  },
+
+  "train.DenD2000_Joint": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenD2000_Joint"
+    ]
+  },
+
+  "train.DenDAoi": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDAoi"
+    ]
+  },
+
+  "train.DenDCount": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDCount"
+    ]
+  },
+
+  "train.DenDNuresenbei": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDNuresenbei"
+    ]
+  },
+
+  "train.DenDTurbo": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDTurbo"
+    ]
+  },
+
+  "train.DenDDrift": {
+    "category": "neutral",
+    "sounds": [
+      "train/DenDDrift"
+    ]
+  },
+
+
+  "train.CPstart": {
+    "category": "neutral",
+    "sounds": [
+      "train/CPstart"
+    ]
+  },
+
+  "train.CPloop": {
+    "category": "neutral",
+    "sounds": [
+      "train/CPloop"
+    ]
+  },
+
+  "train.CPend": {
+    "category": "neutral",
+    "sounds": [
+      "train/CPend"
+    ]
+  },
+
+
+
+  "train.Ki_Horn_loop": {
+    "category": "neutral",
+    "sounds": [
+      "train/Ki_Horn_loop"
+    ]
+  },
+
+  "train.Ki_Horn_release": {
+    "category": "neutral",
+    "sounds": [
+      "train/Ki_Horn_release"
+    ]
+  },
+
+
+
+ "50HzBuzzer":{
+ 	"category":"neutral",
+ 	"sounds":["machine/50HzBuzzer"]
+ },
+
+ "60HzBuzzer":{
+ 	"category":"neutral",
+ 	"sounds":["machine/60HzBuzzer"]
+ },
+
+
+
+ "USSR":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USSR"]
+ },
+
+ "USSR_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USSR_"]
+ },
+
+ "USSR_light":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USSR_light"]
+ },
+
+ "USSR_light_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USSR_light_"]
+ },
+
+ "USSR_intro":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USSR_intro"]
+ },
+
+ "USSR_intro_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USSR_intro_"]
+ },
+
+
+ "USA":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USA"]
+ },
+
+ "USA_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USA_"]
+ },
+
+ "USA_light":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USA_light"]
+ },
+
+ "USA_light_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/USA_light_"]
+ },
+
+
+ "DPRK":{
+ 	"category":"neutral",
+ 	"sounds":["machine/DPRK"]
+ },
+
+ "DPRK_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/DPRK_"]
+ },
+
+ "DPRK2":{
+ 	"category":"neutral",
+ 	"sounds":["machine/DPRK2"]
+ },
+
+ "DPRK2_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/DPRK2_"]
+ },
+
+ "RoK":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RoK"]
+ },
+
+ "RoK_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RoK_"]
+ },
+
+
+ "PRoC":{
+ 	"category":"neutral",
+ 	"sounds":["machine/PRoC"]
+ },
+
+ "PRoC_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/PRoC_"]
+ },
+
+
+ "JPN":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JPN"]
+ },
+
+ "JPN_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JPN_"]
+ },
+
+
+ "RUS":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RUS"]
+ },
+
+ "RUS_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RUS_"]
+ },
+
+
+ "TUVA":{
+ 	"category":"neutral",
+ 	"sounds":["machine/TUVA"]
+ },
+
+ "TUVA_":{
+ 	"category":"neutral",
+ 	"sounds":["machine/TUVA_"]
+ },
+
+ "RTM_Hokuso_1arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Hokuso_1arr"]
+ },
+
+ "RTM_Hokuso_1pass":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Hokuso_1pass"]
+ },
+
+ "RTM_Hokuso_2arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Hokuso_2arr"]
+ },
+
+ "RTM_Hokuso_2pass":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Hokuso_2pass"]
+ },
+
+ "RTM_Hokuso_3arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Hokuso_3arr"]
+ },
+
+ "RTM_Hokuso_3pass":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Hokuso_3pass"]
+ },
+
+ "RTM_Hokuso_4arr":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Hokuso_4arr"]
+ },
+
+ "RTM_Hokuso_4pass":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Hokuso_4pass"]
+ },
+
+ "RTM_Hokuso_pass":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Hokuso_pass"]
+ },
+
+ "RTM_Tsukuba_1cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Tsukuba_1cls"]
+ },
+
+ "RTM_Tsukuba_2cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Tsukuba_2cls"]
+ },
+
+ "RTM_Tsukuba_3cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Tsukuba_3cls"]
+ },
+
+ "RTM_Tsukuba_4cls":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Tsukuba_4cls"]
+ },
+
+ "Siren_P_8sec":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Siren_P_8sec"]
+ },
+ "Siren_P_4sec":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Siren_P_4sec"]
+ },
+ "Siren_M":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Siren_M"]
+ },
+ "Siren_M_Houce":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Siren_M_Houce"]
+ },
+ "Siren_M_Harmonick":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Siren_M_Harmonick"]
+ },
+
+
+
+ "Homerope_Alert":{
+ 	"category":"neutral",
+ 	"sounds":["machine/Homerope_Alert"]
+ },
+
+
+
+ "RTM_Chigaimasu":{
+ 	"category":"neutral",
+ 	"sounds":["machine/RTM_Chigaimasu"]
+ },
+ "kakuzuke_check":{
+ 	"category":"neutral",
+ 	"sounds":["kakuzuke_check"]
+ },
+
+ "RTM_JRE-IKST-001-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-001-01"]
+ },
+ "RTM_JRE-IKST-001-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-001-02"]
+ },
+ "RTM_JRE-IKST-001-04":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-001-04"]
+ },
+ "RTM_JRE-IKST-001-05":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-001-05"]
+ },
+ "RTM_JRE-IKST-001-07":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-001-07"]
+ },
+
+ "RTM_JRE-IKST-002-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-002-01"]
+ },
+ "RTM_JRE-IKST-002-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-002-02"]
+ },
+
+ "RTM_JRE-IKST-003-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-003-01"]
+ },
+ "RTM_JRE-IKST-003-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-003-02"]
+ },
+ "RTM_JRE-IKST-003-05":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-003-05"]
+ },
+ "RTM_JRE-IKST-003-06":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-003-06"]
+ },
+
+ "RTM_JRE-IKST-004-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-004-01"]
+ },
+ "RTM_JRE-IKST-004-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-004-02"]
+ },
+
+ "RTM_JRE-IKST-005-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-005-01"]
+ },
+ "RTM_JRE-IKST-005-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-005-02"]
+ },
+
+ "RTM_JRE-IKST-006-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-006-01"]
+ },
+ "RTM_JRE-IKST-006-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-006-02"]
+ },
+ "RTM_JRE-IKST-006-04":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-006-04"]
+ },
+ "RTM_JRE-IKST-006-05":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-006-05"]
+ },
+ "RTM_JRE-IKST-006-810":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-006-810"]
+ },
+
+ "RTM_JRE-IKST-007-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-007-01"]
+ },
+ "RTM_JRE-IKST-007-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-007-02"]
+ },
+ "RTM_JRE-IKST-007-03":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-007-03"]
+ },
+ "RTM_JRE-IKST-007-05":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-007-05"]
+ },
+ "RTM_JRE-IKST-007-810":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-007-810"]
+ },
+
+ "RTM_JRE-IKST-008-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-008-01"]
+ },
+ "RTM_JRE-IKST-008-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-008-02"]
+ },
+ "RTM_JRE-IKST-008-03":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-008-03"]
+ },
+
+ "RTM_JRE-IKST-009-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-009-01"]
+ },
+ "RTM_JRE-IKST-009-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-009-02"]
+ },
+
+ "RTM_JRE-IKST-010-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-010-01"]
+ },
+ "RTM_JRE-IKST-010-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-010-02"]
+ },
+ "RTM_JRE-IKST-010-03":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-010-03"]
+ },
+ "RTM_JRE-IKST-010-05":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-010-05"]
+ },
+
+ "RTM_JRE-IKST-011-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-011-01"]
+ },
+ "RTM_JRE-IKST-011-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-011-02"]
+ },
+
+ "RTM_JRE-IKST-012-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-012-01"]
+ },
+ "RTM_JRE-IKST-012-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-012-02"]
+ },
+ "RTM_JRE-IKST-012-03":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-012-03"]
+ },
+ "RTM_JRE-IKST-012-04":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-012-04"]
+ },
+ "RTM_JRE-IKST-012-08":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-012-08"]
+ },
+
+ "RTM_JRE-IKST-013-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-013-01"]
+ },
+ "RTM_JRE-IKST-013-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-013-02"]
+ },
+
+ "RTM_JRE-IKST-014-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-014-01"]
+ },
+ "RTM_JRE-IKST-014-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-014-02"]
+ },
+
+ "RTM_JRE-IKST-015-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-015-01"]
+ },
+ "RTM_JRE-IKST-015-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-015-02"]
+ },
+ "RTM_JRE-IKST-015-05":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-015-05"]
+ },
+
+ "RTM_JRE-IKST-016-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-016-01"]
+ },
+ "RTM_JRE-IKST-016-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-016-02"]
+ },
+ "RTM_JRE-IKST-016-03":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-016-03"]
+ },
+ "RTM_JRE-IKST-016-04":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-016-04"]
+ },
+
+ "RTM_JRE-IKST-017-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-017-01"]
+ },
+ "RTM_JRE-IKST-017-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-017-02"]
+ },
+
+ "RTM_JRE-IKST-018-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-018-01"]
+ },
+ "RTM_JRE-IKST-018-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-018-02"]
+ },
+
+ "RTM_JRE-IKST-019-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-019-01"]
+ },
+ "RTM_JRE-IKST-019-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-019-02"]
+ },
+
+ "RTM_JRE-IKST-020-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-020-01"]
+ },
+ "RTM_JRE-IKST-020-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-020-02"]
+ },
+
+ "RTM_JRE-IKST-021-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-01"]
+ },
+ "RTM_JRE-IKST-021-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-02"]
+ },
+ "RTM_JRE-IKST-021-03":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-03"]
+ },
+ "RTM_JRE-IKST-021-04":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-04"]
+ },
+ "RTM_JRE-IKST-021-05":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-05"]
+ },
+ "RTM_JRE-IKST-021-06":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-06"]
+ },
+ "RTM_JRE-IKST-021-08":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-08"]
+ },
+ "RTM_JRE-IKST-021-10":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-10"]
+ },
+ "RTM_JRE-IKST-021-11":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-11"]
+ },
+ "RTM_JRE-IKST-021-12":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-12"]
+ },
+ "RTM_JRE-IKST-021-13":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-13"]
+ },
+ "RTM_JRE-IKST-021-14":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-14"]
+ },
+ "RTM_JRE-IKST-021-Utsunomiya10":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-Utsunomiya10"]
+ },
+ "RTM_JRE-IKST-021-810":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-021-810"]
+ },
+
+ "RTM_JRE-IKST-022-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-022-01"]
+ },
+ "RTM_JRE-IKST-022-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-022-02"]
+ },
+
+ "RTM_JRE-IKST-023-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-023-02"]
+ },
+
+ "RTM_JRE-IKST-025-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-025-01"]
+ },
+ "RTM_JRE-IKST-025-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-025-02"]
+ },
+
+ "RTM_JRE-IKST-026-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-026-01"]
+ },
+ "RTM_JRE-IKST-026-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-026-02"]
+ },
+
+ "RTM_JRE-IKST-027-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-027-01"]
+ },
+ "RTM_JRE-IKST-027-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-027-02"]
+ },
+ "RTM_JRE-IKST-027-05":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-027-05"]
+ },
+
+ "RTM_JRE-IKST-028-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-028-01"]
+ },
+ "RTM_JRE-IKST-028-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-028-02"]
+ },
+
+ "RTM_JRE-IKST-038-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-038-01"]
+ },
+ "RTM_JRE-IKST-038-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-038-02"]
+ },
+
+ "RTM_JRE-IKST-042-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-042-01"]
+ },
+ "RTM_JRE-IKST-042-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-042-02"]
+ },
+ "RTM_JRE-IKST-042-05":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-042-05"]
+ },
+
+ "RTM_JRE-IKST-047-01":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-047-01"]
+ },
+ "RTM_JRE-IKST-047-02":{
+ 	"category":"neutral",
+ 	"sounds":["machine/JRE-IKST-047-02"]
+ }
+}

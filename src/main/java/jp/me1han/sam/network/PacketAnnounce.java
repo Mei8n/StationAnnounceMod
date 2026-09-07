@@ -42,6 +42,7 @@ public class PacketAnnounce implements IMessage {
     public String serverSampleKeys;
     public int priority;
     public boolean allowOverlap;
+    public jp.me1han.sam.api.DepartureProgram departure;
 
     public static final String GLOBAL_STOP_KEY = "__SAM_STOP_ALL_SIGNAL__";
 
@@ -134,6 +135,16 @@ public class PacketAnnounce implements IMessage {
 
         this.serverTotalSpeakers = buf.readInt();
         this.serverSampleKeys = ByteBufUtils.readUTF8String(buf);
+        this.departure = null;
+        if (buf.readBoolean()) {
+            this.departure = new jp.me1han.sam.api.DepartureProgram(buf.readBoolean());
+            this.departure.finishChorus = buf.readBoolean();
+            this.departure.melody = ByteBufUtils.readUTF8String(buf);
+            this.departure.doorClose = ByteBufUtils.readUTF8String(buf);
+            this.departure.melodyTicks = buf.readInt();
+            this.departure.doorCloseTicks = buf.readInt();
+            this.departure.intervalTicks = buf.readInt();
+        }
     }
 
     @Override
@@ -184,5 +195,15 @@ public class PacketAnnounce implements IMessage {
 
         buf.writeInt(this.serverTotalSpeakers);
         ByteBufUtils.writeUTF8String(buf, this.serverSampleKeys != null ? this.serverSampleKeys : "");
+        buf.writeBoolean(this.departure != null);
+        if (this.departure != null) {
+            buf.writeBoolean(this.departure.alternate);
+            buf.writeBoolean(this.departure.finishChorus);
+            ByteBufUtils.writeUTF8String(buf, this.departure.melody);
+            ByteBufUtils.writeUTF8String(buf, this.departure.doorClose);
+            buf.writeInt(this.departure.melodyTicks);
+            buf.writeInt(this.departure.doorCloseTicks);
+            buf.writeInt(this.departure.intervalTicks);
+        }
     }
 }

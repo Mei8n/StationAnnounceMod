@@ -1,0 +1,13 @@
+{
+  "name": "Mhn_melodyswitch",
+  "model": {
+      "modelFile": "machine/Mhn_melodyswitch.mqo",
+      "textures": [
+                 ["mat1", "textures/machine/Mhn_camera.png"]]
+  },
+  "buttonTexture": "textures/machine/button_Mhn_melodyswitch.png",
+  "machineType": "Light",
+  "smoothing": true,
+  "doCulling": true,
+  "accuracy": "LOW"
+}

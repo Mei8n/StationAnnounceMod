@@ -156,6 +156,7 @@ jar {
 
     from(rootDir) {
         include 'README.md'
+        include 'howtoDepartureMelody.md'
         include 'LICENSE'
     }
 
@@ -207,3 +208,22 @@ tasks.register('buildRelease') {
     group = 'build'
     dependsOn 'build'
 }
+
+tasks.register('verifyDeparture', JavaExec) {
+    group = 'verification'
+    description = 'Check departure timing, external JavaScript/JSON and network round trips.'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'jp.me1han.sam.DeparturePlaybackTest'
+}
+check.dependsOn verifyDeparture
+
+tasks.register('verifySwitchModels', JavaExec) {
+    group = 'verification'
+    description = 'Check switch JSON/MQO, independent controls and portable metadata.'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'jp.me1han.sam.SwitchModelTest'
+    workingDir = projectDir
+}
+check.dependsOn verifySwitchModels

@@ -1,111 +1,269 @@
 package jp.me1han.sam.render;
 
 import jp.me1han.sam.AnnouncePackLoader;
-import jp.me1han.sam.network.PacketAnnounce;
+import jp.me1han.sam.StationAnnounceModCore;
+import jp.me1han.sam.api.DepartureClick;
+import jp.me1han.sam.api.DepartureProgram;
+import jp.me1han.sam.api.DepartureSequence;
+import jp.me1han.sam.network.NetworkHandler;
+import jp.me1han.sam.network.PacketDepartureControl;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.world.World;
 
 public class TileEntityDepartureMelody extends TileEntity {
     public String linkKey = "";
+    /** Retained solely to migrate previously placed, one-shot devices. */
     public String soundId = "";
+    public String scriptName = "";
+    public String lastError = "";
+    private boolean lastPowered;
+    private boolean poweredInitialized;
+    private DepartureProgram program;
+    private DepartureSequence sequence;
+    private TileEntityAnnouncer activeParent;
+    private boolean redstoneOn;
+    private boolean syncedOn;
+    private long phaseStartedTick = Long.MIN_VALUE;
+    private long releasedTick = Long.MIN_VALUE;
 
-    private boolean lastPowered = false;
-    private int completionTicks = -1;
-
-    @Override
-    public void updateEntity() {
-        if (this.worldObj == null || this.worldObj.isRemote || this.completionTicks < 0) {
+    @Override public void updateEntity() {
+        if (worldObj == null || worldObj.isRemote) return;
+        // Read the current level on load without replaying an old rising edge.
+        if (!poweredInitialized) {
+            lastPowered = worldObj.isBlockIndirectlyGettingPowered(xCoord, yCoord, zCoord);
+            poweredInitialized = true;
+        }
+        if (sequence == null) return;
+        if (activeParent == null || activeParent.isInvalid()
+            || !worldObj.blockExists(activeParent.xCoord, activeParent.yCoord, activeParent.zCoord)
+            || worldObj.getTileEntity(activeParent.xCoord, activeParent.yCoord, activeParent.zCoord) != activeParent
+            || !normalize(linkKey).equals(normalize(activeParent.linkKey))) {
+            cancelPlayback();
             return;
         }
-
-        if (this.completionTicks == 0) {
-            TileEntityAnnouncer parent = findParent();
-            if (parent != null) {
-                parent.notifyDepartureMelodyFinished();
-            }
-            this.completionTicks = -1;
-        } else {
-            this.completionTicks--;
+        reconcileSwitches();
+        if (worldObj.getTotalWorldTime() != phaseStartedTick)
+            sequence.tick(worldObj.getTotalWorldTime() == releasedTick);
+        if (sequence.isFinished()) {
+            sequence = null;
+            activeParent = null;
+            sync();
         }
     }
+
+    public boolean isOn() { return worldObj != null && worldObj.isRemote ? syncedOn : sequence != null && sequence.isOn(); }
+    public boolean isPlaying() { return sequence != null && !sequence.isFinished(); }
 
     public void onRedstoneUpdate(boolean powered) {
-        if (this.worldObj == null || this.worldObj.isRemote) {
-            return;
-        }
-        if (powered && !this.lastPowered) {
-            startMelody();
-        }
-        this.lastPowered = powered;
+        if (worldObj == null || worldObj.isRemote) return;
+        if (powered == lastPowered) return;
+        lastPowered = powered;
+        poweredInitialized = true;
+        if (powered) operate(null, true);
+        else { redstoneOn = false; reconcileSwitches(); }
     }
 
-    public void startMelody() {
-        String sound = this.soundId == null ? "" : this.soundId.trim();
-        TileEntityAnnouncer parent = findParent();
-        if (parent == null || sound.isEmpty()) {
-            return;
-        }
+    public void startMelody() { operate(null, true); }
 
-        parent.startDirectSound(sound, PacketAnnounce.PRIORITY_DEPARTURE_MELODY, false);
-        Integer duration = AnnouncePackLoader.soundTicks.get(sound);
-        this.completionTicks = duration == null ? 20 : Math.max(1, duration);
-        this.markDirty();
+    /** Called once on the logical server by an independent linked SAM switch. */
+    public boolean click(TileEntity source) { return operate(source, false); }
+
+    private boolean operate(TileEntity source, boolean redstone) {
+        if (worldObj == null || worldObj.isRemote) return false;
+        try {
+            TileEntityAnnouncer parent = findParent();
+            if (parent == null) throw new IllegalStateException("Exactly one loaded parent announcer must match the link key");
+            for (Object obj : worldObj.loadedTileEntityList) {
+                if (obj != this && obj instanceof TileEntityDepartureMelody && !((TileEntity) obj).isInvalid()
+                    && normalize(linkKey).equals(normalize(((TileEntityDepartureMelody) obj).linkKey))) {
+                    throw new IllegalStateException("Only one melody device may use a link key");
+                }
+            }
+            DepartureProgram candidate = isPlaying() ? program : loadProgram();
+            TileEntityDepartureSwitch button = source instanceof TileEntityDepartureSwitch ? (TileEntityDepartureSwitch) source : null;
+            boolean momentary = button == null || button.isMomentary();
+            boolean physicalOn = momentary || !button.isActivated();
+            DepartureClick click = new DepartureClick(button == null ? redstoneOn : button.isControlOn(), candidate.alternate);
+            if (redstone) {
+                if (candidate.alternate) click.on(); else click.press();
+            } else if (candidate.alternate || physicalOn) {
+                if (normalize(scriptName).isEmpty()) click.press();
+                else AnnouncePackLoader.clickDeparture(scriptName, click);
+            }
+            // The model controls the mechanism, even when playback ignores a busy press.
+            // Commit only after the script callback succeeds.
+            if (button != null) button.operate(physicalOn, momentary);
+
+            switch (click.getAction()) {
+                case OFF:
+                    if (!candidate.alternate) break;
+                    if (button != null) {
+                        if (!button.isControlOn()) break;
+                        button.setControlOn(false);
+                    } else redstoneOn = false;
+                    reconcileSwitches();
+                    break;
+                case ON:
+                    if (!candidate.alternate) break;
+                    if (button != null) {
+                        if (button.isControlOn()) break;
+                        button.setControlOn(true);
+                    } else redstoneOn = true;
+                    if (!isOn()) begin(parent, candidate);
+                    break;
+                case PRESS:
+                    if (candidate.alternate) break;
+                    if (!isPlaying()) begin(parent, candidate);
+                    break;
+                default: break;
+            }
+            lastError = "";
+            sync();
+            return true;
+        } catch (Exception e) {
+            lastError = e.getMessage() == null ? e.toString() : e.getMessage();
+            StationAnnounceModCore.logger.error("[SAM] Departure " + xCoord + "," + yCoord + "," + zCoord + ": " + lastError, e);
+            sync();
+            return false;
+        }
     }
 
-    public void applyConfig(String linkKey, String soundId) {
-        this.linkKey = linkKey == null ? "" : linkKey.trim();
-        this.soundId = soundId == null ? "" : soundId.trim();
-        this.completionTicks = -1;
+    private DepartureProgram loadProgram() throws Exception {
+        if (!normalize(scriptName).isEmpty()) return AnnouncePackLoader.configureDeparture(scriptName, this);
+        return new DepartureProgram(false).melody(soundId)
+            .resolve(AnnouncePackLoader.soundTicks);
     }
 
-    private TileEntityAnnouncer findParent() {
-        if (this.worldObj == null) {
-            return null;
-        }
-        String key = this.linkKey == null ? "" : this.linkKey.trim();
-        if (key.isEmpty()) {
-            return null;
-        }
+    private void begin(final TileEntityAnnouncer parent, DepartureProgram selected) {
+        cancelSequence();
+        program = selected;
+        activeParent = parent;
+        phaseStartedTick = worldObj.getTotalWorldTime();
+        parent.startDeparture(program);
+        sequence = new DepartureSequence(program, new DepartureSequence.Output() {
+            public void play(DepartureSequence.Channel channel, String sound) { }
+            public void stop(DepartureSequence.Channel channel) { }
+            public void finished() { parent.notifyDepartureMelodyFinished(); }
+        });
+    }
 
-        for (Object obj : this.worldObj.loadedTileEntityList) {
-            if (obj instanceof TileEntityAnnouncer) {
-                TileEntityAnnouncer parent = (TileEntityAnnouncer) obj;
-                String parentKey = parent.linkKey == null ? "" : parent.linkKey.trim();
-                if (key.equals(parentKey)) {
-                    return parent;
+    public void reconcileSwitches() {
+        if (worldObj == null || worldObj.isRemote || !isOn() || redstoneOn) return;
+        for (Object obj : worldObj.loadedTileEntityList) {
+            if (obj instanceof TileEntityDepartureSwitch && !((TileEntity) obj).isInvalid()) {
+                TileEntityDepartureSwitch button = (TileEntityDepartureSwitch) obj;
+                if (normalize(linkKey).equals(normalize(button.linkKey)) && button.isControlOn()) return;
+            }
+        }
+        release();
+    }
+
+    private void release() {
+        if (sequence == null || !sequence.isOn()) return;
+        sequence.release();
+        releasedTick = worldObj.getTotalWorldTime();
+        sendControl(false);
+        sync();
+    }
+
+    public void cancelPlayback() {
+        redstoneOn = false;
+        if (worldObj != null && !worldObj.isRemote) {
+            for (Object obj : worldObj.loadedTileEntityList) {
+                if (obj instanceof TileEntityDepartureSwitch && normalize(linkKey).equals(normalize(((TileEntityDepartureSwitch) obj).linkKey))) {
+                    ((TileEntityDepartureSwitch) obj).resetState();
                 }
             }
         }
-        return null;
+        cancelSequence();
     }
 
-    @Override
-    public void writeToNBT(NBTTagCompound nbt) {
+    private void cancelSequence() {
+        if (sequence == null) return;
+        sequence.cancel();
+        sequence = null;
+        activeParent = null;
+        if (worldObj != null && !worldObj.isRemote) {
+            sendControl(true);
+            sync();
+        }
+    }
+
+    protected void sendControl(boolean cancel) {
+        NetworkHandler.INSTANCE.sendToDimension(new PacketDepartureControl(normalize(linkKey), cancel), worldObj.provider.dimensionId);
+    }
+
+    public static void cancelLinked(World world, String key) {
+        String normalized = normalize(key);
+        for (Object obj : world.loadedTileEntityList) {
+            if (obj instanceof TileEntityDepartureMelody) {
+                TileEntityDepartureMelody tile = (TileEntityDepartureMelody) obj;
+                if (normalized.isEmpty() || normalized.equals(normalize(tile.linkKey))) tile.cancelPlayback();
+            }
+        }
+    }
+
+    public void applyConfig(String key, String legacySound, String script) {
+        cancelPlayback();
+        linkKey = normalize(key);
+        soundId = normalize(legacySound);
+        scriptName = normalize(script);
+        lastError = "";
+        sync();
+    }
+
+    private TileEntityAnnouncer findParent() {
+        String key = normalize(linkKey);
+        if (worldObj == null || key.isEmpty()) return null;
+        TileEntityAnnouncer found = null;
+        for (Object obj : worldObj.loadedTileEntityList) {
+            if (obj instanceof TileEntityAnnouncer && !((TileEntity) obj).isInvalid()) {
+                TileEntityAnnouncer parent = (TileEntityAnnouncer) obj;
+                if (key.equals(normalize(parent.linkKey))) {
+                    if (found != null) return null;
+                    found = parent;
+                }
+            }
+        }
+        return found;
+    }
+
+    private void sync() {
+        markDirty();
+        if (worldObj != null && !worldObj.isRemote) worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+    }
+
+    public static String normalize(String value) { return value == null ? "" : value.trim(); }
+    @Override public void invalidate() { cancelPlayback(); super.invalidate(); }
+    @Override public void onChunkUnload() { cancelPlayback(); super.onChunkUnload(); }
+
+    @Override public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        nbt.setString("linkKey", this.linkKey == null ? "" : this.linkKey);
-        nbt.setString("soundId", this.soundId == null ? "" : this.soundId);
-        nbt.setBoolean("lastPowered", this.lastPowered);
-        nbt.setInteger("completionTicks", this.completionTicks);
+        nbt.setString("linkKey", normalize(linkKey));
+        nbt.setString("soundId", normalize(soundId));
+        nbt.setString("scriptName", normalize(scriptName));
+        // Deliberately do not persist live playback across world/chunk reloads.
     }
 
-    @Override
-    public void readFromNBT(NBTTagCompound nbt) {
+    @Override public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-        this.linkKey = nbt.getString("linkKey");
-        this.soundId = nbt.getString("soundId");
-        this.lastPowered = nbt.getBoolean("lastPowered");
-        this.completionTicks = nbt.hasKey("completionTicks") ? nbt.getInteger("completionTicks") : -1;
+        linkKey = nbt.getString("linkKey");
+        soundId = nbt.getString("soundId");
+        scriptName = nbt.hasKey("scriptName") ? nbt.getString("scriptName") : "";
+        syncedOn = nbt.getBoolean("departureOn");
+        lastError = nbt.getString("departureError");
     }
 
-    @Override
-    public net.minecraft.network.Packet getDescriptionPacket() {
+    @Override public net.minecraft.network.Packet getDescriptionPacket() {
         NBTTagCompound nbt = new NBTTagCompound();
-        this.writeToNBT(nbt);
-        return new net.minecraft.network.play.server.S35PacketUpdateTileEntity(this.xCoord, this.yCoord, this.zCoord, 1, nbt);
+        writeToNBT(nbt);
+        nbt.setBoolean("departureOn", isOn());
+        nbt.setString("departureError", lastError);
+        return new net.minecraft.network.play.server.S35PacketUpdateTileEntity(xCoord, yCoord, zCoord, 1, nbt);
     }
 
-    @Override
-    public void onDataPacket(net.minecraft.network.NetworkManager net, net.minecraft.network.play.server.S35PacketUpdateTileEntity pkt) {
-        this.readFromNBT(pkt.func_148857_g());
+    @Override public void onDataPacket(net.minecraft.network.NetworkManager net, net.minecraft.network.play.server.S35PacketUpdateTileEntity pkt) {
+        readFromNBT(pkt.func_148857_g());
     }
 }

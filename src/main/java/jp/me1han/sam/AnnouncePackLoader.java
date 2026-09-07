@@ -25,10 +25,16 @@ public class AnnouncePackLoader {
     public static final Map<String, Integer> soundTicks = new ConcurrentHashMap<>();
     public static final Map<String, ScriptEngine> scriptEngines = new ConcurrentHashMap<>();
     public static final List<AnnounceScriptInfo> availableScripts = new ArrayList<>();
+    /** Compatibility aliases; both script kinds share the filename namespace. */
+    public static final Map<String, ScriptEngine> departureEngines = scriptEngines;
+    public static final List<AnnounceScriptInfo> availableDepartureScripts = availableScripts;
 
     public static void loadPacks() {
+        jp.me1han.sam.switchmodel.SwitchModelRegistry.reset();
         availableScripts.clear();
         scriptEngines.clear();
+        soundTicks.clear();
+        parseLengthJson(AnnouncePackLoader.class.getResourceAsStream("/assets/stationannouncemod/sam_length.json"));
 
         File packDir = StationAnnounceModCore.samPacksDir;
 
@@ -41,12 +47,15 @@ public class AnnouncePackLoader {
 
         File[] files = packDir.listFiles((dir, name) -> name.endsWith(".zip"));
         if (files == null) return;
+        java.util.Arrays.sort(files, java.util.Comparator.comparing(File::getName));
 
         for (File file : files) {
             StationAnnounceModCore.logger.info("[SAM] Loading External Pack: " + file.getName());
             StationAnnounceModCore.proxy.addResourcePack(file);
 
             try (ZipFile zip = new ZipFile(file)) {
+                jp.me1han.sam.switchmodel.SwitchModelRegistry.loadPack(zip);
+                loadScripts(zip);
                 Enumeration<? extends ZipEntry> entries = zip.entries();
                 while (entries.hasMoreElements()) {
                     ZipEntry entry = entries.nextElement();
@@ -56,10 +65,6 @@ public class AnnouncePackLoader {
                         parseLengthJson(zip.getInputStream(entry));
                     }
 
-                    if (name.contains("assets/stationannouncemod/scripts/") && name.endsWith(".js")) {
-                        String scriptName = name.substring(name.lastIndexOf("/") + 1);
-                        parseJavaScript(zip.getInputStream(entry), scriptName);
-                    }
                 }
             } catch (Exception e) {
                 StationAnnounceModCore.logger.error("[SAM] Error parsing zip: " + file.getName(), e);
@@ -67,13 +72,35 @@ public class AnnouncePackLoader {
         }
     }
 
-    private static void parseLengthJson(InputStream is) {
-        try {
-            JsonObject json = new JsonParser().parse(new InputStreamReader(is, "UTF-8")).getAsJsonObject();
+    static void loadScripts(ZipFile zip) throws java.io.IOException {
+        // Read legacy files first, so scripts/ wins regardless of ZIP entry order.
+        for (String folder : new String[]{"departure", "scripts"}) {
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                String path = entry.getName();
+                if (!entry.isDirectory() && path.startsWith("assets/stationannouncemod/" + folder + "/")
+                    && path.endsWith(".js")) {
+                    parseJavaScript(zip.getInputStream(entry), path.substring(path.lastIndexOf('/') + 1));
+                }
+            }
+        }
+    }
+
+    static void parseLengthJson(InputStream is) {
+        try (InputStreamReader reader = new InputStreamReader(is, "UTF-8")) {
+            JsonObject json = new JsonParser().parse(reader).getAsJsonObject();
             for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
-                double seconds = entry.getValue().getAsJsonObject().get("length").getAsDouble();
-                int ticks = (int) Math.ceil(seconds * 20);
-                soundTicks.put(entry.getKey(), ticks);
+                try {
+                    double seconds = entry.getValue().getAsJsonObject().get("length").getAsDouble();
+                    if (Double.isNaN(seconds) || Double.isInfinite(seconds) || seconds <= 0 || seconds > 3600)
+                        throw new IllegalArgumentException("Duration must be >0 to 3600 seconds");
+                    soundTicks.put(entry.getKey(), (int) Math.ceil(seconds * 20));
+                } catch (Exception e) {
+                    // Invalidate an earlier pack's value as well; never reuse it for a broken override.
+                    soundTicks.put(entry.getKey(), 0);
+                    StationAnnounceModCore.logger.error("[SAM] Invalid sam_length.json duration: " + entry.getKey(), e);
+                }
             }
         } catch (Exception e) {
             StationAnnounceModCore.logger.error("[SAM] JSON error", e);
@@ -81,7 +108,7 @@ public class AnnouncePackLoader {
     }
 
     private static void parseJavaScript(InputStream is, String scriptName) {
-        try {
+        try (InputStreamReader reader = new InputStreamReader(is, "UTF-8")) {
             ScriptEngine engine = null;
 
             // 強力なリフレクションによるNashorn直接取得 (KaizPatchX的なアプローチの強化版)
@@ -106,7 +133,7 @@ public class AnnouncePackLoader {
             }
 
             engine.put("sam", new SAMScriptAPI());
-            engine.eval(new InputStreamReader(is, "UTF-8"));
+            engine.eval(reader);
 
             String displayName = scriptName;
             try {
@@ -118,6 +145,7 @@ public class AnnouncePackLoader {
             }
 
             scriptEngines.put(scriptName, engine);
+            availableScripts.removeIf(info -> info.fileName.equals(scriptName));
             availableScripts.add(new AnnounceScriptInfo(scriptName, displayName));
             StationAnnounceModCore.logger.info("[SAM] Registered: " + displayName);
 
@@ -130,11 +158,34 @@ public class AnnouncePackLoader {
         try {
             ScriptEngine engine = scriptEngines.get(name);
             if (engine == null) return null;
-            Invocable inv = (Invocable) engine;
-            return (AnnounceData) inv.invokeFunction("samMain", tile);
+            synchronized (engine) {
+                Invocable inv = (Invocable) engine;
+                return (AnnounceData) inv.invokeFunction("samMain", tile);
+            }
         } catch (Exception e) {
             StationAnnounceModCore.logger.error("[SAM] Runtime Error", e);
         }
         return null;
+    }
+
+    public static jp.me1han.sam.api.DepartureProgram configureDeparture(String name,
+            jp.me1han.sam.render.TileEntityDepartureMelody tile) throws Exception {
+        ScriptEngine engine = scriptEngines.get(name);
+        if (engine == null) throw new IllegalArgumentException("Departure script not found: " + name);
+        synchronized (engine) {
+            Object value = ((Invocable) engine).invokeFunction("configureDeparture", tile);
+            if (!(value instanceof jp.me1han.sam.api.DepartureProgram)) {
+                throw new IllegalArgumentException("configureDeparture must return sam.momentary() or sam.alternate()");
+            }
+            return ((jp.me1han.sam.api.DepartureProgram) value).resolve(soundTicks);
+        }
+    }
+
+    public static void clickDeparture(String name, jp.me1han.sam.api.DepartureClick click) throws Exception {
+        ScriptEngine engine = scriptEngines.get(name);
+        if (engine == null) throw new IllegalArgumentException("Departure script not found: " + name);
+        synchronized (engine) {
+            ((Invocable) engine).invokeFunction("onDepartureClick", click);
+        }
     }
 }

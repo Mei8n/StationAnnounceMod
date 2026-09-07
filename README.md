@@ -25,7 +25,7 @@ Latest Pre-Release [Download](https://github.com/Mei8n/stationannouncemod/releas
 ### ・放送装置ブロック
 親となるブロックです。レッドストーン入力で動作します。\
 単体動作用に、このブロックからも放送が鳴るようにできます。\
-設定画面でjsを読み込むことができます。\
+設定画面に `.js` を含むJSファイル名を入力します。通常放送用・発車メロディ用のJSはパック内の `assets/stationannouncemod/scripts/` に配置します。\
 Link Keyフィールドに"リンクキー"を登録することで、後述のブロックとの連携が可能です。
 
 ### ・スピーカー
@@ -52,4 +52,7 @@ Key NameにdataMapの名前を登録し、Typeで適切な型を指定します�
 読み取ったdataMapは放送スクリプト側で利用できるようになります。
 
 ## 放送パーツ、リストの登録方法
-[こちら](howtoAddAnnounce.md) をご覧ください
+[こちら](howtoAddAnnounce.md) を参照してください
+
+## 発車メロディ装置について
+ [こちら](howtoDepartureMelody.md) を参照してください

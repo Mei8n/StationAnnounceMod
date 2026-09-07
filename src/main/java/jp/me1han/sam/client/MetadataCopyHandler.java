@@ -24,12 +24,14 @@ public class MetadataCopyHandler {
             if (mc.objectMouseOver != null && mc.objectMouseOver.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK) {
                 TileEntity te = mc.theWorld.getTileEntity(mc.objectMouseOver.blockX, mc.objectMouseOver.blockY, mc.objectMouseOver.blockZ);
 
-                if (te instanceof TileEntitySpeaker) {
+                if (te instanceof TileEntitySpeaker || te instanceof jp.me1han.sam.render.TileEntityDepartureSwitch) {
                     ItemStack stack = te.getBlockType().getPickBlock(mc.objectMouseOver, mc.theWorld, te.xCoord, te.yCoord, te.zCoord);
 
                     if (stack != null) {
                         NBTTagCompound teNbt = new NBTTagCompound();
-                        te.writeToNBT(teNbt);
+                        if (te instanceof jp.me1han.sam.render.TileEntityDepartureSwitch) {
+                            teNbt = ((jp.me1han.sam.render.TileEntityDepartureSwitch) te).copySettings();
+                        } else te.writeToNBT(teNbt);
 
                         NBTTagCompound stackTag = new NBTTagCompound();
                         stackTag.setTag("BlockEntityTag", teNbt);
@@ -44,7 +46,8 @@ public class MetadataCopyHandler {
                             mc.playerController.sendSlotPacket(stack, 36 + slot);
                         }
 
-                        player.addChatMessage(new ChatComponentText("§a[SAM]§f Speaker data copied!"));
+                        player.addChatMessage(new ChatComponentText("§a[SAM]§f " +
+                            (te instanceof TileEntitySpeaker ? "Speaker" : "Switch") + " data copied!"));
                         event.setCanceled(true);
                     }
                 }

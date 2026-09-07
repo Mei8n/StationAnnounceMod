@@ -100,6 +100,16 @@ public class TileEntityAnnouncer extends TileEntity {
         }
     }
 
+    public void startDeparture(jp.me1han.sam.api.DepartureProgram program) {
+        if (this.worldObj == null || this.worldObj.isRemote) return;
+        SpeakerCollectResult scan = collectSpeakersByKey(this.linkKey);
+        PacketAnnounce packet = new PacketAnnounce(new AnnounceData("", Collections.<String>emptyList(), ""),
+            this.linkKey, this.playLocalSound, this.xCoord, this.yCoord, this.zCoord,
+            scan.speakers, scan.totalSpeakers, scan.sampleKeys, PacketAnnounce.PRIORITY_DEPARTURE_MELODY, false);
+        packet.departure = program;
+        NetworkHandler.INSTANCE.sendToDimension(packet, this.worldObj.provider.dimensionId);
+    }
+
     private SpeakerCollectResult collectSpeakersByKey(String key) {
         SpeakerCollectResult result = new SpeakerCollectResult();
         if (this.worldObj == null || this.worldObj.isRemote) {
@@ -182,6 +192,7 @@ public class TileEntityAnnouncer extends TileEntity {
 
     public void forceStop() {
         if (this.worldObj.isRemote) return;
+        TileEntityDepartureMelody.cancelLinked(this.worldObj, this.linkKey);
         NetworkHandler.INSTANCE.sendToDimension(
             new PacketAnnounce(true, this.linkKey),
             this.worldObj.provider.dimensionId

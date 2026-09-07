@@ -28,6 +28,9 @@ public class CommandSAM extends CommandBase {
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
         if (args.length > 0 && args[0].equalsIgnoreCase("stopall")) {
+            for (net.minecraft.world.WorldServer world : net.minecraftforge.common.DimensionManager.getWorlds()) {
+                jp.me1han.sam.render.TileEntityDepartureMelody.cancelLinked(world, "");
+            }
             NetworkHandler.INSTANCE.sendToAll(new PacketAnnounce(true, null));
             sender.addChatMessage(new ChatComponentText("§a[SAM] All sound stopped"));
         } else {

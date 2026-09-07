@@ -4,12 +4,11 @@ import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketDepartureMelodyConfig;
 import jp.me1han.sam.render.TileEntityDepartureMelody;
 import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.resources.I18n;
 import org.lwjgl.input.Keyboard;
 
-public class GuiDepartureMelody extends GuiScreen {
+public class GuiDepartureMelody extends GuiScriptConfig {
     private final TileEntityDepartureMelody tile;
     private GuiTextField linkKeyField;
     private GuiTextField soundIdField;
@@ -30,8 +29,8 @@ public class GuiDepartureMelody extends GuiScreen {
         this.linkKeyField.setText(this.tile.linkKey == null ? "" : this.tile.linkKey);
         this.soundIdField = new GuiTextField(this.fontRendererObj, left, top + 60, 220, 20);
         this.soundIdField.setMaxStringLength(256);
-        this.soundIdField.setText(this.tile.soundId == null ? "" : this.tile.soundId);
-        this.buttonList.add(new GuiButton(0, left, top + 95, 220, 20, I18n.format("gui.done")));
+        this.soundIdField.setText(this.tile.scriptName == null ? "" : this.tile.scriptName);
+        this.buttonList.add(new GuiButton(0, left, top + 110, 220, 20, I18n.format("gui.done")));
     }
 
     @Override
@@ -40,8 +39,7 @@ public class GuiDepartureMelody extends GuiScreen {
             String linkKey = this.linkKeyField.getText() == null ? "" : this.linkKeyField.getText().trim();
             String soundId = this.soundIdField.getText() == null ? "" : this.soundIdField.getText().trim();
             NetworkHandler.INSTANCE.sendToServer(new PacketDepartureMelodyConfig(
-                this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, soundId));
-            this.tile.applyConfig(linkKey, soundId);
+                this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, this.tile.soundId, soundId));
             this.mc.thePlayer.closeScreen();
         }
     }
@@ -53,10 +51,14 @@ public class GuiDepartureMelody extends GuiScreen {
         int top = this.height / 2 - 70;
         drawCenteredString(this.fontRendererObj, I18n.format("gui.sam.departure.title"), this.width / 2, top, 0xFFFFFF);
         drawString(this.fontRendererObj, I18n.format("gui.sam.link_key"), left, top + 10, 0xA0A0A0);
-        drawString(this.fontRendererObj, I18n.format("gui.sam.departure.sound_id"), left, top + 50, 0xA0A0A0);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.departure.script"), left, top + 50, 0xA0A0A0);
+        if (!this.tile.lastError.isEmpty()) {
+            this.fontRendererObj.drawSplitString(this.tile.lastError, left, top + 135, 220, 0xFF7777);
+        }
         this.linkKeyField.drawTextBox();
         this.soundIdField.drawTextBox();
         super.drawScreen(mouseX, mouseY, partialTicks);
+        drawScriptDisplayName(this.soundIdField.getText(), left, top + 88, mouseX, mouseY);
     }
 
     @Override
@@ -81,4 +83,7 @@ public class GuiDepartureMelody extends GuiScreen {
     public void onGuiClosed() {
         Keyboard.enableRepeatEvents(false);
     }
+
+    @Override public void updateScreen() { this.linkKeyField.updateCursorCounter(); this.soundIdField.updateCursorCounter(); }
+    @Override public boolean doesGuiPauseGame() { return false; }
 }

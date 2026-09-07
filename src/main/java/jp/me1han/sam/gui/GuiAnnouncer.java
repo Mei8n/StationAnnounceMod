@@ -1,42 +1,22 @@
 package jp.me1han.sam.gui;
 
-import jp.me1han.sam.AnnouncePackLoader;
-import jp.me1han.sam.api.AnnounceScriptInfo;
 import jp.me1han.sam.container.ContainerAnnouncer;
 import jp.me1han.sam.network.PacketConfig;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
-import net.minecraft.util.MathHelper;
-import cpw.mods.fml.client.config.GuiCheckBox; // ★追加
+import net.minecraft.client.resources.I18n;
+import cpw.mods.fml.client.config.GuiCheckBox;
 import org.lwjgl.input.Keyboard;
-import org.lwjgl.input.Mouse;
-import org.lwjgl.opengl.GL11;
 
-import java.util.List;
-
-public class GuiAnnouncer extends GuiScreen {
-    private final ContainerAnnouncer container;
+public class GuiAnnouncer extends GuiScriptConfig {
     private final TileEntityAnnouncer tile;
     private GuiTextField linkKeyField;
-    private GuiCheckBox chkPlayLocal; // ★追加
-    private int selectedIndex = -1;
-
-    private final int slotHeight = 24;
-    private int listTop;
-    private int listBottom;
-    private final int listWidth = 220;
-    private int listX;
-
-    private float scrollAmount = 0.0F;
-    private boolean isScrollingBar = false;
-    private int contentHeight;
-    private int maxScroll;
+    private GuiTextField scriptNameField;
+    private GuiCheckBox chkPlayLocal;
 
     public GuiAnnouncer(ContainerAnnouncer container, TileEntityAnnouncer tile) {
-        this.container = container;
         this.tile = tile;
     }
 
@@ -44,145 +24,73 @@ public class GuiAnnouncer extends GuiScreen {
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
         this.buttonList.clear();
-
-        int guiWidth = 240;
-        int guiHeight = 220;
-        int left = (this.width - guiWidth) / 2;
-        int top = (this.height - guiHeight) / 2;
-
+        int left = (this.width - 240) / 2;
+        int top = (this.height - 155) / 2;
         this.linkKeyField = new GuiTextField(fontRendererObj, left + 10, top + 20, 220, 16);
-        this.linkKeyField.setText(tile.linkKey);
         this.linkKeyField.setMaxStringLength(32);
-
-        this.chkPlayLocal = new GuiCheckBox(1, left + 10, top + 45, "Play sound from this block", tile.playLocalSound);
+        this.linkKeyField.setText(tile.linkKey == null ? "" : tile.linkKey);
+        this.chkPlayLocal = new GuiCheckBox(1, left + 10, top + 45,
+            I18n.format("gui.sam.announcer.play_local"), tile.playLocalSound);
         this.buttonList.add(chkPlayLocal);
-
-        this.listX = left + 10;
-        this.listTop = top + 75;    // リストの開始位置
-        this.listBottom = top + 185; // リストの終了位置
-
-        this.buttonList.add(new GuiButton(0, left + 10, top + 195, 220, 20, "Done"));
-
-        String currentScript = tile.getScriptName();
-        List<AnnounceScriptInfo> scripts = AnnouncePackLoader.availableScripts;
-        for (int i = 0; i < scripts.size(); i++) {
-            if (scripts.get(i).fileName.equals(currentScript)) {
-                this.selectedIndex = i;
-                break;
-            }
-        }
+        this.scriptNameField = new GuiTextField(fontRendererObj, left + 10, top + 80, 220, 16);
+        this.scriptNameField.setMaxStringLength(256);
+        this.scriptNameField.setText(tile.getScriptName() == null ? "" : tile.getScriptName());
+        this.buttonList.add(new GuiButton(0, left + 10, top + 125, 220, 20, I18n.format("gui.done")));
     }
 
     @Override
     protected void actionPerformed(GuiButton button) {
-        if (button.id == 0) {
-            String scriptName = "";
-            if (selectedIndex >= 0 && selectedIndex < AnnouncePackLoader.availableScripts.size()) {
-                scriptName = AnnouncePackLoader.availableScripts.get(selectedIndex).fileName;
-            }
-
-             NetworkHandler.INSTANCE.sendToServer(new PacketConfig(
-                tile.xCoord, tile.yCoord, tile.zCoord,
-                scriptName,
-                linkKeyField.getText(),
-                chkPlayLocal.isChecked()
-            ));
-
-            this.tile.setScriptName(scriptName);
-            this.tile.linkKey = this.linkKeyField.getText();
-            this.tile.playLocalSound = this.chkPlayLocal.isChecked();
-
-            this.mc.thePlayer.closeScreen();
-        }
+        if (button.id != 0) return;
+        String scriptName = scriptNameField.getText().trim();
+        NetworkHandler.INSTANCE.sendToServer(new PacketConfig(
+            tile.xCoord, tile.yCoord, tile.zCoord, scriptName,
+            linkKeyField.getText(), chkPlayLocal.isChecked()));
+        this.tile.setScriptName(scriptName);
+        this.tile.linkKey = this.linkKeyField.getText();
+        this.tile.playLocalSound = this.chkPlayLocal.isChecked();
+        this.mc.thePlayer.closeScreen();
     }
 
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         this.drawDefaultBackground();
-
         int left = (this.width - 240) / 2;
-        int top = (this.height - 220) / 2;
-
-        drawString(fontRendererObj, "Link Key", left + 10, top + 8, 0xA0A0A0);
-        drawString(fontRendererObj, "Announce Scripts", left + 10, top + 65, 0xA0A0A0);
-
+        int top = (this.height - 155) / 2;
+        drawString(fontRendererObj, I18n.format("gui.sam.link_key"), left + 10, top + 8, 0xA0A0A0);
+        drawString(fontRendererObj, I18n.format("gui.sam.announcer.script"), left + 10, top + 68, 0xA0A0A0);
         this.linkKeyField.drawTextBox();
-
-        drawScriptList(mouseX, mouseY);
-
+        this.scriptNameField.drawTextBox();
         super.drawScreen(mouseX, mouseY, partialTicks);
-    }
-
-    private void drawScriptList(int mouseX, int mouseY) {
-        List<AnnounceScriptInfo> scripts = AnnouncePackLoader.availableScripts;
-        this.contentHeight = scripts.size() * slotHeight;
-        int listHeight = listBottom - listTop;
-        this.maxScroll = Math.max(0, contentHeight - listHeight);
-        this.scrollAmount = MathHelper.clamp_float(scrollAmount, 0, maxScroll);
-
-        GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        int scale = new net.minecraft.client.gui.ScaledResolution(mc, mc.displayWidth, mc.displayHeight).getScaleFactor();
-        GL11.glScissor(listX * scale, (height - listBottom) * scale, listWidth * scale, listHeight * scale);
-
-        drawRect(listX, listTop, listX + listWidth, listBottom, 0x80000000);
-
-        for (int i = 0; i < scripts.size(); i++) {
-            int slotY = listTop + (i * slotHeight) - (int)scrollAmount;
-            if (slotY + slotHeight <= listTop) continue;
-            if (slotY > listBottom) break;
-
-            AnnounceScriptInfo info = scripts.get(i);
-            if (i == selectedIndex) {
-                drawRect(listX, slotY, listX + listWidth, slotY + slotHeight, 0x60FFFFFF);
-            }
-
-            drawString(fontRendererObj, info.displayName, listX + 5, slotY + 3, 0xFFFFFF);
-            drawString(fontRendererObj, "(" + info.fileName + ")", listX + 5, slotY + 13, 0x808080);
-        }
-
-        GL11.glDisable(GL11.GL_SCISSOR_TEST);
+        drawScriptDisplayName(this.scriptNameField.getText(), left + 10, top + 103, mouseX, mouseY);
     }
 
     @Override
-    protected void keyTyped(char c, int i) {
-        if (i == 1) { // ESC
+    protected void keyTyped(char c, int keyCode) {
+        if (keyCode == Keyboard.KEY_ESCAPE) {
             this.mc.thePlayer.closeScreen();
             return;
         }
-        if (this.linkKeyField.textboxKeyTyped(c, i)) return;
-        super.keyTyped(c, i);
+        if (this.linkKeyField.textboxKeyTyped(c, keyCode)) return;
+        if (this.scriptNameField.textboxKeyTyped(c, keyCode)) return;
+        super.keyTyped(c, keyCode);
     }
 
     @Override
-    protected void mouseClicked(int x, int y, int b) {
-        super.mouseClicked(x, y, b);
-        this.linkKeyField.mouseClicked(x, y, b);
-
-        if (x >= listX && x < listX + listWidth && y >= listTop && y < listBottom) {
-            int clickedIndex = (y - listTop + (int)scrollAmount) / slotHeight;
-            if (clickedIndex >= 0 && clickedIndex < AnnouncePackLoader.availableScripts.size()) {
-                this.selectedIndex = clickedIndex;
-            }
-        }
+    protected void mouseClicked(int x, int y, int button) {
+        super.mouseClicked(x, y, button);
+        this.linkKeyField.mouseClicked(x, y, button);
+        this.scriptNameField.mouseClicked(x, y, button);
     }
 
     @Override
-    public void handleMouseInput() {
-        super.handleMouseInput();
-        int wheel = Mouse.getEventDWheel();
-        if (wheel != 0) {
-            if (wheel > 0) scrollAmount -= slotHeight;
-            else scrollAmount += slotHeight;
-        }
+    public void updateScreen() {
+        this.linkKeyField.updateCursorCounter();
+        this.scriptNameField.updateCursorCounter();
     }
 
     @Override
-    public void onGuiClosed() {
-        Keyboard.enableRepeatEvents(false);
-    }
+    public void onGuiClosed() { Keyboard.enableRepeatEvents(false); }
 
     @Override
-    public boolean doesGuiPauseGame() {
-        return false;
-    }
+    public boolean doesGuiPauseGame() { return false; }
 }

@@ -27,3 +27,21 @@ gui.sam.departure.sound_id=音声ID（1つの音声ファイルを指定）
 
 # Creative Tab
 itemGroup.sam_tab=Station Announce Mod
+tile.sam.departure_switch.name=発車メロディスイッチ
+gui.sam.departure.switch_title=発車メロディスイッチ
+gui.sam.departure.switch_help=メロディ装置と同じリンクキーを指定します
+gui.sam.departure.script=発車メロディ用JSファイル名 (.js)
+gui.sam.announcer.script=放送用JSファイル名 (.js)
+gui.sam.script.display_name=表示名: %s
+gui.sam.script.none=未指定
+gui.sam.script.not_loaded=未読み込み
+gui.sam.announcer.play_local=このブロックから音声を再生
+message.sam.departure.no_device=[SAM] 同じリンクキーのメロディ装置を1台だけ、読み込まれた範囲に設置してください。
+gui.sam.switch.search=モデル名・タグで検索
+gui.sam.switch.rotation=角度
+gui.sam.switch.preview=プレビュー
+gui.sam.switch.pressed=押下状態
+gui.sam.switch.normal=通常状態
+gui.sam.switch.empty=該当するモデルがありません
+gui.sam.switch.missing=未導入のモデル
+gui.sam.switch.model_error=モデルを読み込めません。パックの定義とログを確認してください。

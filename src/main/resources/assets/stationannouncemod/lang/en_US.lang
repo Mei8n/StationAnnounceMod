@@ -25,3 +25,21 @@ gui.sam.departure.sound_id=Sound ID (one complete file)
 
 # Creative Tab
 itemGroup.sam_tab=Station Announce Mod
+tile.sam.departure_switch.name=Departure Melody Switch
+gui.sam.departure.switch_title=Departure Melody Switch
+gui.sam.departure.switch_help=Use the melody device's link key.
+gui.sam.departure.script=Departure JS filename (.js)
+gui.sam.announcer.script=Announce JS filename (.js)
+gui.sam.script.display_name=Display name: %s
+gui.sam.script.none=Not specified
+gui.sam.script.not_loaded=Not loaded
+gui.sam.announcer.play_local=Play sound from this block
+message.sam.departure.no_device=[SAM] Link exactly one loaded melody device with this key.
+gui.sam.switch.search=Search models / tags
+gui.sam.switch.rotation=Angle
+gui.sam.switch.preview=Preview
+gui.sam.switch.pressed=Pressed
+gui.sam.switch.normal=Normal
+gui.sam.switch.empty=No matching models
+gui.sam.switch.missing=Model not installed
+gui.sam.switch.model_error=Cannot load model. Check the pack definition and log.

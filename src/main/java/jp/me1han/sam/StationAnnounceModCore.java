@@ -29,6 +29,7 @@ public class StationAnnounceModCore {
     public static final int GUI_ID_SPEAKER = 6;
     public static final int GUI_ID_AWARENESS_ANNOUNCER = 7;
     public static final int GUI_ID_DEPARTURE_MELODY = 8;
+    public static final int GUI_ID_DEPARTURE_SWITCH = 9;
 
     public static java.io.File samPacksDir;
 
@@ -50,6 +51,7 @@ public class StationAnnounceModCore {
     public static Block blockSpeaker;
     public static Block blockAwarenessAnnouncer;
     public static Block blockDepartureMelody;
+    public static Block blockDepartureSwitch;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
@@ -79,6 +81,8 @@ public class StationAnnounceModCore {
 
         blockDepartureMelody = new BlockDepartureMelody();
         GameRegistry.registerBlock(blockDepartureMelody, "blockDepartureMelody");
+        blockDepartureSwitch = new BlockDepartureSwitch();
+        GameRegistry.registerBlock(blockDepartureSwitch, "blockDepartureSwitch");
 
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         GameRegistry.registerTileEntity(TileEntityStartAnnouncer.class, "tileStartAnnouncer");
@@ -88,6 +92,7 @@ public class StationAnnounceModCore {
         GameRegistry.registerTileEntity(TileEntityDebugReceiver.class, "tileDebugReceiver");
         GameRegistry.registerTileEntity(TileEntityAwarenessAnnouncer.class, "tileAwarenessAnnouncer");
         GameRegistry.registerTileEntity(TileEntityDepartureMelody.class, "tileDepartureMelody");
+        GameRegistry.registerTileEntity(TileEntityDepartureSwitch.class, "tileDepartureSwitch");
 
         NetworkHandler.init();
         proxy.preInit(event);
@@ -96,6 +101,7 @@ public class StationAnnounceModCore {
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         NetworkRegistry.INSTANCE.registerGuiHandler(instance, new SAMGuiHandler());
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(DepartureEvents.INSTANCE);
         AnnouncePackLoader.loadPacks();
         proxy.init(event);
     }

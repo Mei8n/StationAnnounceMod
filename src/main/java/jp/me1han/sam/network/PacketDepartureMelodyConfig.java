@@ -8,15 +8,17 @@ public class PacketDepartureMelodyConfig implements IMessage {
     public int x, y, z;
     public String linkKey;
     public String soundId;
+    public String scriptName;
 
     public PacketDepartureMelodyConfig() {}
 
-    public PacketDepartureMelodyConfig(int x, int y, int z, String linkKey, String soundId) {
+    public PacketDepartureMelodyConfig(int x, int y, int z, String linkKey, String soundId, String scriptName) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.linkKey = linkKey;
         this.soundId = soundId;
+        this.scriptName = scriptName;
     }
 
     @Override
@@ -26,6 +28,7 @@ public class PacketDepartureMelodyConfig implements IMessage {
         this.z = buf.readInt();
         this.linkKey = ByteBufUtils.readUTF8String(buf);
         this.soundId = ByteBufUtils.readUTF8String(buf);
+        this.scriptName = ByteBufUtils.readUTF8String(buf);
     }
 
     @Override
@@ -35,5 +38,6 @@ public class PacketDepartureMelodyConfig implements IMessage {
         buf.writeInt(this.z);
         ByteBufUtils.writeUTF8String(buf, this.linkKey == null ? "" : this.linkKey);
         ByteBufUtils.writeUTF8String(buf, this.soundId == null ? "" : this.soundId);
+        ByteBufUtils.writeUTF8String(buf, this.scriptName == null ? "" : this.scriptName);
     }
 }

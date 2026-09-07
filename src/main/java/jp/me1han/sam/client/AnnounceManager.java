@@ -24,11 +24,42 @@ public class AnnounceManager {
     public static final AnnounceManager INSTANCE = new AnnounceManager();
 
     private final Map<String, AnnounceSession> activeSessions = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedQueue<Runnable> pending = new ConcurrentLinkedQueue<>();
+    private World sessionWorld;
+
+    public void receive(PacketAnnounce packet) {
+        pending.add(() -> {
+            if (packet.stopCommand) stopAnnounce(packet.linkKey);
+            else startAnnounce(packet);
+        });
+    }
+
+    public void receive(jp.me1han.sam.network.PacketDepartureControl packet) {
+        pending.add(() -> {
+            String key = getSessionKey(normalizeKey(packet.linkKey), PacketAnnounce.PRIORITY_DEPARTURE_MELODY);
+            AnnounceSession session = activeSessions.get(key);
+            if (session == null || session.departure == null) return;
+            if (packet.cancel) {
+                session.stop();
+                activeSessions.remove(key);
+            } else {
+                // START and OFF can arrive in one client tick; initialize before applying OFF.
+                initializeDeparture(session);
+                boolean wasOn = session.sequence.isOn();
+                session.sequence.release();
+                if (wasOn) session.releasedThisTick = true;
+            }
+        });
+    }
 
     private static class AnnounceSession {
         final String linkKey;
         final int priority;
         final boolean allowOverlap;
+        final jp.me1han.sam.api.DepartureProgram departure;
+        jp.me1han.sam.api.DepartureSequence sequence;
+        boolean sequenceChangedThisTick;
+        boolean releasedThisTick;
         final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
         final List<PacketAnnounce.SpeakerData> serverSpeakers;
         final int serverTotalSpeakers;
@@ -40,6 +71,20 @@ public class AnnounceManager {
         boolean isPlaying = true;
         boolean hasStartedPlayback = false;
         final List<ISound> activeSounds = new ArrayList<>();
+        final Map<jp.me1han.sam.api.DepartureSequence.Channel, List<ISound>> departureSounds =
+            new java.util.EnumMap<>(jp.me1han.sam.api.DepartureSequence.Channel.class);
+        jp.me1han.sam.api.DepartureSequence.Channel playbackChannel;
+
+        void trackSound(ISound sound) {
+            if (playbackChannel == null) activeSounds.add(sound);
+            else departureSounds.computeIfAbsent(playbackChannel, key -> new ArrayList<>()).add(sound);
+        }
+
+        void stopChannel(jp.me1han.sam.api.DepartureSequence.Channel channel) {
+            List<ISound> sounds = departureSounds.remove(channel);
+            if (sounds != null) for (ISound sound : sounds)
+                Minecraft.getMinecraft().getSoundHandler().stopSound(sound);
+        }
 
         // Speakerキャッシュ: セッション開始時の1回だけスキャン
         List<TileEntitySpeaker> cachedSpeakers;
@@ -51,6 +96,7 @@ public class AnnounceManager {
             this.linkKey = normalizeKeyStatic(msg.linkKey);
             this.priority = msg.priority;
             this.allowOverlap = msg.allowOverlap;
+            this.departure = msg.departure;
             this.playLocalSound = msg.playLocalSound;
             this.x = msg.x;
             this.y = msg.y;
@@ -74,13 +120,20 @@ public class AnnounceManager {
 
         void stop() {
             this.isPlaying = false;
+            if (sequence != null) sequence.cancel();
+            stopSounds();
+            queue.clear();
+        }
+
+        void stopSounds() {
+            for (jp.me1han.sam.api.DepartureSequence.Channel channel : jp.me1han.sam.api.DepartureSequence.Channel.values())
+                stopChannel(channel);
             for (ISound s : activeSounds) {
                 if (s != null) {
                     Minecraft.getMinecraft().getSoundHandler().stopSound(s);
                 }
             }
             activeSounds.clear();
-            queue.clear();
         }
     }
 
@@ -170,9 +223,17 @@ public class AnnounceManager {
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.START || activeSessions.isEmpty()) {
-            return;
+        if (event.phase != TickEvent.Phase.START) return;
+        World world = Minecraft.getMinecraft().theWorld;
+        if (sessionWorld != world) {
+            for (AnnounceSession session : activeSessions.values()) session.stop();
+            activeSessions.clear();
+            if (sessionWorld != null) pending.clear();
+            sessionWorld = world;
         }
+        if (world == null) { pending.clear(); return; }
+        Runnable action;
+        while ((action = pending.poll()) != null) action.run();
 
         Iterator<Map.Entry<String, AnnounceSession>> it = activeSessions.entrySet().iterator();
         while (it.hasNext()) {
@@ -185,6 +246,15 @@ public class AnnounceManager {
             }
 
             if (isBlockedByHigherPriority(session)) {
+                continue;
+            }
+
+            if (session.departure != null) {
+                if (session.sequence == null) initializeDeparture(session);
+                else if (!session.sequenceChangedThisTick) session.sequence.tick(session.releasedThisTick);
+                session.sequenceChangedThisTick = false;
+                session.releasedThisTick = false;
+                if (session.sequence.isFinished()) it.remove();
                 continue;
             }
 
@@ -206,6 +276,21 @@ public class AnnounceManager {
                 it.remove();
             }
         }
+    }
+
+    private void initializeDeparture(final AnnounceSession session) {
+        if (session.sequence != null) return;
+        session.sequenceChangedThisTick = true;
+        session.sequence = new jp.me1han.sam.api.DepartureSequence(session.departure,
+            new jp.me1han.sam.api.DepartureSequence.Output() {
+                public void play(jp.me1han.sam.api.DepartureSequence.Channel channel, String sound) {
+                    session.playbackChannel = channel;
+                    try { playInSession(session, sound); }
+                    finally { session.playbackChannel = null; }
+                }
+                public void stop(jp.me1han.sam.api.DepartureSequence.Channel channel) { session.stopChannel(channel); }
+                public void finished() { session.isPlaying = false; }
+            });
     }
 
     private int getSoundTicks(String soundId) {
@@ -235,7 +320,7 @@ public class AnnounceManager {
             return;
         }
 
-        session.activeSounds.clear();
+        if (session.departure == null) session.activeSounds.clear();
         session.hasStartedPlayback = true;
         try {
             ResourceLocation res = new ResourceLocation(soundId);
@@ -388,7 +473,7 @@ public class AnnounceManager {
                 PositionedSoundRecord psr = new PositionedSoundRecord(res, vol, 1.0F,
                     (float) speaker.x + 0.5F, (float) speaker.y + 0.5F, (float) speaker.z + 0.5F);
                 Minecraft.getMinecraft().getSoundHandler().playSound(psr);
-                session.activeSounds.add(psr);
+                session.trackSound(psr);
                 matchedCount++;
             } catch (Exception e) {
                 StationAnnounceModCore.logger.error("[SAM] Failed to play sound at server speaker", e);
@@ -425,7 +510,7 @@ public class AnnounceManager {
             PositionedSoundRecord psr = new PositionedSoundRecord(res, vol, 1.0F,
                 (float) speaker.xCoord + 0.5F, (float) speaker.yCoord + 0.5F, (float) speaker.zCoord + 0.5F);
             Minecraft.getMinecraft().getSoundHandler().playSound(psr);
-            session.activeSounds.add(psr);
+            session.trackSound(psr);
         } catch (Exception e) {
             StationAnnounceModCore.logger.error("[SAM] Failed to play sound at speaker", e);
         }
@@ -436,7 +521,7 @@ public class AnnounceManager {
             PositionedSoundRecord psr = new PositionedSoundRecord(res, 1.0F, 1.0F,
                 (float) session.x + 0.5F, (float) session.y + 0.5F, (float) session.z + 0.5F);
             Minecraft.getMinecraft().getSoundHandler().playSound(psr);
-            session.activeSounds.add(psr);
+            session.trackSound(psr);
         } catch (Exception e) {
             StationAnnounceModCore.logger.error("[SAM] Failed to play local sound", e);
         }

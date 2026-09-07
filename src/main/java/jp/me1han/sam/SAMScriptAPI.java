@@ -5,6 +5,14 @@ import java.util.List;
 
 public class SAMScriptAPI {
 
+    public jp.me1han.sam.api.DepartureProgram momentary() {
+        return new jp.me1han.sam.api.DepartureProgram(false);
+    }
+
+    public jp.me1han.sam.api.DepartureProgram alternate() {
+        return new jp.me1han.sam.api.DepartureProgram(true);
+    }
+
     public String startmelo(String id) {
         return (id == null || id.isEmpty()) ? null : id;
     }
