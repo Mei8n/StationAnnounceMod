@@ -31,8 +31,8 @@ public class PacketConfig implements IMessage {
         this.x = buf.readInt();
         this.y = buf.readInt();
         this.z = buf.readInt();
-        this.scriptName = ByteBufUtils.readUTF8String(buf);
-        this.linkKey = ByteBufUtils.readUTF8String(buf);
+        this.scriptName = PacketLimits.readString(buf, PacketLimits.NAME);
+        this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         this.playLocalSound = buf.readBoolean();
     }
 
@@ -47,21 +47,15 @@ public class PacketConfig implements IMessage {
     }
 
     public static class Handler implements IMessageHandler<PacketConfig, IMessage> {
-        @Override
-        public IMessage onMessage(PacketConfig message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            TileEntity tile = world.getTileEntity(message.x, message.y, message.z);
-
-            if (tile instanceof TileEntityAnnouncer) {
-                TileEntityAnnouncer announcer = (TileEntityAnnouncer) tile;
-                announcer.setScriptName(message.scriptName);
-                announcer.linkKey = message.linkKey;
-                announcer.playLocalSound = message.playLocalSound;
-
-                announcer.markDirty();
-                world.markBlockForUpdate(message.x, message.y, message.z);
-            }
-            return null;
+        @Override public IMessage onMessage(PacketConfig m, MessageContext ctx) {
+            ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityAnnouncer.class, tile -> {
+                if (!ConfigAccess.key(m.linkKey) || !PacketLimits.string(m.scriptName, PacketLimits.NAME)) return;
+                if (!ConfigAccess.normalize(m.linkKey).equals(ConfigAccess.normalize(tile.linkKey))) ServerSessions.stopOwner(tile);
+                ConfigAccess.change(tile, () -> {
+                    tile.setScriptName(m.scriptName); tile.linkKey = ConfigAccess.normalize(m.linkKey);
+                    tile.playLocalSound = m.playLocalSound;
+                });
+            }); return null;
         }
     }
 }

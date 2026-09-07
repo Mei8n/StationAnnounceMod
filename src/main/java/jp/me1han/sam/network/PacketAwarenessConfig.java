@@ -36,8 +36,8 @@ public class PacketAwarenessConfig implements IMessage {
         this.x = buf.readInt();
         this.y = buf.readInt();
         this.z = buf.readInt();
-        this.linkKey = ByteBufUtils.readUTF8String(buf);
-        this.soundList = ByteBufUtils.readUTF8String(buf);
+        this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
+        this.soundList = PacketLimits.readString(buf, PacketLimits.SOUND_LIST);
         this.intervalTicks = buf.readInt();
         this.randomOrder = buf.readBoolean();
         this.allowOverlap = buf.readBoolean();

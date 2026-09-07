@@ -26,6 +26,7 @@ public class GuiSpeaker extends GuiScreen {
         int centerY = height / 2;
 
         linkKeyField = new GuiTextField(fontRendererObj, centerX - 100, centerY - 60, 200, 20);
+        linkKeyField.setMaxStringLength(jp.me1han.sam.network.PacketLimits.LINK_KEY);
         linkKeyField.setText(tile.linkKey);
 
         rangeField = new GuiTextField(fontRendererObj, centerX - 100, centerY - 20, 90, 20);
@@ -46,11 +47,9 @@ public class GuiSpeaker extends GuiScreen {
                 float vol = Float.parseFloat(volumeField.getText().trim().replace(',', '.'));
                 String normalizedKey = linkKeyField.getText() == null ? "" : linkKeyField.getText().trim();
 
+                if (!jp.me1han.sam.network.PacketLimits.speaker(range, vol)) return;
                 NetworkHandler.INSTANCE.sendToServer(new PacketSpeakerConfig(tile.xCoord, tile.yCoord, tile.zCoord, normalizedKey, range, vol));
 
-                this.tile.linkKey = normalizedKey;
-                this.tile.range = range;
-                this.tile.volume = vol;
 
                 this.mc.thePlayer.closeScreen();
             } catch (Exception e) {

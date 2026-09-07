@@ -20,7 +20,7 @@ public class PacketStartAnnouncerConfig implements IMessage {
         this.x = buf.readInt();
         this.y = buf.readInt();
         this.z = buf.readInt();
-        this.linkKey = ByteBufUtils.readUTF8String(buf);
+        this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         this.isControlCar = buf.readBoolean();
     }
 

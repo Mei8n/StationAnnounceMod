@@ -6,7 +6,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
 import java.util.List;
 
-public class TileEntityStopAnnouncer extends TileEntity {
+public class TileEntityStopAnnouncer extends RegisteredTileEntity {
     public String linkKey = "";
     public boolean isControlCar = false;
     private boolean lastPowered = false;
@@ -63,7 +63,6 @@ public class TileEntityStopAnnouncer extends TileEntity {
     public void onRedstoneUpdate(boolean powered) {
         if (this.worldObj.isRemote) return;
 
-        jp.me1han.sam.network.NetworkHandler.sendDebugMessage(this.worldObj, this.linkKey, "[SAM-DEBUG] StopAnnouncer RS Update: powered=" + powered + ", lastPowered=" + lastPowered);
 
         if (powered && !lastPowered) {
             this.dispatchStopTrigger();
@@ -74,7 +73,7 @@ public class TileEntityStopAnnouncer extends TileEntity {
     private void dispatchStopTrigger() {
         if (this.linkKey == null || this.linkKey.isEmpty()) return;
         String normalizedKey = this.linkKey.trim();
-        for (Object obj : this.worldObj.loadedTileEntityList) {
+        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
                 if (announcer.linkKey != null && !announcer.linkKey.trim().isEmpty() &&

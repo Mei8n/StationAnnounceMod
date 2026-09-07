@@ -6,7 +6,7 @@ import jp.me1han.sam.switchmodel.SwitchModelRegistry;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 
-public class TileEntityDepartureSwitch extends TileEntity {
+public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     public String linkKey = "";
     public String modelName = SwitchModelRegistry.DEFAULT_MODEL;
     private float rotationYaw;

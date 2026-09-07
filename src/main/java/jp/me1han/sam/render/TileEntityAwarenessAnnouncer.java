@@ -7,7 +7,7 @@ import net.minecraft.tileentity.TileEntity;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TileEntityAwarenessAnnouncer extends TileEntity {
+public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
     public String linkKey = "";
     public String soundList = "";
     public int intervalTicks = 1200;
@@ -101,7 +101,7 @@ public class TileEntityAwarenessAnnouncer extends TileEntity {
             return null;
         }
 
-        for (Object obj : this.worldObj.loadedTileEntityList) {
+        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer parent = (TileEntityAnnouncer) obj;
                 String parentKey = parent.linkKey == null ? "" : parent.linkKey.trim();
@@ -129,7 +129,7 @@ public class TileEntityAwarenessAnnouncer extends TileEntity {
         return result;
     }
 
-    private String normalizeSoundList(String value) {
+    public static String normalizeSoundList(String value) {
         List<String> sounds = new ArrayList<String>();
         if (value != null) {
             String[] values = value.split("[,;\\r\\n]+");

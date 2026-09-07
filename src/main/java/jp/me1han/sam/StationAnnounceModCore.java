@@ -101,7 +101,9 @@ public class StationAnnounceModCore {
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         NetworkRegistry.INSTANCE.registerGuiHandler(instance, new SAMGuiHandler());
-        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(DepartureEvents.INSTANCE);
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(jp.me1han.sam.network.ServerTaskQueue.INSTANCE);
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(jp.me1han.sam.network.ServerSessions.INSTANCE);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(jp.me1han.sam.network.ServerSessions.INSTANCE);
         AnnouncePackLoader.loadPacks();
         proxy.init(event);
     }
@@ -109,5 +111,13 @@ public class StationAnnounceModCore {
     @Mod.EventHandler
     public void serverStarting(cpw.mods.fml.common.event.FMLServerStartingEvent event) {
         event.registerServerCommand(new CommandSAM());
+    }
+
+    @Mod.EventHandler
+    public void serverStopped(cpw.mods.fml.common.event.FMLServerStoppedEvent event) {
+        jp.me1han.sam.network.ServerTaskQueue.INSTANCE.clear();
+        jp.me1han.sam.network.ServerSessions.clear();
+        SpeakerRegistry.clear();
+        LoadedSamTiles.clear();
     }
 }

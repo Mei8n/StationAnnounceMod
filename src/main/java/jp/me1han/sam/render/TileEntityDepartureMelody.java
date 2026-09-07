@@ -11,7 +11,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
-public class TileEntityDepartureMelody extends TileEntity {
+public class TileEntityDepartureMelody extends RegisteredTileEntity {
     public String linkKey = "";
     /** Retained solely to migrate previously placed, one-shot devices. */
     public String soundId = "";
@@ -19,6 +19,7 @@ public class TileEntityDepartureMelody extends TileEntity {
     public String lastError = "";
     private boolean lastPowered;
     private boolean poweredInitialized;
+    private long sessionId;
     private DepartureProgram program;
     private DepartureSequence sequence;
     private TileEntityAnnouncer activeParent;
@@ -74,7 +75,7 @@ public class TileEntityDepartureMelody extends TileEntity {
         try {
             TileEntityAnnouncer parent = findParent();
             if (parent == null) throw new IllegalStateException("Exactly one loaded parent announcer must match the link key");
-            for (Object obj : worldObj.loadedTileEntityList) {
+            for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
                 if (obj != this && obj instanceof TileEntityDepartureMelody && !((TileEntity) obj).isInvalid()
                     && normalize(linkKey).equals(normalize(((TileEntityDepartureMelody) obj).linkKey))) {
                     throw new IllegalStateException("Only one melody device may use a link key");
@@ -141,6 +142,7 @@ public class TileEntityDepartureMelody extends TileEntity {
         activeParent = parent;
         phaseStartedTick = worldObj.getTotalWorldTime();
         parent.startDeparture(program);
+        sessionId = parent.getDepartureSessionId();
         sequence = new DepartureSequence(program, new DepartureSequence.Output() {
             public void play(DepartureSequence.Channel channel, String sound) { }
             public void stop(DepartureSequence.Channel channel) { }
@@ -150,7 +152,7 @@ public class TileEntityDepartureMelody extends TileEntity {
 
     public void reconcileSwitches() {
         if (worldObj == null || worldObj.isRemote || !isOn() || redstoneOn) return;
-        for (Object obj : worldObj.loadedTileEntityList) {
+        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
             if (obj instanceof TileEntityDepartureSwitch && !((TileEntity) obj).isInvalid()) {
                 TileEntityDepartureSwitch button = (TileEntityDepartureSwitch) obj;
                 if (normalize(linkKey).equals(normalize(button.linkKey)) && button.isControlOn()) return;
@@ -170,7 +172,7 @@ public class TileEntityDepartureMelody extends TileEntity {
     public void cancelPlayback() {
         redstoneOn = false;
         if (worldObj != null && !worldObj.isRemote) {
-            for (Object obj : worldObj.loadedTileEntityList) {
+            for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
                 if (obj instanceof TileEntityDepartureSwitch && normalize(linkKey).equals(normalize(((TileEntityDepartureSwitch) obj).linkKey))) {
                     ((TileEntityDepartureSwitch) obj).resetState();
                 }
@@ -191,12 +193,13 @@ public class TileEntityDepartureMelody extends TileEntity {
     }
 
     protected void sendControl(boolean cancel) {
-        NetworkHandler.INSTANCE.sendToDimension(new PacketDepartureControl(normalize(linkKey), cancel), worldObj.provider.dimensionId);
+        jp.me1han.sam.network.ServerSessions.control(sessionId, cancel);
+        if (cancel) sessionId = 0;
     }
 
     public static void cancelLinked(World world, String key) {
         String normalized = normalize(key);
-        for (Object obj : world.loadedTileEntityList) {
+        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(world)) {
             if (obj instanceof TileEntityDepartureMelody) {
                 TileEntityDepartureMelody tile = (TileEntityDepartureMelody) obj;
                 if (normalized.isEmpty() || normalized.equals(normalize(tile.linkKey))) tile.cancelPlayback();
@@ -205,6 +208,7 @@ public class TileEntityDepartureMelody extends TileEntity {
     }
 
     public void applyConfig(String key, String legacySound, String script) {
+        if (normalize(key).equals(linkKey) && normalize(legacySound).equals(soundId) && normalize(script).equals(scriptName)) return;
         cancelPlayback();
         linkKey = normalize(key);
         soundId = normalize(legacySound);
@@ -217,7 +221,7 @@ public class TileEntityDepartureMelody extends TileEntity {
         String key = normalize(linkKey);
         if (worldObj == null || key.isEmpty()) return null;
         TileEntityAnnouncer found = null;
-        for (Object obj : worldObj.loadedTileEntityList) {
+        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
             if (obj instanceof TileEntityAnnouncer && !((TileEntity) obj).isInvalid()) {
                 TileEntityAnnouncer parent = (TileEntityAnnouncer) obj;
                 if (key.equals(normalize(parent.linkKey))) {

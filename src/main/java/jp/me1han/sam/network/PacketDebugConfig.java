@@ -22,7 +22,7 @@ public class PacketDebugConfig implements IMessage {
     @Override
     public void fromBytes(ByteBuf buf) {
         x = buf.readInt(); y = buf.readInt(); z = buf.readInt();
-        linkKey = ByteBufUtils.readUTF8String(buf);
+        linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
     }
 
     @Override
@@ -32,17 +32,11 @@ public class PacketDebugConfig implements IMessage {
     }
 
     public static class Handler implements IMessageHandler<PacketDebugConfig, IMessage> {
-        @Override
-        public IMessage onMessage(PacketDebugConfig message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            if (te instanceof TileEntityDebugReceiver) {
-                String normalizedKey = message.linkKey == null ? "" : message.linkKey.trim();
-                ((TileEntityDebugReceiver) te).linkKey = normalizedKey;
-                te.markDirty();
-                world.markBlockForUpdate(message.x, message.y, message.z);
-            }
-            return null;
+        @Override public IMessage onMessage(PacketDebugConfig m, MessageContext ctx) {
+            ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityDebugReceiver.class, tile -> {
+                if (!ConfigAccess.key(m.linkKey)) return;
+                ConfigAccess.change(tile, () -> tile.linkKey = ConfigAccess.normalize(m.linkKey));
+            }); return null;
         }
     }
 }

@@ -33,15 +33,15 @@ public class PacketTrainTypeConfig implements IMessage {
         this.y = buf.readInt();
         this.z = buf.readInt();
 
-        int size = buf.readInt();
+        int size = PacketLimits.readCount(buf, PacketLimits.CONDITIONS);
         this.conditions = new ArrayList<TrainTypeCondition>();
         for (int i = 0; i < size; i++) {
-            String key = ByteBufUtils.readUTF8String(buf);
+            String key = PacketLimits.readString(buf, PacketLimits.NAME);
             int type = buf.readInt();
             this.conditions.add(new TrainTypeCondition(key, type));
         }
 
-        this.linkKey = ByteBufUtils.readUTF8String(buf);
+        this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         this.isControlCar = buf.readBoolean();
     }
 

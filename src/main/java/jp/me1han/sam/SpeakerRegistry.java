@@ -1,108 +1,74 @@
 package jp.me1han.sam;
 
-import jp.me1han.sam.network.PacketAnnounce;
+import java.util.*;
+import jp.me1han.sam.render.TileEntitySpeaker;
+import net.minecraft.world.World;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-
+/** Server-only lifecycle index. World identity isolates integrated-server reloads. */
 public final class SpeakerRegistry {
-    private static class SpeakerEntry {
-        int dimensionId;
-        int x;
-        int y;
-        int z;
-        String linkKey;
-        int range;
-        float volume;
+    private static final Map<World, DimensionSpeakers> WORLDS = new IdentityHashMap<>();
+    private static final class DimensionSpeakers {
+        final Map<Long, Entry> byPosition = new HashMap<>();
+        final Map<String, Map<Long, Entry>> byLinkKey = new HashMap<>();
     }
-
-    private static final List<SpeakerEntry> ENTRIES = new ArrayList<SpeakerEntry>();
-
+    public static final class Entry {
+        public final TileEntitySpeaker tile;
+        public final String linkKey;
+        public final int x, y, z, range;
+        public final float volume;
+        Entry(TileEntitySpeaker tile) {
+            this.tile = tile; linkKey = normalize(tile.linkKey);
+            x = tile.xCoord; y = tile.yCoord; z = tile.zCoord;
+            range = tile.range; volume = tile.volume;
+        }
+    }
     private SpeakerRegistry() {}
-
-    public static synchronized void upsert(int dimensionId, int x, int y, int z, String linkKey, int range, float volume) {
-        removeAt(dimensionId, x, y, z);
-        String normalized = normalizeKey(linkKey);
-        if (normalized.isEmpty()) {
-            return;
-        }
-
-        SpeakerEntry entry = new SpeakerEntry();
-        entry.dimensionId = dimensionId;
-        entry.x = x;
-        entry.y = y;
-        entry.z = z;
-        entry.linkKey = normalized;
-        entry.range = range;
-        entry.volume = volume;
-        ENTRIES.add(entry);
+    public static String normalize(String key) { return key == null ? "" : key.trim(); }
+    /** 26-bit signed X/Z, 12-bit Y; supports the Minecraft world limits and y=0. */
+    public static long position(int x, int y, int z) {
+        return ((long)x & 0x3ffffffL) << 38 | ((long)z & 0x3ffffffL) << 12 | (y & 0xfffL);
     }
-
-    public static synchronized void removeAt(int dimensionId, int x, int y, int z) {
-        for (int i = ENTRIES.size() - 1; i >= 0; i--) {
-            SpeakerEntry entry = ENTRIES.get(i);
-            if (entry.dimensionId == dimensionId && entry.x == x && entry.y == y && entry.z == z) {
-                ENTRIES.remove(i);
-            }
-        }
+    public static int x(long pos) { return (int)(pos >> 38); }
+    public static int y(long pos) { return (int)(pos & 0xfffL); }
+    public static int z(long pos) { return (int)(pos << 26 >> 38); }
+    public static void register(TileEntitySpeaker tile) {
+        World world = tile.getWorldObj();
+        if (world == null || world.isRemote || tile.isInvalid()) return;
+        DimensionSpeakers registry = WORLDS.computeIfAbsent(world, w -> new DimensionSpeakers());
+        long pos = position(tile.xCoord, tile.yCoord, tile.zCoord);
+        Entry old = registry.byPosition.get(pos);
+        String key = normalize(tile.linkKey);
+        if (old != null && old.tile == tile && old.linkKey.equals(key)
+            && old.range == tile.range && old.volume == tile.volume) return;
+        if (old != null) remove(registry, pos, old);
+        Entry entry = new Entry(tile);
+        registry.byPosition.put(pos, entry);
+        registry.byLinkKey.computeIfAbsent(key, k -> new HashMap<>()).put(pos, entry);
     }
-
-    public static synchronized List<PacketAnnounce.SpeakerData> findByKey(int dimensionId, String linkKey) {
-        String normalized = normalizeKey(linkKey);
-        List<PacketAnnounce.SpeakerData> speakers = new ArrayList<PacketAnnounce.SpeakerData>();
-        if (normalized.isEmpty()) {
-            return speakers;
-        }
-
-        for (SpeakerEntry entry : ENTRIES) {
-            if (entry.dimensionId == dimensionId && normalized.equals(entry.linkKey)) {
-                speakers.add(new PacketAnnounce.SpeakerData(entry.x, entry.y, entry.z, entry.range, entry.volume));
-            }
-        }
-
-        return speakers;
+    public static void unregister(TileEntitySpeaker tile) {
+        DimensionSpeakers registry = WORLDS.get(tile.getWorldObj());
+        if (registry == null) return;
+        long pos = position(tile.xCoord, tile.yCoord, tile.zCoord);
+        Entry old = registry.byPosition.get(pos);
+        // Late invalidation of an old TE must not remove its replacement.
+        if (old != null && old.tile == tile) remove(registry, pos, old);
+        if (registry.byPosition.isEmpty()) WORLDS.remove(tile.getWorldObj());
     }
-
-    public static synchronized int countByDimension(int dimensionId) {
-        int count = 0;
-        for (SpeakerEntry entry : ENTRIES) {
-            if (entry.dimensionId == dimensionId) {
-                count++;
-            }
-        }
-        return count;
+    private static void remove(DimensionSpeakers registry, long pos, Entry old) {
+        registry.byPosition.remove(pos);
+        Map<Long, Entry> group = registry.byLinkKey.get(old.linkKey);
+        group.remove(pos);
+        if (group.isEmpty()) registry.byLinkKey.remove(old.linkKey);
     }
-
-    public static synchronized String sampleKeys(int dimensionId, int limit) {
-        if (limit <= 0) {
-            return "";
-        }
-
-        Set<String> keys = new LinkedHashSet<String>();
-        for (SpeakerEntry entry : ENTRIES) {
-            if (entry.dimensionId != dimensionId) {
-                continue;
-            }
-            keys.add(entry.linkKey);
-            if (keys.size() >= limit) {
-                break;
-            }
-        }
-
-        StringBuilder sb = new StringBuilder();
-        for (String key : keys) {
-            if (sb.length() > 0) {
-                sb.append(',');
-            }
-            sb.append(key);
-        }
-        return sb.toString();
+    public static Collection<Entry> findByKey(World world, String key) {
+        DimensionSpeakers registry = WORLDS.get(world);
+        Map<Long, Entry> group = registry == null ? null : registry.byLinkKey.get(normalize(key));
+        return group == null || normalize(key).isEmpty() ? Collections.<Entry>emptyList() : new ArrayList<>(group.values());
     }
-
-    private static String normalizeKey(String key) {
-        return key == null ? "" : key.trim();
+    public static void clear(World world) { WORLDS.remove(world); }
+    public static Entry at(World world, long position) {
+        DimensionSpeakers registry = WORLDS.get(world);
+        return registry == null ? null : registry.byPosition.get(position);
     }
+    public static void clear() { WORLDS.clear(); }
 }
-
