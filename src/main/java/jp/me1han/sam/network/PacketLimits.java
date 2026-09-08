@@ -8,9 +8,14 @@ import java.nio.charset.StandardCharsets;
 public final class PacketLimits {
     public static final int LINK_KEY = 64, NAME = 256, MODEL = 128;
     public static final int CONDITIONS = 64, SOUNDS = 256, SOUND_LIST = 8192;
+    public static final int SESSION_TARGETS = 512, MISSING_TARGETS = SESSION_TARGETS;
+    public static final int BODY_SOUNDS = 256;
     public static final int MAX_RANGE = 128, MAX_TICKS = 1728000;
     public static final float MAX_VOLUME = 1.0F;
     private PacketLimits() {}
+    public static void checkCount(int count, int max) {
+        if (count < 0 || count > max) throw new IllegalArgumentException("SAM packet count exceeds " + max);
+    }
     public static boolean string(String value, int max) { return value != null && value.length() <= max; }
     /** Check UTF-8 byte length before allocating (Forge uses a two-byte varint). */
     public static String readString(ByteBuf buf, int max) {

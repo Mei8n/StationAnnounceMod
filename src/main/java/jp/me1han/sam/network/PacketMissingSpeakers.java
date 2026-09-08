@@ -11,12 +11,13 @@ public class PacketMissingSpeakers implements IMessage {
     public PacketMissingSpeakers(long id, long[] targets) { sessionId = id; this.targets = targets; }
     @Override public void fromBytes(ByteBuf buf) {
         sessionId = buf.readLong();
-        int count = PacketLimits.readCount(buf, 65536);
+        int count = PacketLimits.readCount(buf, PacketLimits.MISSING_TARGETS);
         if (count > buf.readableBytes() / 8) throw new io.netty.handler.codec.DecoderException("SAM missing targets");
         targets = new long[count];
         for (int i = 0; i < count; i++) targets[i] = buf.readLong();
     }
     @Override public void toBytes(ByteBuf buf) {
+        PacketLimits.checkCount(targets.length, PacketLimits.MISSING_TARGETS);
         buf.writeLong(sessionId); buf.writeInt(targets.length);
         for (long target : targets) buf.writeLong(target);
     }

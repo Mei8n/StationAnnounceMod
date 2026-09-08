@@ -41,7 +41,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityTrainTypeSelector.class, "network-test-selector");
         mapping.invoke(null, TileEntityDebugReceiver.class, "network-test-debug");
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
-        lifecycle(); wireBounds(); delivery(); config(); client();
+        lifecycle(); wireBounds(); delivery(); config(); client(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -263,9 +263,8 @@ public final class NetworkVerificationTest {
         Thread network = new Thread(() -> client.receive(packet)); network.start(); network.join();
         check(client.worldReads == 0 && client.played.isEmpty(), "Network thread touches no world or sound");
         client.tick(); check(client.played.isEmpty(), "Missing client TE is null-safe");
-        Speaker speaker = new Speaker(); world.add(speaker, 0, 0, 0);
-        client.tick(); check(client.played.isEmpty(), "Default TE waits for linkKey description sync");
-        speaker.linkKey = "A"; client.tick();
+        client.tick(); check(client.played.isEmpty(), "Unresolved TE is retried on client tick");
+        Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 0, 0, 0); client.tick();
         check(client.played.size() == 1, "Delayed TE settings recover current sound without scanning");
         client.receive(packet); client.tick();
         check(client.played.size() == 1, "Duplicate START does not replay");
@@ -313,6 +312,135 @@ public final class NetworkVerificationTest {
         check(client.played.size() == before+1, "Missing/unloaded TE recovers through exceptional compact settings response");
         for (int i = 0; i < 25; i++) client.tick();
         check(client.missing.size() == requests+1 && client.live.isEmpty(), "Fallback neither polls server nor leaves late sounds playing");
+    }
+
+    private static int sessions() throws Exception {
+        Field field = ServerSessions.class.getDeclaredField("SESSIONS"); field.setAccessible(true);
+        return ((Map<?, ?>)field.get(null)).size();
+    }
+    private static MessageContext context(Player player) throws Exception {
+        Constructor<MessageContext> ctor = MessageContext.class.getDeclaredConstructor(INetHandler.class, Side.class);
+        ctor.setAccessible(true); return ctor.newInstance(player.playerNetServerHandler, Side.SERVER);
+    }
+    private static void endTick() { ServerSessions.INSTANCE.onServerTick(new TickEvent.ServerTickEvent(TickEvent.Phase.END)); }
+
+    private static void limitsAndExpiry() throws Exception {
+        cpw.mods.fml.common.Mod mod = StationAnnounceModCore.class.getAnnotation(cpw.mods.fml.common.Mod.class);
+        check("0.2.1-beta".equals(StationAnnounceModCore.VERSION) && "[0.2.1-beta]".equals(mod.acceptableRemoteVersions()), "Forge exact remote version gate");
+        ByteBuf buf = Unpooled.buffer();
+        try {
+            buf.writeLong(1).writeInt(PacketLimits.MISSING_TARGETS+1);
+            expectInvalid(() -> new PacketMissingSpeakers().fromBytes(buf));
+            buf.clear(); buf.writeLong(1).writeInt(PacketLimits.SESSION_TARGETS+1);
+            expectInvalid(() -> new PacketSpeakerFallback().fromBytes(buf));
+            PacketAnnounce bounded = start(1); bounded.targets = new long[PacketLimits.SESSION_TARGETS];
+            bounded.bodySounds = Collections.nCopies(PacketLimits.BODY_SOUNDS, "test:body");
+            buf.clear(); bounded.toBytes(buf); PacketAnnounce decoded = new PacketAnnounce(); decoded.fromBytes(buf);
+            check(decoded.targets.length == PacketLimits.SESSION_TARGETS && decoded.bodySounds.size() == PacketLimits.BODY_SOUNDS, "START boundary round trip");
+            // Forge header has a variable-length linkKey; use readHeader to find the body count.
+            buf.clear(); bounded.writeHeader(buf);
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+            buf.writeInt(PacketLimits.BODY_SOUNDS+1);
+            expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
+            buf.clear(); bounded.targets = new long[0]; bounded.writeHeader(buf);
+            buf.setInt(buf.writerIndex()-4, PacketLimits.SESSION_TARGETS+1);
+            expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
+            PacketMissingSpeakers maxMissing = new PacketMissingSpeakers(1, new long[PacketLimits.MISSING_TARGETS]);
+            buf.clear(); maxMissing.toBytes(buf); check(buf.readableBytes() == 4108, "Missing payload capped at 4108 bytes");
+            PacketSpeakerFallback maxFallback = new PacketSpeakerFallback(1);
+            for (int i = 0; i < PacketLimits.SESSION_TARGETS; i++) maxFallback.targets.add(new PacketSpeakerFallback.Target(i, 16, 1));
+            buf.clear(); maxFallback.toBytes(buf); check(buf.readableBytes() == 8204, "Fallback payload capped at 8204 bytes");
+        } finally { buf.release(); }
+
+        ServerSessions.clear(); ServerTaskQueue.INSTANCE.clear();
+        FixtureWorld world = new FixtureWorld(); TileEntityAnnouncer owner = new TileEntityAnnouncer();
+        owner.linkKey = "A"; world.add(owner, -10, 0, 0);
+        for (int i = 0; i < 10; i++) { Speaker s = new Speaker(); s.linkKey = "A"; world.add(s, i, 0, 0); }
+        Player player = player(world, 0, 0, 0); RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        long id = ServerSessions.start(owner, start(0)); out.clear();
+        ServerSessions.missing(player, new PacketMissingSpeakers(id, new long[11]));
+        check(out.messages.isEmpty(), "11 requests for 10 allowed targets rejected before set allocation");
+        ServerSessions.missing(player, new PacketMissingSpeakers(id, new long[] {SpeakerRegistry.position(0, 0, 0)}));
+        check(out.messages.isEmpty(), "Oversized attempt consumes single fallback request");
+        new NetworkHandler.FinishedHandler().onMessage(new PacketSessionFinished(id), context(player));
+        check(sessions() == 1, "FINISHED remains queued"); serverTick(); check(sessions() == 0, "FINISHED handler cleans recipient/session");
+
+        long expired = ServerSessions.start(owner, start(0));
+        endTick(); long surviving = ServerSessions.start(owner, departure(0));
+        ServerSessions.expireSessions(ServerSessions.SESSION_TTL_TICKS-1);
+        check(sessions() == 2, "No early TTL expiration");
+        out.clear();
+        Field clock = ServerSessions.class.getDeclaredField("serverTick"); clock.setAccessible(true);
+        clock.setLong(null, ServerSessions.SESSION_TTL_TICKS-1); endTick();
+        check(sessions() == 1 && out.messages.size() == 1 && ((PacketAnnounceStop)out.messages.get(0)).sessionId == expired,
+            "Periodic sweep stops only expired session when ACK is absent");
+        ServerSessions.control(surviving, false);
+        ServerSessions.expireSessions(ServerSessions.SESSION_TTL_TICKS+1);
+        check(sessions() == 1, "OFF extends TTL for remaining chorus/door close");
+        ServerSessions.expireSessions(2*ServerSessions.SESSION_TTL_TICKS);
+        check(sessions() == 0, "Refreshed TTL still expires without ACK");
+
+        ServerSessions.clear(); id = ServerSessions.start(owner, start(0));
+        final int[] ran = {0};
+        for (int i = 0; i < ServerTaskQueue.MAX_PENDING+50; i++) ServerTaskQueue.INSTANCE.enqueue(() -> ran[0]++);
+        new NetworkHandler.FinishedHandler().onMessage(new PacketSessionFinished(id), context(player));
+        serverTick(); check(ran[0] == ServerTaskQueue.MAX_PER_TICK && sessions() == 1, "Overflow drops ACK and bounds work per tick");
+        for (int i = 0; i < 5; i++) serverTick();
+        check(ran[0] == ServerTaskQueue.MAX_PENDING && sessions() == 1, "Overflow tasks are not retained indefinitely");
+        ServerSessions.expireSessions(ServerSessions.SESSION_TTL_TICKS);
+        check(sessions() == 0, "TTL guarantees cleanup after queue-dropped ACK");
+
+        ServerSessions.start(owner, start(0)); out.clear();
+        ServerSessions.INSTANCE.respawn(new PlayerEvent.PlayerRespawnEvent(player));
+        check(sessions() == 0 && out.messages.get(0) instanceof PacketAnnounceStop, "Respawn stops and releases old session");
+        ServerSessions.start(owner, start(0)); owner.onChunkUnload(); check(sessions() == 0, "Owner unload cleans sessions"); owner.validate();
+        ServerSessions.start(owner, start(0)); ServerSessions.INSTANCE.logout(new PlayerEvent.PlayerLoggedOutEvent(player)); check(sessions() == 0, "Logout cleans session");
+        ServerSessions.start(owner, start(0)); ServerSessions.INSTANCE.changedWorld(new PlayerEvent.PlayerChangedDimensionEvent(player, 0, 1)); check(sessions() == 0, "Dimension change cleans session");
+        ServerSessions.start(owner, start(0)); ServerSessions.INSTANCE.unload(new net.minecraftforge.event.world.WorldEvent.Unload(world));
+        check(sessions() == 0 && SpeakerRegistry.findByKey(world, "A").isEmpty(), "World unload clears sessions and speakers");
+        PacketAnnounce local = start(0); local.playLocalSound = true;
+        ServerSessions.start(owner, local); ServerSessions.stopAll(); check(sessions() == 0, "Global stop clears sessions");
+        ServerSessions.start(owner, local); ServerTaskQueue.INSTANCE.enqueue(() -> ran[0]++);
+        new StationAnnounceModCore().serverStopped(null); int before = ran[0]; serverTick();
+        check(sessions() == 0 && ran[0] == before, "Server stop clears sessions and pending tasks");
+
+        // The sending side must never generate a packet rejected by its own decoder.
+        for (int i = 0; i < PacketLimits.SESSION_TARGETS+10; i++) {
+            Speaker s = new Speaker(); s.linkKey = "A"; s.range = 128;
+            world.add(s, i%20, i/20, 0);
+        }
+        out.clear(); ServerSessions.start(owner, start(0));
+        check(out.messages.size() == 1 && ((PacketAnnounce)out.messages.get(0)).targets.length == PacketLimits.SESSION_TARGETS, "START sender caps dense recipient at 512 targets");
+        PacketAnnounce tooMany = start(0); tooMany.bodySounds = Collections.nCopies(PacketLimits.BODY_SOUNDS+1, "test:body");
+        int count = sessions(); out.clear();
+        check(ServerSessions.start(owner, tooMany) == 0 && out.messages.isEmpty() && sessions() == count, "Oversized script sequence rejected before session allocation");
+        ServerSessions.clear(); SpeakerRegistry.clear(world); LoadedSamTiles.clear(world);
+    }
+
+    private static void fallbackAuthority() {
+        for (String currentKey : new String[] {"A", "B", ""}) {
+            FixtureWorld world = new FixtureWorld(); world.isRemote = true;
+            TestClient client = new TestClient(); client.world = world;
+            PacketAnnounce packet = start(900); packet.targets = new long[] {SpeakerRegistry.position(0, 0, 0)};
+            packet.bodySounds = Arrays.asList("test:body", "test:body", "test:body");
+            client.receive(packet); for (int i = 0; i < 5; i++) client.tick();
+            PacketSpeakerFallback fallback = new PacketSpeakerFallback(900);
+            fallback.targets.add(new PacketSpeakerFallback.Target(packet.targets[0], 64, .75F));
+            client.receive(fallback); client.tick(); check(client.played.size() == 1, "Unresolved TE uses fallback");
+            Speaker formal = new Speaker(); formal.linkKey = currentKey; formal.range = 16; formal.volume = .25F;
+            world.add(formal, 0, 0, 0);
+            for (int i = 0; i < 20; i++) client.tick();
+            if (currentKey.equals("A")) {
+                check(client.played.size() == 2 && client.played.get(1).getVolume() == .25F, "Formal TE range/volume override fallback");
+            } else check(client.played.size() == 1, "Current mismatched/empty TE key suppresses stale fallback");
+            world.tiles.clear(); // A resolved TE must also have evicted its old fallback entry.
+            int played = client.played.size(); for (int i = 0; i < 21; i++) client.tick();
+            check(client.played.size() == played, "Resolved TE evicts fallback even after later TE unload");
+            client.receive(new PacketAnnounceStop(900)); client.tick();
+            client.receive(fallback); client.tick();
+            check(client.played.size() == played && client.live.isEmpty(), "Late fallback after session stop is ignored");
+        }
     }
 
     private static class Speaker extends TileEntitySpeaker { int dirty; @Override public void markDirty() { dirty++; } }

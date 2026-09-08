@@ -2,6 +2,48 @@
 
 対象: Minecraft 1.7.10 / Forge 10.13.4.1614 / Java 8。
 
+## 0.2.1-beta 追加修正（PacketFix）
+
+今回の変更ファイルは次の10ファイル。追加・削除ファイル、新packet、discriminator変更はない。後続の初回PacketFix改修一覧とは区別する。
+
+- `src/main/java/jp/me1han/sam/StationAnnounceModCore.java`
+- `src/main/java/jp/me1han/sam/client/AnnounceManager.java`
+- `src/main/java/jp/me1han/sam/network/PacketLimits.java`
+- `src/main/java/jp/me1han/sam/network/PacketAnnounce.java`
+- `src/main/java/jp/me1han/sam/network/PacketMissingSpeakers.java`
+- `src/main/java/jp/me1han/sam/network/PacketSpeakerFallback.java`
+- `src/main/java/jp/me1han/sam/network/ServerSessions.java`
+- `src/main/java/jp/me1han/sam/network/ServerTaskQueue.java`
+- `src/test/java/jp/me1han/sam/network/NetworkVerificationTest.java`
+- `NETWORK_REVIEW.md`
+
+| 問題 | 最終仕様 |
+| --- | --- |
+| 旧版と同じMODバージョン | VERSION=`0.2.1-beta`。Forge標準 `acceptableRemoteVersions="[0.2.1-beta]"` により接続先の同バージョンだけを許可 |
+| 過大なSpeaker配列 | START/fallbackは `SESSION_TARGETS=512`、Missingは同値の `MISSING_TARGETS`。decodeとencodeで検証 |
+| 実際のSTARTより多い補完要求 | allowed取得直後、HashSet確保前にrequest件数≤allowed件数を検証。不正な一回目も要求権を消費し、二回目は無視 |
+| bodySounds 4096件 | `BODY_SOUNDS=256`。serverでは超過sequenceのSTART全体を送信・session作成前にrejectし、警告を記録。途中で音声列を切り詰めない |
+| ACKのdropによる永久leak | 24時間相当のserver tick TTLと200tick間隔の期限切れ掃除 |
+| 古いfallbackが正式TEより優先 | valid Speaker TEが存在すれば必ずfallbackを削除。空文字を含むlinkKey不一致なら再生せず、その音の再試行も行わない |
+
+Speakerが一人の受信範囲に512台を超えて存在する場合は、Registry列挙順で先頭512台までをそのplayerのSTART対象にする（近い順の選別ではない）。512台に達したらそのplayer向け列挙を打ち切るため、巨大な中間配列を作らず、decoderの上限を超えるSTARTも送らない。station全体のSpeaker登録数にはこの上限を適用しない。
+
+Missingのpayload上限は12+8×512=**4108bytes**、fallbackは12+16×512=**8204bytes**。STARTの座標部分は最大**4096bytes**（共通ヘッダーと音声列は別）。これらはForge/Minecraftフレームヘッダーを含まない。bodySoundsの256件制限を決める際は `run/mods/SAMpacks` の `sam_kasamashi.zip`, `sam_Reikyu_dev.zip`, `sam_SamplePack.zip` を読み取り、正常な通常放送scriptの列が最大6件であること、既存テストも256件以内であることを確認した。外部の全SAMpacksの互換性を保証する調査ではない。
+
+TTLはSTART時点から **1,728,000 logical server ticks**。ServerTick ENDでカウンターだけを進め、**200ticks（20TPSで10秒）に一度**、session mapを検査する。通常のworld時刻変更やclient要求で期限は変わらない。server発行のDeparture RELEASE/OFF時は、その時点から同じ24時間分延長する。FINISHED正常受信・STOP/CANCEL等による即時解放は従来どおり。Missing要求では期限を延長しない。
+
+期限切れでは対象session IDのSTOPを元recipientへ送り、session/recipient逆引き/補完認可記録を解放する。ACKが欠落しても期限から最大199ticks後の掃除で解放される。duration推定による短い期限ではなく、Awareness待機や長いループにも余裕を持たせた保険期限である。そのため**正常でも24時間無操作で続くsessionは停止する**。20TPS未満では実時間の24時間より長くなる。server停止/global stopは全sessionとTTLカウンターをclearし、session IDの単調増加は維持する。
+
+queueは引き続き最大1024件、START tickあたり256件。超過分はFINISHEDを含めdropする。別priority queueや再送protocolは追加せず、queue外のServerTick ENDのTTL掃除を保険とした。GUIがqueueを埋めてもTTL処理はqueueに依存しない。
+
+独立したprotocol番号や独自handshakeは追加していない。Forge標準handshakeが持つMODバージョン情報で厳密照合する。使用されないNETWORK_PROTOCOL_VERSION定数だけを追加することも避けた。
+
+自動検証: `gradlew.bat test check --offline --console=plain` 成功。`verifyDeparture` 190、`verifySwitchModels` 177、`verifyNetwork` 152 checks成功。追加検証にはdecode上限、送信側512件制限、11対10要求、不正一回目の消費、FINISHED handler、期限境界と別session保護、OFFによる延長、queue overflowとTTL保険、logout/dimension/respawn/owner unload/world unload/server stop/global stop、正式TEのrange/volumeおよび不一致・空linkKey優先、終了後のfallback無視を含む。`git diff --check` も実行した。
+
+今回はrecipient探索のspatial index化、packet ID 0〜16（7 retired）、新packet追加、priority queue化、Speaker/LoadedSamTiles index、GUIアクセス検証、DepartureSequenceのタイミングを変更していない。development clientとDedicated Serverを同時起動しての実聴・手動操作確認は未実施。headlessの既存実処理fixtureで検証した。
+
+以下は初回PacketFix改修の全体記録で、数値・fallback・TTL・互換性は0.2.1-betaの仕様に更新済み。
+
 通常の放送は、対象linkKeyのSpeakerとローカル音源の近くにいるplayerへ、session単位で配送する。Speakerは毎tickの登録を行わず、STARTには座標IDだけを含める。通常TE同期を優先し、TEが未解決の場合だけ小さな補完応答を使う。
 
 ## 参照した実装
@@ -77,7 +119,7 @@ ID 14は音声ごとのPLAY/debug通知ではない。bodySoundsが複数でもs
 
 ID 15/16は描画距離外やTE同期未完了に対応する例外経路。正常なTE同期済み再生では発生しない。serverはSTARTで当人に送った座標IDと現在のRegistryを照合するため、任意座標の情報取得やTE生成には使用できない。再要求は無視し、全Speaker設定の再送や周期同期はしない。
 
-今回wire formatを変更しているため、server/client双方へ同じ改修buildを導入すること。旧buildとのpacket互換性はない。
+旧0.1.5-beta/v0.1.5-betaとPacketFixのwire形式は非互換。0.2.1-betaではForge標準の厳密バージョン照合を設定したため、server/client双方を0.2.1-betaへ更新すること。独立したprotocol番号や追加handshakeは使用しない。
 
 ## 7–8. 配送API
 
@@ -116,7 +158,7 @@ serverはSTARTごとに単調増加するlong IDを発行する。`Map<Long, Ses
 
 recipientはdimension内のplayerと対象linkKeyのSpeakerだけを比較して決定する。Speakerのrange+2 blocksの球内、またはローカル音源の16+2 blocksの球内にいれば受信者に含める。個別STARTにはそのplayerの近くのSpeaker座標だけを入れる。複数範囲に入ってもplayerは一度だけ追加される。
 
-STOP/CANCELは現在の位置でrecipientを再計算しない。移動後でも接続が存続し同じWorldにいれば配送する。別worldへの移動・logout・respawnはrecipientから外す。STOP/CANCEL、最後の終了通知、owner unload、World unload、server停止、global stopで記録を解放する。
+STOP/CANCELは現在の位置でrecipientを再計算しない。移動後でも接続が存続し同じWorldにいれば配送する。別worldへの移動・logout・respawnはrecipientから外す。STOP/CANCEL、最後の終了通知、owner unload、World unload、server停止、global stop、24時間相当の保険TTLで記録を解放する。
 
 clientは `Map<Long, AnnounceSession>` を使用。priority判定にはlinkKeyを使うが、操作packetの対象はsession IDだけ。同じIDのSTART再受信は無視する。World identityが変わったときは音声・session・未解決座標・補完情報を解放する。
 
@@ -147,11 +189,12 @@ clientは `Map<Long, AnnounceSession>` を使用。priority判定にはlinkKey�
 | departureDelay | 0〜1,728,000 ticks |
 | Speaker range | 1〜128 blocks |
 | Speaker volume | finite、0.0〜MAX_VOLUME（現在1.0） |
-| Speaker座標配列 | 65,536件まで、残りbuffer bytesも検証 |
+| Speaker座標配列 | START/Missing/fallbackとも512件まで、残りbuffer bytesも検証 |
+| bodySounds | 256件 |
 
 UTF-8の長さを文字列確保前に検証し、文字数も検証する。負のList sizeや巨大なList sizeはdecodeで拒否する。GUIはDone/保存時だけ送信する。Speaker GUIは不正数値を送らず、server確認前のTEへの仮書き込みも削除した。
 
-server queueは待機1024件、tickごとの処理256件に制限。音声制御S2Cは従来どおりclient `pending` へ積み、ClientTickからWorld/SoundHandler/sessionを操作する。
+server queueは待機1024件、tickごとの処理256件に制限。overflowでFINISHEDがdropされても、queueとは独立した200tick周期のTTL掃除で永久残存を防ぐ。音声制御S2Cは従来どおりclient `pending` へ積み、ClientTickからWorld/SoundHandler/sessionを操作する。
 
 ## 16. 削除したdebug/fallback
 
@@ -187,7 +230,7 @@ S=全Speaker数、K=対象linkKeyのSpeaker数、T=dimension内全TE数、P=dime
 
 melody/doorClose/interval、alternate、finishChorus、channelごとのstop、priority=20、Awareness=0/通常=10、Awarenessの待機/allowOverlapを保持した。スイッチのmode/yaw/portable metadata、TrainType/dataMapの処理も維持している。
 
-TE未解決時は指定座標だけを再確認する。通常同期が追いつかなければ未解決座標を一度だけ補完要求し、session内で再利用する。実TEが解決できれば実TEを優先する。sequenceの時計は止めないため、極端な遅延で既に終了した音を後から再生し直すことはしない。遅延中の音声の冒頭まで完全に復元する方式ではない。遅れて開始した音も次の通常音への遷移、channel終了、STOP/CANCELで停止する。
+TE自体が未解決の場合は指定座標だけを再確認し、未解決座標を一度だけ補完要求してsession内で再利用する。validなSpeaker TEがあれば、その時点でfallbackを削除する。現在のlinkKey一致時だけ現在のrange/volumeで再生し、不一致・空linkKeyではfallbackを使わず再生しない。sequenceの時計は止めないため、極端な遅延で既に終了した音を後から再生し直すことはしない。遅延中の音声の冒頭まで完全に復元する方式ではない。遅れて開始した音も次の通常音への遷移、channel終了、STOP/CANCELで停止する。
 
 ## 19. Test/verification
 
@@ -196,7 +239,7 @@ TE未解決時は指定座標だけを再確認する。通常同期が追いつ
 - `test`: 成功。
 - `verifyDeparture`: 190 checks成功。
 - `verifySwitchModels`: 177 checks成功。
-- `verifyNetwork`: 112 checks成功。
+- `verifyNetwork`: 152 checks成功。
 - `check`: 成功。
 - `git diff --check`: 問題なし。
 

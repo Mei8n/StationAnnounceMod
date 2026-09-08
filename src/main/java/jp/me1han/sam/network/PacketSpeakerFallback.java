@@ -18,7 +18,7 @@ public class PacketSpeakerFallback implements IMessage {
     public PacketSpeakerFallback(long id) { sessionId = id; }
     @Override public void fromBytes(ByteBuf buf) {
         sessionId = buf.readLong();
-        int count = PacketLimits.readCount(buf, 65536);
+        int count = PacketLimits.readCount(buf, PacketLimits.SESSION_TARGETS);
         if (count > buf.readableBytes()/16) throw new io.netty.handler.codec.DecoderException("SAM fallback targets");
         targets = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -28,6 +28,7 @@ public class PacketSpeakerFallback implements IMessage {
         }
     }
     @Override public void toBytes(ByteBuf buf) {
+        PacketLimits.checkCount(targets.size(), PacketLimits.SESSION_TARGETS);
         buf.writeLong(sessionId); buf.writeInt(targets.size());
         for (Target target : targets) { buf.writeLong(target.position); buf.writeInt(target.range); buf.writeFloat(target.volume); }
     }

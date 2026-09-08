@@ -3,6 +3,7 @@ package jp.me1han.sam.network;
 import java.util.*;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
+import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.network.NetworkRegistry.TargetPoint;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import jp.me1han.sam.SpeakerRegistry;
@@ -12,10 +13,13 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.world.World;
 import net.minecraftforge.event.world.WorldEvent;
 
-/** Accessed exclusively on the logical server thread. No periodic Speaker/session scans. */
+/** Logical server only. No Speaker polling; session expiration is checked every ten seconds. */
 public final class ServerSessions {
     public static final ServerSessions INSTANCE = new ServerSessions();
     public static final double LOCAL_RANGE = 16, RANGE_MARGIN = 2;
+    public static final long SESSION_TTL_TICKS = 24L * 60 * 60 * 20;
+    public static final int CLEANUP_INTERVAL_TICKS = 200;
+    private static long serverTick;
     interface Delivery {
         void send(IMessage packet, EntityPlayerMP player);
         void around(IMessage packet, TargetPoint point);
@@ -35,11 +39,13 @@ public final class ServerSessions {
         final World world;
         final String key;
         final int priority;
+        long expireTick;
         final Set<EntityPlayerMP> recipients = new HashSet<>();
         final Map<EntityPlayerMP, long[]> unresolvedRequests = new HashMap<>();
         Session(long id, TileEntityAnnouncer owner, PacketAnnounce packet) {
             this.id = id; this.owner = owner; world = owner.getWorldObj();
             key = SpeakerRegistry.normalize(packet.linkKey); priority = packet.priority;
+            expireTick = serverTick + SESSION_TTL_TICKS;
         }
     }
     private ServerSessions() {}
@@ -53,6 +59,11 @@ public final class ServerSessions {
     public static long start(TileEntityAnnouncer owner, PacketAnnounce packet) {
         World world = owner.getWorldObj();
         if (world == null || world.isRemote) return 0;
+        if (!(packet instanceof PacketDepartureStart) && packet.bodySounds != null
+            && packet.bodySounds.size() > PacketLimits.BODY_SOUNDS) {
+            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Announcement rejected: bodySounds exceeds " + PacketLimits.BODY_SOUNDS);
+            return 0;
+        }
         packet.linkKey = SpeakerRegistry.normalize(packet.linkKey);
         packet.sessionId = ++nextId;
         Session session = new Session(packet.sessionId, owner, packet);
@@ -64,6 +75,8 @@ public final class ServerSessions {
             if (player.worldObj != world) continue;
             List<Long> positions = new ArrayList<>();
             for (SpeakerRegistry.Entry speaker : speakers) {
+                // Bound both per-player allocation and the eventual START/fallback payload.
+                if (positions.size() == PacketLimits.SESSION_TARGETS) break;
                 if (speaker.tile.isInvalid() || speaker.volume <= 0) continue;
                 if (near(player, speaker.x + .5, speaker.y + .5, speaker.z + .5, speaker.range))
                     positions.add(SpeakerRegistry.position(speaker.x, speaker.y, speaker.z));
@@ -114,6 +127,7 @@ public final class ServerSessions {
         if (session == null || session.priority != PacketAnnounce.PRIORITY_DEPARTURE_MELODY) return;
         send(session, new PacketDepartureControl(id, cancel));
         if (cancel) remove(session);
+        else session.expireTick = serverTick + SESSION_TTL_TICKS;
     }
     private static void stop(Session session) {
         send(session, new PacketAnnounceStop(session.id)); remove(session);
@@ -173,15 +187,27 @@ public final class ServerSessions {
         for (Session session : new ArrayList<>(SESSIONS.values())) if (session.world == event.world) stop(session);
         SpeakerRegistry.clear(event.world); LoadedSamTiles.clear(event.world);
     }
-    public static void clear() { SESSIONS.clear(); BY_PLAYER.clear(); }
+    public static void clear() { SESSIONS.clear(); BY_PLAYER.clear(); serverTick = 0; }
+
+    @SubscribeEvent public void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        if (++serverTick % CLEANUP_INTERVAL_TICKS == 0) expireSessions(serverTick);
+    }
+
+    // Package access also permits testing expiry without simulating a day of game ticks.
+    static void expireSessions(long now) {
+        for (Session session : new ArrayList<>(SESSIONS.values()))
+            if (now >= session.expireTick) stop(session);
+    }
 
     public static void missing(EntityPlayerMP player, PacketMissingSpeakers request) {
         Session session = SESSIONS.get(request.sessionId);
         if (session == null || player.worldObj != session.world || !session.recipients.contains(player)
             || player.playerNetServerHandler == null || !player.playerNetServerHandler.netManager.isChannelOpen()
-            || request.targets == null || request.targets.length > 65536) return;
+            || request.targets == null || request.targets.length > PacketLimits.MISSING_TARGETS) return;
         long[] allowed = session.unresolvedRequests.remove(player);
         if (allowed == null) return; // At most one response per START recipient.
+        if (request.targets.length > allowed.length) return; // Before HashSet allocation; invalid attempt consumes the one request.
         Set<Long> requested = new HashSet<>();
         for (long target : request.targets) requested.add(target);
         PacketSpeakerFallback response = new PacketSpeakerFallback(session.id);

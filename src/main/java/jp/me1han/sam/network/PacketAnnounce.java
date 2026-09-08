@@ -28,12 +28,13 @@ public class PacketAnnounce implements IMessage {
         sessionId = buf.readLong(); linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         priority = buf.readInt(); allowOverlap = buf.readBoolean(); playLocalSound = buf.readBoolean();
         x = buf.readInt(); y = buf.readInt(); z = buf.readInt();
-        int size = PacketLimits.readCount(buf, 65536);
+        int size = PacketLimits.readCount(buf, PacketLimits.SESSION_TARGETS);
         if (size > buf.readableBytes() / 8) throw new io.netty.handler.codec.DecoderException("SAM targets");
         targets = new long[size];
         for (int i = 0; i < size; i++) targets[i] = buf.readLong();
     }
     protected void writeHeader(ByteBuf buf) {
+        PacketLimits.checkCount(targets.length, PacketLimits.SESSION_TARGETS);
         buf.writeLong(sessionId); ByteBufUtils.writeUTF8String(buf, linkKey);
         buf.writeInt(priority); buf.writeBoolean(allowOverlap); buf.writeBoolean(playLocalSound);
         buf.writeInt(x); buf.writeInt(y); buf.writeInt(z);
@@ -44,11 +45,12 @@ public class PacketAnnounce implements IMessage {
         readHeader(buf);
         startMelo = PacketLimits.readString(buf, PacketLimits.NAME);
         arrMelo = PacketLimits.readString(buf, PacketLimits.NAME);
-        int size = PacketLimits.readCount(buf, 4096);
+        int size = PacketLimits.readCount(buf, PacketLimits.BODY_SOUNDS);
         bodySounds = new ArrayList<>();
         for (int i = 0; i < size; i++) bodySounds.add(PacketLimits.readString(buf, PacketLimits.NAME));
     }
     @Override public void toBytes(ByteBuf buf) {
+        PacketLimits.checkCount(bodySounds == null ? 0 : bodySounds.size(), PacketLimits.BODY_SOUNDS);
         writeHeader(buf);
         ByteBufUtils.writeUTF8String(buf, startMelo == null ? "" : startMelo);
         ByteBufUtils.writeUTF8String(buf, arrMelo == null ? "" : arrMelo);

@@ -15,11 +15,12 @@ import net.minecraft.creativetab.CreativeTabs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-@Mod(modid = StationAnnounceModCore.MOD_ID, name = StationAnnounceModCore.MOD_NAME, version = StationAnnounceModCore.VERSION)
+@Mod(modid = StationAnnounceModCore.MOD_ID, name = StationAnnounceModCore.MOD_NAME, version = StationAnnounceModCore.VERSION,
+    acceptableRemoteVersions = "[" + StationAnnounceModCore.VERSION + "]")
 public class StationAnnounceModCore {
     public static final String MOD_ID = "stationannouncemod";
     public static final String MOD_NAME = "Station Announce Mod";
-    public static final String VERSION = "v0.1.5-beta";
+    public static final String VERSION = "0.2.1-beta";
 
     public static final int GUI_ID_ANNOUNCER = 0;
     public static final int GUI_ID_TRAIN_TYPE_SELECTOR = 1;

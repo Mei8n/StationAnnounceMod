@@ -365,12 +365,11 @@ public class AnnounceManager {
         net.minecraft.tileentity.TileEntity tile = world.blockExists(x, y, z) ? world.getTileEntity(x, y, z) : null;
         if (tile instanceof TileEntitySpeaker && !tile.isInvalid()) {
             TileEntitySpeaker speaker = (TileEntitySpeaker)tile;
+            session.fallback.remove(target);
             if (session.linkKey.equals(normalizeKey(speaker.linkKey))) {
-                session.fallback.remove(target);
                 playSoundAtSpeaker(sound, session, speaker);
-                return true;
             }
-            if (!normalizeKey(speaker.linkKey).isEmpty()) return true;
+            return true; // Even an empty current key is authoritative; no fallback/retry.
         }
         jp.me1han.sam.network.PacketSpeakerFallback.Target settings = session.fallback.get(target);
         if (settings == null) return false;
