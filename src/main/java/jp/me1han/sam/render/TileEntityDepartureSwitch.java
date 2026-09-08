@@ -27,19 +27,36 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     }
     private boolean activated;
     private boolean controlOn;
+    /** Server-runtime owner of the logical ON registration; never persisted or synchronized. */
+    private TileEntityDepartureMelody controlDevice;
     private long pulseUntil;
     public boolean isActivated() { return activated; }
     public boolean isLatched() { return activated && pulseUntil == 0; }
     public boolean isControlOn() { return controlOn; }
     public void setControlOn(boolean on) {
-        if (controlOn == on) return;
-        setControlOn(on, DepartureSwitchLink.findDevice(this));
+        setControlOn(on, on ? DepartureSwitchLink.findDevice(this) : null);
     }
     void setControlOn(boolean on, TileEntityDepartureMelody device) {
-        if (controlOn == on) return;
-        controlOn = on;
-        if (device != null) device.setSwitchControl(this, on);
+        if (on) {
+            if (controlOn) {
+                if (controlDevice == null && device != null) {
+                    controlDevice = device;
+                    controlDevice.setSwitchControl(this, true);
+                }
+                return;
+            }
+            controlOn = true;
+            controlDevice = device;
+            if (controlDevice != null) controlDevice.setSwitchControl(this, true);
+        } else {
+            TileEntityDepartureMelody owner = controlDevice != null ? controlDevice : device;
+            if (!controlOn && owner == null) return;
+            controlOn = false;
+            if (owner != null) owner.setSwitchControl(this, false);
+            controlDevice = null;
+        }
     }
+    protected final TileEntityDepartureMelody getControlDevice() { return controlDevice; }
     public boolean isMomentary() {
         SwitchModelDefinition model = SwitchModelRegistry.getOrDefault(modelName);
         return model == null || model.switchMode == SwitchModelDefinition.SwitchMode.MOMENTARY;
@@ -56,7 +73,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     }
 
     /** Reset is silent: automatic release and emergency stop do not generate click sounds. */
-    public void resetState() { resetState(controlOn ? DepartureSwitchLink.findDevice(this) : null); }
+    public void resetState() { resetState(null); }
     void resetState(TileEntityDepartureMelody device) { setControlOn(false, device); releaseDisplay(); }
     private void releaseDisplay() { activated = false; pulseUntil = 0; sync(); }
     @Override public void updateEntity() {
@@ -67,8 +84,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
         applyConfig(key, model, yaw, offsetX, offsetY, offsetZ);
     }
     public void applyConfig(String key, String model, int yaw, float x, float y, float z) {
-        TileEntityDepartureMelody old = controlOn ? DepartureSwitchLink.findDevice(this) : null;
-        resetState(old);
+        resetState();
         linkKey = TileEntityDepartureMelody.normalize(key);
         modelName = model;
         setRotationYaw(jp.me1han.sam.switchmodel.SwitchYaw.normalize(yaw));
@@ -77,8 +93,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     }
     private void detach() {
         if (worldObj == null || worldObj.isRemote) return;
-        TileEntityDepartureMelody old = controlOn ? DepartureSwitchLink.findDevice(this) : null;
-        resetState(old);
+        resetState();
     }
     @Override public void invalidate() { detach(); super.invalidate(); }
     @Override public void onChunkUnload() { detach(); super.onChunkUnload(); }
@@ -119,6 +134,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
         readSettings(nbt);
         activated = false;
         controlOn = false;
+        controlDevice = null;
         pulseUntil = 0;
     }
     @Override public net.minecraft.network.Packet getDescriptionPacket() {

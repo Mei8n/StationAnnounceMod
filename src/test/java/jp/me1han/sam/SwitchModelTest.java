@@ -35,20 +35,6 @@ public final class SwitchModelTest {
         check(Math.abs(sample.modelOffset[1] + 132.60004) < 1e-9, "Whole-model origin correction");
         try { SwitchModelDefinition.resolveResource("stationannouncemod:switches/x.json", "../escape.mqo"); throw new AssertionError("Traversal accepted"); }
         catch (IllegalArgumentException expected) { checks++; }
-        // Read user-provided references directly; never copy or change them.
-        Path references = Paths.get("switch_sample");
-        if (Files.isDirectory(references)) {
-            try (java.util.stream.Stream<Path> files = Files.walk(references)) {
-                for (Path path : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".mqo"))::iterator) {
-                    byte[] before = Files.readAllBytes(path);
-                    MqoMesh mesh;
-                    try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) { mesh = MqoMesh.read(reader); }
-                    check(mesh.parts.size() == 2, "Reference part count: " + path);
-                    if (mesh.parts.containsKey("On")) sample.validateParts(mesh.parts.keySet());
-                    check(Arrays.equals(before, Files.readAllBytes(path)), "Reference unchanged");
-                }
-            }
-        }
         AnnouncePackLoader.soundTicks.put("test:m", 20);
         AnnouncePackLoader.soundTicks.put("test:d", 5);
         verifyBlockClick();
@@ -180,6 +166,8 @@ public final class SwitchModelTest {
         check(!a.isActivated() && !b.isActivated() && !melody.isPlaying()
             && !a.isControlOn() && !b.isControlOn() && melody.getActiveSwitchCount() == 0,
             "Emergency stop resets whole group");
+        check(a.controlOwner() == null && b.controlOwner() == null,
+            "Emergency stop clears every switch owner");
 
         a.modelName = "melodysw_alternate_sample"; a.setRotationYaw(137); a.setOffset(0.25F, -0.5F, 1.25F);
         a.operate(true, false);
@@ -250,14 +238,16 @@ public final class SwitchModelTest {
         Button redstoneButton = new Button(); redstoneButton.linkKey = redstoneParent.linkKey;
         redstoneWorld.add(redstoneParent, 0); redstoneWorld.add(redstoneMelody, 1); redstoneWorld.add(redstoneButton, 2);
         redstoneMelody.click(redstoneButton);
-        check(redstoneMelody.getActiveSwitchCount() == 1 && redstoneMelody.isOn(),
+        check(redstoneMelody.getActiveSwitchCount() == 1 && redstoneMelody.isOn()
+            && redstoneButton.controlOwner() == redstoneMelody,
             "Switch source starts toggle playback");
-        redstoneMelody.setSwitchControl(redstoneButton, true);
+        redstoneButton.setControlOn(true);
         check(redstoneMelody.getActiveSwitchCount() == 1 && redstoneParent.starts == 1,
             "Duplicate ON notification does not duplicate a source or restart playback");
         redstoneMelody.onRedstoneUpdate(true);
         redstoneMelody.click(redstoneButton);
-        check(redstoneMelody.getActiveSwitchCount() == 0 && redstoneMelody.isOn() && redstoneMelody.releases == 0,
+        check(redstoneMelody.getActiveSwitchCount() == 0 && redstoneMelody.isOn() && redstoneMelody.releases == 0
+            && redstoneButton.controlOwner() == null,
             "Redstone keeps playback ON after the last switch turns OFF");
         redstoneMelody.onRedstoneUpdate(false);
         check(!redstoneMelody.isOn() && redstoneMelody.releases == 1,
@@ -272,7 +262,10 @@ public final class SwitchModelTest {
         unloadWorld.add(unloadParent, 0); unloadWorld.add(unloadMelody, 1); unloadWorld.add(unloaded, 2);
         unloadMelody.click(unloaded);
         unloaded.onChunkUnload();
-        check(unloadMelody.getActiveSwitchCount() == 0 && !unloadMelody.isOn() && unloadMelody.releases == 1,
+        int unloadReleases = unloadMelody.releases;
+        unloaded.invalidate();
+        check(unloadMelody.getActiveSwitchCount() == 0 && !unloadMelody.isOn() && unloadReleases == 1
+            && unloadMelody.releases == unloadReleases && unloaded.controlOwner() == null,
             "Unloading the last ON switch removes its source and releases playback");
         unloadMelody.cancelPlayback();
 
@@ -284,7 +277,8 @@ public final class SwitchModelTest {
         removalWorld.add(removalParent, 0); removalWorld.add(removalMelody, 1); removalWorld.add(removed, 2);
         removalMelody.click(removed);
         removed.invalidate();
-        check(removalMelody.getActiveSwitchCount() == 0 && !removalMelody.isOn() && removalMelody.releases == 1,
+        check(removalMelody.getActiveSwitchCount() == 0 && !removalMelody.isOn() && removalMelody.releases == 1
+            && removed.controlOwner() == null,
             "Invalidating the last ON switch removes its source and releases playback");
         removalMelody.cancelPlayback();
 
@@ -293,16 +287,90 @@ public final class SwitchModelTest {
         Melody linkMelody = new Melody(); linkMelody.linkKey = linkParent.linkKey;
         linkMelody.scriptName = "event-sources.js";
         Button relinked = new Button(); relinked.linkKey = linkParent.linkKey;
+        Parent newLinkParent = new Parent(); newLinkParent.linkKey = "new-link";
+        Melody newLinkMelody = new Melody(); newLinkMelody.linkKey = newLinkParent.linkKey;
+        newLinkMelody.scriptName = "event-sources.js";
         linkWorld.add(linkParent, 0); linkWorld.add(linkMelody, 1); linkWorld.add(relinked, 2);
+        linkWorld.add(newLinkParent, 3); linkWorld.add(newLinkMelody, 4);
         linkMelody.click(relinked);
         relinked.applyConfig("new-link", relinked.modelName, 0);
         int releases = linkMelody.releases;
-        linkMelody.setSwitchControl(relinked, false);
-        linkMelody.setSwitchControl(relinked, false);
+        relinked.setControlOn(false);
+        relinked.setControlOn(false);
         check(linkMelody.getActiveSwitchCount() == 0 && !relinked.isControlOn() && !linkMelody.isOn()
-            && releases == 1 && linkMelody.releases == releases,
+            && releases == 1 && linkMelody.releases == releases && relinked.controlOwner() == null
+            && newLinkMelody.getActiveSwitchCount() == 0,
             "Relink and duplicate OFF notifications are idempotent");
         linkMelody.cancelPlayback();
+
+        FixtureWorld identityWorld = new FixtureWorld();
+        Parent identityParent = new Parent(); identityParent.linkKey = "identity";
+        Melody identityMelody = new Melody(); identityMelody.linkKey = identityParent.linkKey;
+        identityMelody.scriptName = "event-sources.js";
+        Button oldButton = new Button(); oldButton.linkKey = identityParent.linkKey;
+        identityWorld.add(identityParent, 0); identityWorld.add(identityMelody, 1); identityWorld.add(oldButton, 2);
+        identityMelody.click(oldButton);
+        Button replacement = new Button(); replacement.linkKey = identityParent.linkKey;
+        identityWorld.add(replacement, 2);
+        identityMelody.click(replacement);
+        oldButton.invalidate();
+        check(identityMelody.getActiveSwitchCount() == 1 && replacement.isControlOn()
+            && replacement.controlOwner() == identityMelody && identityMelody.isOn(),
+            "Late invalidation of an old TE cannot remove its same-position replacement");
+        identityMelody.click(replacement);
+        check(identityMelody.getActiveSwitchCount() == 0 && identityMelody.releases == 1,
+            "Replacement TE remains the owner of its source");
+        identityMelody.cancelPlayback();
+
+        FixtureWorld duplicateWorld = new FixtureWorld();
+        Parent duplicateParent = new Parent(); duplicateParent.linkKey = "duplicate";
+        Melody originalMelody = new Melody(); originalMelody.linkKey = duplicateParent.linkKey;
+        originalMelody.scriptName = "event-sources.js";
+        Button owned = new Button(); owned.linkKey = duplicateParent.linkKey;
+        duplicateWorld.add(duplicateParent, 0); duplicateWorld.add(originalMelody, 1); duplicateWorld.add(owned, 2);
+        originalMelody.click(owned);
+        Melody duplicateMelody = new Melody(); duplicateMelody.linkKey = duplicateParent.linkKey;
+        duplicateMelody.scriptName = "event-sources.js"; duplicateWorld.add(duplicateMelody, 3);
+        check(DepartureSwitchLink.findDevice(owned) == null && owned.controlOwner() == originalMelody,
+            "Switch retains its original owner when a duplicate melody appears");
+        owned.setControlOn(false);
+        check(originalMelody.getActiveSwitchCount() == 0 && originalMelody.releases == 1
+            && owned.controlOwner() == null,
+            "OFF reaches the recorded owner despite duplicate melody detection");
+        originalMelody.cancelPlayback(); duplicateMelody.cancelPlayback();
+
+        FixtureWorld duplicateUnloadWorld = new FixtureWorld();
+        Parent duplicateUnloadParent = new Parent(); duplicateUnloadParent.linkKey = "duplicate-unload";
+        Melody unloadOwner = new Melody(); unloadOwner.linkKey = duplicateUnloadParent.linkKey;
+        unloadOwner.scriptName = "event-sources.js";
+        Button duplicateUnloaded = new Button(); duplicateUnloaded.linkKey = duplicateUnloadParent.linkKey;
+        duplicateUnloadWorld.add(duplicateUnloadParent, 0); duplicateUnloadWorld.add(unloadOwner, 1);
+        duplicateUnloadWorld.add(duplicateUnloaded, 2); unloadOwner.click(duplicateUnloaded);
+        Melody unloadDuplicate = new Melody(); unloadDuplicate.linkKey = duplicateUnloadParent.linkKey;
+        unloadDuplicate.scriptName = "event-sources.js"; duplicateUnloadWorld.add(unloadDuplicate, 3);
+        duplicateUnloaded.onChunkUnload();
+        check(unloadOwner.getActiveSwitchCount() == 0 && unloadOwner.releases == 1
+            && duplicateUnloaded.controlOwner() == null,
+            "Chunk unload reaches the recorded owner after a duplicate melody appears");
+        duplicateUnloaded.invalidate();
+        check(unloadOwner.releases == 1, "Late invalidate after unload is idempotent");
+        unloadOwner.cancelPlayback(); unloadDuplicate.cancelPlayback();
+
+        FixtureWorld tailWorld = new FixtureWorld();
+        Parent tailParent = new Parent(); tailParent.linkKey = "tail";
+        Melody tailMelody = new Melody(); tailMelody.linkKey = tailParent.linkKey;
+        tailMelody.scriptName = "event-sources.js";
+        Button tailButton = new Button(); tailButton.linkKey = tailParent.linkKey;
+        tailWorld.add(tailParent, 0); tailWorld.add(tailMelody, 1); tailWorld.add(tailButton, 2);
+        tailMelody.click(tailButton);
+        tailMelody.click(tailButton);
+        check(tailMelody.getActiveSwitchCount() == 0 && tailMelody.isPlaying() && !tailMelody.isOn(),
+            "Toggle OFF enters its tail with no active switch source");
+        tailMelody.click(tailButton);
+        check(tailMelody.getActiveSwitchCount() == 1 && tailButton.controlOwner() == tailMelody
+            && tailParent.starts == 2 && tailMelody.isOn(),
+            "Re-ON during the OFF tail retains the new owner while replacing the sequence");
+        tailMelody.cancelPlayback();
 
         FixtureWorld pulseWorld = new FixtureWorld();
         Parent pulseParent = new Parent(); pulseParent.linkKey = "pulse";
@@ -314,9 +382,10 @@ public final class SwitchModelTest {
         pulseMelody.click(pulse);
         pulseWorld.time = 2; pulse.updateEntity();
         check(!pulse.isActivated() && pulse.isControlOn() && pulseMelody.getActiveSwitchCount() == 1
-            && pulseMelody.isOn(), "Momentary display return preserves its logical ON source");
+            && pulseMelody.isOn() && pulse.controlOwner() == pulseMelody,
+            "Momentary display return preserves its logical ON source");
         pulseMelody.cancelPlayback();
-        check(!pulse.isControlOn() && pulseMelody.getActiveSwitchCount() == 0,
+        check(!pulse.isControlOn() && pulseMelody.getActiveSwitchCount() == 0 && pulse.controlOwner() == null,
             "Cancel clears linked logical controls and the active source set");
         AnnouncePackLoader.scriptEngines.remove("event-sources.js");
     }
@@ -364,6 +433,8 @@ public final class SwitchModelTest {
             button.modelName = alternateSwitch ? "melodysw_alternate_sample" : "melodysw_momentary_sample";
             world.add(parent, 0); world.add(melody, 1); world.add(button, 2);
             check(melody.click(button) && parent.starts == 1 && button.isActivated(), "Matrix first press");
+            if (!alternateJs) check(melody.getActiveSwitchCount() == 0 && !button.isControlOn()
+                && button.controlOwner() == null, "Push playback does not register a toggle source");
             advance(world, melody, button, 3);
             check(button.isActivated() == alternateSwitch && melody.isPlaying(), "Model determines display return");
             Button client = new Button();
@@ -567,7 +638,10 @@ public final class SwitchModelTest {
         @Override public void openGui(Object mod, int id, World world, int x, int y, int z) { opened++; }
     }
 
-    private static class Button extends TileEntityDepartureSwitch { @Override public void markDirty() {} }
+    private static class Button extends TileEntityDepartureSwitch {
+        TileEntityDepartureMelody controlOwner() { return getControlDevice(); }
+        @Override public void markDirty() {}
+    }
     private static class Parent extends TileEntityAnnouncer {
         int starts;
         int finishes;

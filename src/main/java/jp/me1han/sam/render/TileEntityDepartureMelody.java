@@ -6,8 +6,8 @@ import jp.me1han.sam.api.DepartureProgram;
 import jp.me1han.sam.api.DepartureSequence;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketDepartureControl;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -26,7 +26,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
     private TileEntityAnnouncer activeParent;
     private boolean redstoneOn;
     /** Server-runtime logical ON sources; deliberately not persisted or synchronized. */
-    private final Set<Long> activeSwitches = new HashSet<>();
+    private final Map<Long, TileEntityDepartureSwitch> activeSwitches = new HashMap<>();
     private boolean resettingSwitches;
     private boolean syncedOn;
     private long phaseStartedTick = Long.MIN_VALUE;
@@ -149,9 +149,11 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
         boolean changed;
         if (on) {
             if (!normalize(linkKey).equals(normalize(button.linkKey))) return;
-            changed = activeSwitches.add(position);
+            changed = activeSwitches.put(position, button) != button;
         } else {
-            changed = activeSwitches.remove(position);
+            if (activeSwitches.get(position) != button) return;
+            activeSwitches.remove(position);
+            changed = true;
         }
         if (changed && !resettingSwitches) updateControlState();
     }
