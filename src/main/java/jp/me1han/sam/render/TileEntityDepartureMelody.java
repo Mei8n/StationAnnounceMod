@@ -6,6 +6,8 @@ import jp.me1han.sam.api.DepartureProgram;
 import jp.me1han.sam.api.DepartureSequence;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketDepartureControl;
+import java.util.HashSet;
+import java.util.Set;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -23,6 +25,9 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
     private DepartureSequence sequence;
     private TileEntityAnnouncer activeParent;
     private boolean redstoneOn;
+    /** Server-runtime logical ON sources; deliberately not persisted or synchronized. */
+    private final Set<Long> activeSwitches = new HashSet<>();
+    private boolean resettingSwitches;
     private boolean syncedOn;
     private long phaseStartedTick = Long.MIN_VALUE;
     private long releasedTick = Long.MIN_VALUE;
@@ -42,12 +47,13 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
             cancelPlayback();
             return;
         }
-        reconcileSwitches();
         if (worldObj.getTotalWorldTime() != phaseStartedTick)
             sequence.tick(worldObj.getTotalWorldTime() == releasedTick);
         if (sequence.isFinished()) {
             sequence = null;
             activeParent = null;
+            redstoneOn = false;
+            activeSwitches.clear();
             sync();
         }
     }
@@ -61,7 +67,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
         lastPowered = powered;
         poweredInitialized = true;
         if (powered) operate(null, true);
-        else { redstoneOn = false; reconcileSwitches(); }
+        else { redstoneOn = false; updateControlState(); }
     }
 
     public void startMelody() { operate(null, true); }
@@ -90,12 +96,14 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
             if (candidate.alternate) {
                 if (wasOn) {
                     if (button != null) {
-                        button.setControlOn(false);
-                    } else redstoneOn = false;
-                    reconcileSwitches();
+                        button.setControlOn(false, this);
+                    } else {
+                        redstoneOn = false;
+                        updateControlState();
+                    }
                 } else {
                     if (button != null) {
-                        button.setControlOn(true);
+                        button.setControlOn(true, this);
                     } else redstoneOn = true;
                     if (!isOn()) begin(parent, candidate);
                 }
@@ -121,7 +129,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
     }
 
     private void begin(final TileEntityAnnouncer parent, DepartureProgram selected) {
-        cancelSequence();
+        stopSequence();
         program = selected;
         activeParent = parent;
         phaseStartedTick = worldObj.getTotalWorldTime();
@@ -134,16 +142,27 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
         });
     }
 
-    public void reconcileSwitches() {
-        if (worldObj == null || worldObj.isRemote || !isOn() || redstoneOn) return;
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
-            if (obj instanceof TileEntityDepartureSwitch && !((TileEntity) obj).isInvalid()) {
-                TileEntityDepartureSwitch button = (TileEntityDepartureSwitch) obj;
-                if (normalize(linkKey).equals(normalize(button.linkKey)) && button.isControlOn()) return;
-            }
+    /** Event-driven update from a linked switch's logical control state. */
+    public void setSwitchControl(TileEntityDepartureSwitch button, boolean on) {
+        if (worldObj == null || worldObj.isRemote || button == null || button.getWorldObj() != worldObj) return;
+        long position = jp.me1han.sam.SpeakerRegistry.position(button.xCoord, button.yCoord, button.zCoord);
+        boolean changed;
+        if (on) {
+            if (!normalize(linkKey).equals(normalize(button.linkKey))) return;
+            changed = activeSwitches.add(position);
+        } else {
+            changed = activeSwitches.remove(position);
         }
-        release();
+        if (changed && !resettingSwitches) updateControlState();
     }
+
+    private void updateControlState() {
+        if (worldObj == null || worldObj.isRemote || program == null || !program.alternate || !isOn()) return;
+        if (!redstoneOn && activeSwitches.isEmpty()) release();
+    }
+
+    /** Runtime diagnostic used by the headless state-transition tests. */
+    public int getActiveSwitchCount() { return activeSwitches.size(); }
 
     private void release() {
         if (sequence == null || !sequence.isOn()) return;
@@ -156,16 +175,32 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
     public void cancelPlayback() {
         redstoneOn = false;
         if (worldObj != null && !worldObj.isRemote) {
-            for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
-                if (obj instanceof TileEntityDepartureSwitch && normalize(linkKey).equals(normalize(((TileEntityDepartureSwitch) obj).linkKey))) {
-                    ((TileEntityDepartureSwitch) obj).resetState();
+            resettingSwitches = true;
+            try {
+                for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
+                    if (obj instanceof TileEntityDepartureSwitch
+                        && normalize(linkKey).equals(normalize(((TileEntityDepartureSwitch) obj).linkKey))) {
+                        ((TileEntityDepartureSwitch) obj).resetState(this);
+                    }
                 }
+            } finally {
+                activeSwitches.clear();
+                resettingSwitches = false;
             }
+        } else {
+            activeSwitches.clear();
         }
         cancelSequence();
     }
 
     private void cancelSequence() {
+        redstoneOn = false;
+        activeSwitches.clear();
+        stopSequence();
+    }
+
+    /** Replacing an OFF tail with a new ON sequence must retain the current input sources. */
+    private void stopSequence() {
         if (sequence == null) return;
         sequence.cancel();
         sequence = null;

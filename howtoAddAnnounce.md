@@ -122,7 +122,7 @@ samMain(tile) の引数として渡されるオブジェクトで、列車選別
 
 ### サンプルスクリプト
 
-プロジェクトルートの `approach_announce_sample.js` が接近放送のサンプルです。音源IDの `example:*` をパックで登録したIDへ置き換え、パックZIPの `assets/stationannouncemod/scripts/` に入れてください。
+以下は接近放送のサンプルです。音源IDの `example:*` をパックで登録したIDへ置き換え、JSファイルとしてパックZIPの `assets/stationannouncemod/scripts/` に入れてください。
 
 発車メロディ用JSも `getDisplayName()` と `samMain(tile)` を使いますが、`tile` は `TileEntityDepartureMelody` です。戸閉放送を `sounds.push("音源ID")` で組み立て、パーツ間の無音は `sounds.push(sam.interval(秒数))` で指定します。最後に `sam.build(melody, sounds, mode)` を返してください。再生モードは `sam.push()` または `sam.toggle()` です。詳しい例は[発車メロディの説明](howtoDepartureMelody.md)を参照してください。
 

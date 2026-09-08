@@ -195,9 +195,9 @@ function samMain(tile) {
 
 メロディ装置へのレッドストーン入力は引き続き使用できます。`sam.push()` は立上りで1回、`sam.toggle()` は追加のON入力として扱います。レッドストーンとリンクスイッチの両方がOFFになってから終了します。レッドストーン入力ではスイッチのクリック音は鳴りません。
 
-プロジェクトルートの `departure_push_sample.js`（単押し）と `departure_toggle_sample.js`（ON/OFF）がサンプルです。音源IDの `example:*` をパックで登録したIDへ置き換え、パックZIPの `assets/stationannouncemod/scripts/` に入れてください。装置GUIには配置したJSのファイル名を指定します。内蔵モデルは単押し型の `melodysw_momentary_sample` とON/OFF型の `melodysw_alternate_sample` です。
+上記のJS例を参考に、音源IDの `example:*` をパックで登録したIDへ置き換え、パックZIPの `assets/stationannouncemod/scripts/` に入れてください。単押しにする場合は `sam.toggle()` を `sam.push()` へ変更します。装置GUIには配置したJSのファイル名を指定します。内蔵モデルは単押し型の `melodysw_momentary_sample` とON/OFF型の `melodysw_alternate_sample` です。
 
-プロジェクトルートの `switch_alternate_sample.json`（ON/OFF）と `switch_momentary_sample.json`（単押し）は、パックZIPの `assets/stationannouncemod/switches/` に入れて使用できます。それぞれ固有のIDを持ち、同梱MQOを完全なリソースIDで参照するため、MQOの追加コピーは不要です。
+内蔵モデルのJSON定義は `assets/stationannouncemod/switches/` に同梱されています。外部パックで独自のスイッチを追加する場合も、JSONと必要なMQO・テクスチャをパックZIPの同じパスに配置してください。
 
 `switch_sample` にある過去のRTMパックはモデル移植時の参考用です。元ファイルの変更・再配置・JAR同梱は行っていません。RTM描画JSにある `On` パーツのZ方向−0.011m移動は、上記JSONの `offset: [0,0,-1.1]` と対応します。RTMポイントそのものを発車スイッチ化する連携は使用せず、SAMの独立スイッチとして扱います。
 

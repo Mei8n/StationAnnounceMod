@@ -31,7 +31,15 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     public boolean isActivated() { return activated; }
     public boolean isLatched() { return activated && pulseUntil == 0; }
     public boolean isControlOn() { return controlOn; }
-    public void setControlOn(boolean on) { controlOn = on; }
+    public void setControlOn(boolean on) {
+        if (controlOn == on) return;
+        setControlOn(on, DepartureSwitchLink.findDevice(this));
+    }
+    void setControlOn(boolean on, TileEntityDepartureMelody device) {
+        if (controlOn == on) return;
+        controlOn = on;
+        if (device != null) device.setSwitchControl(this, on);
+    }
     public boolean isMomentary() {
         SwitchModelDefinition model = SwitchModelRegistry.getOrDefault(modelName);
         return model == null || model.switchMode == SwitchModelDefinition.SwitchMode.MOMENTARY;
@@ -48,7 +56,8 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     }
 
     /** Reset is silent: automatic release and emergency stop do not generate click sounds. */
-    public void resetState() { controlOn = false; releaseDisplay(); }
+    public void resetState() { resetState(controlOn ? DepartureSwitchLink.findDevice(this) : null); }
+    void resetState(TileEntityDepartureMelody device) { setControlOn(false, device); releaseDisplay(); }
     private void releaseDisplay() { activated = false; pulseUntil = 0; sync(); }
     @Override public void updateEntity() {
         if (worldObj == null || worldObj.isRemote) return;
@@ -58,22 +67,18 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
         applyConfig(key, model, yaw, offsetX, offsetY, offsetZ);
     }
     public void applyConfig(String key, String model, int yaw, float x, float y, float z) {
-        TileEntityDepartureMelody old = DepartureSwitchLink.findDevice(this);
-        resetState();
+        TileEntityDepartureMelody old = controlOn ? DepartureSwitchLink.findDevice(this) : null;
+        resetState(old);
         linkKey = TileEntityDepartureMelody.normalize(key);
         modelName = model;
         setRotationYaw(jp.me1han.sam.switchmodel.SwitchYaw.normalize(yaw));
         setOffset(x, y, z);
-        if (old != null) old.reconcileSwitches();
         sync();
     }
     private void detach() {
         if (worldObj == null || worldObj.isRemote) return;
-        TileEntityDepartureMelody old = DepartureSwitchLink.findDevice(this);
-        activated = false;
-        controlOn = false;
-        pulseUntil = 0;
-        if (old != null) old.reconcileSwitches();
+        TileEntityDepartureMelody old = controlOn ? DepartureSwitchLink.findDevice(this) : null;
+        resetState(old);
     }
     @Override public void invalidate() { detach(); super.invalidate(); }
     @Override public void onChunkUnload() { detach(); super.onChunkUnload(); }

@@ -132,7 +132,6 @@ public final class DeparturePlaybackTest {
         verifyScripts();
         verifyOrdinaryRepeatApi();
         verifyParts();
-        verifyRootSampleScripts();
         verifyPackScripts();
         verifyPackets();
         System.out.println("Departure playback: " + checks + " checks passed");
@@ -192,46 +191,6 @@ public final class DeparturePlaybackTest {
             == AnnounceData.MAX_REPEAT_COUNT, "Excessive repeat count is capped");
         check(new AnnounceData("test:start", Collections.singletonList("test:body"), "test:arr").repeatCount == 1,
             "Existing AnnounceData constructor defaults to one repeat");
-    }
-
-    private static void verifyRootSampleScripts() throws Exception {
-        java.util.Map<String, Integer> sampleLengths = new java.util.HashMap<>();
-        sampleLengths.put("example:melody", 20);
-        sampleLengths.put("example:platform_1", 2);
-        sampleLengths.put("example:door_close", 5);
-        sampleLengths.put("example:please_stand_clear", 3);
-        for (String mode : new String[]{"push", "toggle"}) {
-            java.nio.file.Path samplePath = java.nio.file.Paths.get("departure_" + mode + "_sample.js");
-            if (!java.nio.file.Files.exists(samplePath)) continue;
-            ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
-            engine.put("sam", new SAMScriptAPI());
-            try (java.io.Reader reader = java.nio.file.Files.newBufferedReader(
-                    samplePath, java.nio.charset.StandardCharsets.UTF_8)) {
-                engine.eval(reader);
-            }
-            DepartureProgram sample = ((DepartureProgram) ((Invocable) engine)
-                .invokeFunction("samMain", (Object) null)).resolve(sampleLengths);
-            check(sample.alternate == mode.equals("toggle"), "Root JS sample mode: " + mode);
-            check(sample.doorCloseSounds.size() == 4 && sample.doorCloseTicks == 15,
-                "Root JS sample assembles door-close parts: " + mode);
-            check(((Invocable) engine).invokeFunction("getDisplayName").toString().contains("サンプル"),
-                "Root JS sample has a display name: " + mode);
-        }
-        ScriptEngine approachEngine = new ScriptEngineManager().getEngineByName("nashorn");
-        approachEngine.put("sam", new SAMScriptAPI());
-        try (java.io.Reader reader = java.nio.file.Files.newBufferedReader(
-                java.nio.file.Paths.get("approach_announce_sample.js"), java.nio.charset.StandardCharsets.UTF_8)) {
-            approachEngine.eval(reader);
-        }
-        AnnounceData approach = (AnnounceData) ((Invocable) approachEngine).invokeFunction("samMain", (Object) null);
-        check(approach.startMelo.equals("example:approach_chime")
-            && approach.arrMelo.equals("example:approach_melody"), "Root approach sample defines both melodies");
-        check(approach.bodySounds.size() == 4
-            && approach.bodySounds.get(2).equals("stationannouncemod:mute_0.25s"),
-            "Root approach sample assembles announcement parts");
-        check(approach.repeatCount == 2, "Root approach sample demonstrates two complete announcements");
-        check(((Invocable) approachEngine).invokeFunction("getDisplayName").toString().contains("接近放送"),
-            "Root approach sample has a display name");
     }
 
     private static void verifyTachikawa() {
