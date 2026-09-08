@@ -11,6 +11,7 @@ public class TileEntitySpeaker extends TileEntity {
     public String linkKey = "";
     public int range = 16;
     public float volume = 1.0f;
+    private volatile boolean clientConfigSynced;
 
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
@@ -65,6 +66,12 @@ public class TileEntitySpeaker extends TileEntity {
     @Override
     public void onDataPacket(NetworkManager net, S35PacketUpdateTileEntity pkt) {
         this.readFromNBT(pkt.func_148857_g());
+        this.clientConfigSynced = true;
+    }
+
+    /** True only after this client TE has applied a server description packet. */
+    public boolean isClientConfigSynced() {
+        return this.clientConfigSynced;
     }
 
     public boolean applyConfig(String key, int range, float volume) {

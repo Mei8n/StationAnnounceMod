@@ -2,9 +2,19 @@
 
 対象: Minecraft 1.7.10 / Forge 10.13.4.1614 / Java 8。
 
-## 0.2.1-beta 追加修正（PacketFix）
+## Speaker fallback同期判定の回帰修正
 
-今回の変更ファイルは次の10ファイル。追加・削除ファイル、新packet、discriminator変更はない。後続の初回PacketFix改修一覧とは区別する。
+変更ファイルは `TileEntitySpeaker.java`、`AnnounceManager.java`、`NetworkVerificationTest.java`、本書の4ファイル。packet、discriminator、各件数上限、server session/TTL、queue、recipient探索には変更を加えていない。
+
+`TileEntitySpeaker`はprivateな `clientConfigSynced` を持ち、constructorおよび通常の `readFromNBT` 後はfalseのままとする。Minecraft 1.7.10の一般TE用S35受信経路は `NetHandlerPlayClient.handleUpdateTileEntity` から対象TEの `onDataPacket` を呼ぶため、Speaker設定NBTをそこで適用し終えた後だけtrueにする。`AnnounceManager`は `isClientConfigSynced()` がtrueのvalid Speakerだけをauthoritativeとして扱う。
+
+未同期SpeakerはTEインスタンスが存在しても未解決と同じfallback/retry経路へ進む。fallback受信後にS35が届いた場合、次の対象音評価では同期済みTEの現在値を優先して古いfallbackを削除する。同じlinkKeyなら現在のrange/volumeで再生し、別linkKeyまたは正式に同期された空linkKeyなら再生せずfallbackへ戻らない。authoritative判定後にTEがunloadされても削除済みfallbackは復活させない。
+
+headless fixtureでも、配置しただけのdefault TEと、server側TEの `getDescriptionPacket()` をclient側 `onDataPacket()`へ適用したTEを区別した。未同期TEでのdefer/Missing/fallback、同期後の同一key、別key、空key、同期済みTE削除、終了後の遅延fallback、`readFromNBT`単独では同期済みにならないことを検証している。最終結果は `verifyNetwork` **162 checks**、`verifyDeparture` 190 checks、`verifySwitchModels` 177 checksで、`test check --offline`も成功した。実ゲームでの手動確認は未実施。
+
+## 0.2.1-beta 上限・TTL追加修正（PacketFix）
+
+この段階の変更ファイルは次の10ファイル。追加・削除ファイル、新packet、discriminator変更はない。後続の初回PacketFix改修一覧とは区別する。
 
 - `src/main/java/jp/me1han/sam/StationAnnounceModCore.java`
 - `src/main/java/jp/me1han/sam/client/AnnounceManager.java`
@@ -24,7 +34,7 @@
 | 実際のSTARTより多い補完要求 | allowed取得直後、HashSet確保前にrequest件数≤allowed件数を検証。不正な一回目も要求権を消費し、二回目は無視 |
 | bodySounds 4096件 | `BODY_SOUNDS=256`。serverでは超過sequenceのSTART全体を送信・session作成前にrejectし、警告を記録。途中で音声列を切り詰めない |
 | ACKのdropによる永久leak | 24時間相当のserver tick TTLと200tick間隔の期限切れ掃除 |
-| 古いfallbackが正式TEより優先 | valid Speaker TEが存在すれば必ずfallbackを削除。空文字を含むlinkKey不一致なら再生せず、その音の再試行も行わない |
+| 古いfallbackが正式TEより優先 | serverのS35設定を適用済みのvalid Speaker TEだけをauthoritativeとしてfallbackを削除。TEが存在しても設定同期前ならfallback/retryを維持する。同期済みの空文字を含むlinkKey不一致は正式状態として再生せず、その音の再試行も行わない |
 
 Speakerが一人の受信範囲に512台を超えて存在する場合は、Registry列挙順で先頭512台までをそのplayerのSTART対象にする（近い順の選別ではない）。512台に達したらそのplayer向け列挙を打ち切るため、巨大な中間配列を作らず、decoderの上限を超えるSTARTも送らない。station全体のSpeaker登録数にはこの上限を適用しない。
 
@@ -38,7 +48,7 @@ queueは引き続き最大1024件、START tickあたり256件。超過分はFINI
 
 独立したprotocol番号や独自handshakeは追加していない。Forge標準handshakeが持つMODバージョン情報で厳密照合する。使用されないNETWORK_PROTOCOL_VERSION定数だけを追加することも避けた。
 
-自動検証: `gradlew.bat test check --offline --console=plain` 成功。`verifyDeparture` 190、`verifySwitchModels` 177、`verifyNetwork` 152 checks成功。追加検証にはdecode上限、送信側512件制限、11対10要求、不正一回目の消費、FINISHED handler、期限境界と別session保護、OFFによる延長、queue overflowとTTL保険、logout/dimension/respawn/owner unload/world unload/server stop/global stop、正式TEのrange/volumeおよび不一致・空linkKey優先、終了後のfallback無視を含む。`git diff --check` も実行した。
+自動検証: `gradlew.bat test check --offline --console=plain` 成功。`verifyDeparture` 190、`verifySwitchModels` 177、`verifyNetwork` 162 checks成功。追加検証にはdecode上限、送信側512件制限、11対10要求、不正一回目の消費、FINISHED handler、期限境界と別session保護、OFFによる延長、queue overflowとTTL保険、logout/dimension/respawn/owner unload/world unload/server stop/global stop、未同期Speaker TEのfallback、同期済みTEのrange/volumeおよび不一致・空linkKey優先、終了後のfallback無視を含む。`git diff --check` も実行した。
 
 今回はrecipient探索のspatial index化、packet ID 0〜16（7 retired）、新packet追加、priority queue化、Speaker/LoadedSamTiles index、GUIアクセス検証、DepartureSequenceのタイミングを変更していない。development clientとDedicated Serverを同時起動しての実聴・手動操作確認は未実施。headlessの既存実処理fixtureで検証した。
 
@@ -230,7 +240,7 @@ S=全Speaker数、K=対象linkKeyのSpeaker数、T=dimension内全TE数、P=dime
 
 melody/doorClose/interval、alternate、finishChorus、channelごとのstop、priority=20、Awareness=0/通常=10、Awarenessの待機/allowOverlapを保持した。スイッチのmode/yaw/portable metadata、TrainType/dataMapの処理も維持している。
 
-TE自体が未解決の場合は指定座標だけを再確認し、未解決座標を一度だけ補完要求してsession内で再利用する。validなSpeaker TEがあれば、その時点でfallbackを削除する。現在のlinkKey一致時だけ現在のrange/volumeで再生し、不一致・空linkKeyではfallbackを使わず再生しない。sequenceの時計は止めないため、極端な遅延で既に終了した音を後から再生し直すことはしない。遅延中の音声の冒頭まで完全に復元する方式ではない。遅れて開始した音も次の通常音への遷移、channel終了、STOP/CANCELで停止する。
+TE自体が未解決、またはSpeaker TEインスタンスは存在してもserverのS35設定をまだ適用していない場合は、指定座標だけを再確認し、未解決座標を一度だけ補完要求してsession内で再利用する。`TileEntitySpeaker.onDataPacket`で設定NBTを適用し終えたTEだけをauthoritativeとし、その時点でfallbackを削除する。同期済みTEは現在のlinkKey一致時だけ現在のrange/volumeで再生し、不一致・正式な空linkKeyではfallbackを使わず再生しない。`readFromNBT`単独では同期済みと判定しない。sequenceの時計は止めないため、極端な遅延で既に終了した音を後から再生し直すことはしない。遅延中の音声の冒頭まで完全に復元する方式ではない。遅れて開始した音も次の通常音への遷移、channel終了、STOP/CANCELで停止する。
 
 ## 19. Test/verification
 
@@ -239,7 +249,7 @@ TE自体が未解決の場合は指定座標だけを再確認し、未解決座
 - `test`: 成功。
 - `verifyDeparture`: 190 checks成功。
 - `verifySwitchModels`: 177 checks成功。
-- `verifyNetwork`: 152 checks成功。
+- `verifyNetwork`: 162 checks成功。
 - `check`: 成功。
 - `git diff --check`: 問題なし。
 

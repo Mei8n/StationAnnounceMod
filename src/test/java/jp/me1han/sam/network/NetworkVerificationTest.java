@@ -264,7 +264,8 @@ public final class NetworkVerificationTest {
         check(client.worldReads == 0 && client.played.isEmpty(), "Network thread touches no world or sound");
         client.tick(); check(client.played.isEmpty(), "Missing client TE is null-safe");
         client.tick(); check(client.played.isEmpty(), "Unresolved TE is retried on client tick");
-        Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 0, 0, 0); client.tick();
+        Speaker speaker = new Speaker(); world.add(speaker, 0, 0, 0);
+        syncSpeaker(speaker, "A", 16, 1.0F); client.tick();
         check(client.played.size() == 1, "Delayed TE settings recover current sound without scanning");
         client.receive(packet); client.tick();
         check(client.played.size() == 1, "Duplicate START does not replay");
@@ -424,23 +425,44 @@ public final class NetworkVerificationTest {
             TestClient client = new TestClient(); client.world = world;
             PacketAnnounce packet = start(900); packet.targets = new long[] {SpeakerRegistry.position(0, 0, 0)};
             packet.bodySounds = Arrays.asList("test:body", "test:body", "test:body");
+            Speaker formal = new Speaker(); world.add(formal, 0, 0, 0);
+            check(!formal.isClientConfigSynced() && formal.linkKey.isEmpty()
+                && formal.range == 16 && formal.volume == 1.0F, "New client Speaker TE is not configuration-synchronized");
             client.receive(packet); for (int i = 0; i < 5; i++) client.tick();
+            check(client.played.isEmpty() && client.missing.size() == 1,
+                "Unsynchronized existing Speaker TE remains deferred and requests fallback");
             PacketSpeakerFallback fallback = new PacketSpeakerFallback(900);
             fallback.targets.add(new PacketSpeakerFallback.Target(packet.targets[0], 64, .75F));
-            client.receive(fallback); client.tick(); check(client.played.size() == 1, "Unresolved TE uses fallback");
-            Speaker formal = new Speaker(); formal.linkKey = currentKey; formal.range = 16; formal.volume = .25F;
-            world.add(formal, 0, 0, 0);
+            client.receive(fallback); client.tick();
+            check(client.played.size() == 1 && client.played.get(0).getVolume() == 2.0F,
+                "Unsynchronized existing Speaker TE uses fallback for the current sound");
+            syncSpeaker(formal, currentKey, 16, .25F);
+            check(formal.isClientConfigSynced(), "S35 application marks client Speaker configuration synchronized");
             for (int i = 0; i < 20; i++) client.tick();
             if (currentKey.equals("A")) {
-                check(client.played.size() == 2 && client.played.get(1).getVolume() == .25F, "Formal TE range/volume override fallback");
-            } else check(client.played.size() == 1, "Current mismatched/empty TE key suppresses stale fallback");
+                check(client.played.size() == 2 && client.played.get(1).getVolume() == .25F,
+                    "Synchronized TE range/volume override fallback");
+            } else check(client.played.size() == 1,
+                "Synchronized mismatched/empty TE key suppresses stale fallback");
             world.tiles.clear(); // A resolved TE must also have evicted its old fallback entry.
             int played = client.played.size(); for (int i = 0; i < 21; i++) client.tick();
-            check(client.played.size() == played, "Resolved TE evicts fallback even after later TE unload");
+            check(client.played.size() == played, "Synchronized TE evicts fallback even after later TE unload");
             client.receive(new PacketAnnounceStop(900)); client.tick();
             client.receive(fallback); client.tick();
             check(client.played.size() == played && client.live.isEmpty(), "Late fallback after session stop is ignored");
         }
+
+        Speaker diskLoaded = new Speaker();
+        NBTTagCompound saved = new NBTTagCompound();
+        Speaker savedSource = new Speaker(); savedSource.linkKey = "A"; savedSource.writeToNBT(saved);
+        diskLoaded.readFromNBT(saved);
+        check(!diskLoaded.isClientConfigSynced(), "Ordinary readFromNBT does not imply a server description was received");
+    }
+
+    private static void syncSpeaker(Speaker client, String key, int range, float volume) {
+        Speaker server = new Speaker(); server.xCoord = client.xCoord; server.yCoord = client.yCoord; server.zCoord = client.zCoord;
+        server.linkKey = key; server.range = range; server.volume = volume;
+        client.onDataPacket(null, (net.minecraft.network.play.server.S35PacketUpdateTileEntity)server.getDescriptionPacket());
     }
 
     private static class Speaker extends TileEntitySpeaker { int dirty; @Override public void markDirty() { dirty++; } }
