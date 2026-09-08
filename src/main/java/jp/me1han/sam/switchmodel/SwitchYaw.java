@@ -14,9 +14,8 @@ public final class SwitchYaw {
 
     public static float placement(float playerYaw, boolean sneaking) {
         double interval = sneaking ? 1.0D : 15.0D;
-        // SAM uses +Z as model front (the reference button presses toward -Z).
-        // KaizPatchX's -yaw + 180 therefore needs another 180 degrees here.
-        double yaw = normalize(- (double) playerYaw);
+        // RTM machine models use -Z as their front, so face that side toward the placer.
+        double yaw = normalize(- (double) playerYaw + 180.0D);
         return normalize(Math.floor((yaw + interval / 2) / interval) * interval);
     }
 

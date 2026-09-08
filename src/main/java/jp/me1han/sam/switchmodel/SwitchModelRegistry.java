@@ -7,12 +7,12 @@ import java.util.zip.*;
 import jp.me1han.sam.StationAnnounceModCore;
 
 public final class SwitchModelRegistry {
-    public static final String DEFAULT_MODEL = "sam_push";
+    public static final String DEFAULT_MODEL = "melodysw_momentary_sample";
     private static final String ROOT = "assets/stationannouncemod/switches/";
     private static final Map<String, SwitchModelDefinition> MODELS = new LinkedHashMap<>();
     public static void reset() {
         MODELS.clear();
-        for (String name : new String[]{"push.json", "alternate.json"}) {
+        for (String name : new String[]{"melodysw_momentary_sample.json", "melodysw_alternate_sample.json"}) {
             load(SwitchModelRegistry.class.getResourceAsStream("/" + ROOT + name), "stationannouncemod:switches/" + name);
         }
     }

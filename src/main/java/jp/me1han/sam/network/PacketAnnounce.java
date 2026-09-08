@@ -17,12 +17,14 @@ public class PacketAnnounce implements IMessage {
     public long[] targets = new long[0];
     public String startMelo = "", arrMelo = "";
     public List<String> bodySounds = new ArrayList<>();
+    public int repeatCount = 1;
 
     public PacketAnnounce() {}
     public PacketAnnounce(AnnounceData data, String key, boolean local, int x, int y, int z) {
         linkKey = key == null ? "" : key.trim(); playLocalSound = local;
         this.x = x; this.y = y; this.z = z;
         startMelo = data.startMelo; bodySounds = data.bodySounds; arrMelo = data.arrMelo;
+        repeatCount = data.repeatCount;
     }
     protected void readHeader(ByteBuf buf) {
         sessionId = buf.readLong(); linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
@@ -48,13 +50,25 @@ public class PacketAnnounce implements IMessage {
         int size = PacketLimits.readCount(buf, PacketLimits.BODY_SOUNDS);
         bodySounds = new ArrayList<>();
         for (int i = 0; i < size; i++) bodySounds.add(PacketLimits.readString(buf, PacketLimits.NAME));
+        // Keep the legacy payload prefix readable: packets without the appended field mean one play.
+        repeatCount = 1;
+        if (buf.isReadable()) {
+            if (buf.readableBytes() != 4) throw new io.netty.handler.codec.DecoderException("SAM repeat count");
+            repeatCount = buf.readInt();
+            if (repeatCount < 1 || repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)
+                throw new io.netty.handler.codec.DecoderException("SAM repeat count");
+        }
     }
     @Override public void toBytes(ByteBuf buf) {
         PacketLimits.checkCount(bodySounds == null ? 0 : bodySounds.size(), PacketLimits.BODY_SOUNDS);
+        if (repeatCount < 1 || repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)
+            throw new IllegalArgumentException("SAM repeat count must be 1 to " + PacketLimits.MAX_ANNOUNCE_REPEATS);
         writeHeader(buf);
         ByteBufUtils.writeUTF8String(buf, startMelo == null ? "" : startMelo);
         ByteBufUtils.writeUTF8String(buf, arrMelo == null ? "" : arrMelo);
         buf.writeInt(bodySounds == null ? 0 : bodySounds.size());
         if (bodySounds != null) for (String sound : bodySounds) ByteBufUtils.writeUTF8String(buf, sound == null ? "" : sound);
+        // Keep repeat-one packets byte-compatible with the pre-repeat format.
+        if (repeatCount != 1) buf.writeInt(repeatCount);
     }
 }

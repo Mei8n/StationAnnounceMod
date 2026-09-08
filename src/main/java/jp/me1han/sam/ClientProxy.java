@@ -43,8 +43,6 @@ public class ClientProxy extends CommonProxy {
     public void registerRenderers() {
         RendererDepartureSwitch switchRenderer = new RendererDepartureSwitch();
         ClientRegistry.bindTileEntitySpecialRenderer(TileEntityDepartureSwitch.class, switchRenderer);
-        net.minecraftforge.client.MinecraftForgeClient.registerItemRenderer(
-            net.minecraft.item.Item.getItemFromBlock(StationAnnounceModCore.blockDepartureSwitch), switchRenderer);
         ((net.minecraft.client.resources.IReloadableResourceManager) Minecraft.getMinecraft().getResourceManager())
             .registerReloadListener(jp.me1han.sam.client.SwitchMeshRenderer.INSTANCE);
         ClientRegistry.bindTileEntitySpecialRenderer(
@@ -76,6 +74,13 @@ public class ClientProxy extends CommonProxy {
 
     @Override
     public Object getClientGuiElement(int ID, net.minecraft.entity.player.EntityPlayer player, net.minecraft.world.World world, int x, int y, int z) {
+        if (ID == StationAnnounceModCore.GUI_ID_DEPARTURE_SWITCH_ITEM) {
+            net.minecraft.item.ItemStack stack = player.getHeldItem();
+            if (jp.me1han.sam.item.ItemDepartureSwitch.isSwitchItem(stack)) {
+                return new jp.me1han.sam.gui.GuiDepartureSwitchItem(stack, player.inventory.currentItem);
+            }
+            return null;
+        }
         net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
 
         if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_ANNOUNCER) {

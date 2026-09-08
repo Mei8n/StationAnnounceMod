@@ -64,6 +64,11 @@ public final class ServerSessions {
             jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Announcement rejected: bodySounds exceeds " + PacketLimits.BODY_SOUNDS);
             return 0;
         }
+        if (!(packet instanceof PacketDepartureStart)
+            && (packet.repeatCount < 1 || packet.repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)) {
+            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Announcement rejected: invalid repeatCount");
+            return 0;
+        }
         packet.linkKey = SpeakerRegistry.normalize(packet.linkKey);
         packet.sessionId = ++nextId;
         Session session = new Session(packet.sessionId, owner, packet);
@@ -114,6 +119,7 @@ public final class ServerSessions {
         result.playLocalSound = source.playLocalSound;
         result.x = source.x; result.y = source.y; result.z = source.z; result.targets = targets;
         result.startMelo = source.startMelo; result.arrMelo = source.arrMelo; result.bodySounds = source.bodySounds;
+        result.repeatCount = source.repeatCount;
         return result;
     }
     private static void send(Session session, IMessage message) {

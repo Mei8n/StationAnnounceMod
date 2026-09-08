@@ -12,6 +12,10 @@ public class SAMGuiHandler implements IGuiHandler {
 
     @Override
     public Object getServerGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
+        if (ID == StationAnnounceModCore.GUI_ID_DEPARTURE_SWITCH_ITEM) {
+            return jp.me1han.sam.item.ItemDepartureSwitch.isSwitchItem(player.getHeldItem())
+                ? new ContainerDepartureSwitchItem(player) : null;
+        }
         TileEntity tile = world.getTileEntity(x, y, z);
 
         if (ID == StationAnnounceModCore.GUI_ID_ANNOUNCER) {
@@ -58,7 +62,6 @@ public class SAMGuiHandler implements IGuiHandler {
         if (ID == StationAnnounceModCore.GUI_ID_DEPARTURE_SWITCH && jp.me1han.sam.DepartureSwitchLink.isSwitch(tile)) {
             return new ContainerDepartureSwitch(tile);
         }
-
         return null;
     }
 

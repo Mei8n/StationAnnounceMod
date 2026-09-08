@@ -10,7 +10,6 @@ import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import jp.me1han.sam.api.AnnounceData;
-import jp.me1han.sam.api.DepartureClick;
 import jp.me1han.sam.api.DepartureProgram;
 import jp.me1han.sam.api.DepartureSequence;
 import jp.me1han.sam.network.PacketAnnounce;
@@ -54,7 +53,13 @@ public final class DeparturePlaybackTest {
     }
 
     private static DepartureProgram program(boolean alternate) {
-        return new DepartureProgram(alternate).melody("test:melody").doorClose("test:door").interval(0.5);
+        return program(alternate, "test:door");
+    }
+    private static DepartureProgram program(boolean alternate, String... doorClose) {
+        DepartureProgram value = new DepartureProgram(alternate);
+        value.melody = "test:melody";
+        value.doorCloseSounds.addAll(Arrays.asList(doorClose));
+        return value.interval(0.5);
     }
 
     public static void main(String[] args) throws Exception {
@@ -92,7 +97,7 @@ public final class DeparturePlaybackTest {
         sameTickOff.ticks(5);
         sameTickOff.expect("0:test:melody", "0:stop", "0:test:door", "5:stop", "5:finished");
 
-        Timeline noDoor = new Timeline(new DepartureProgram(false).melody("test:melody"), lengths(1, 5));
+        Timeline noDoor = new Timeline(program(false, new String[0]).interval(0), lengths(1, 5));
         noDoor.ticks(1);
         noDoor.expect("0:test:melody", "1:stop", "1:finished");
 
@@ -111,22 +116,122 @@ public final class DeparturePlaybackTest {
         old.ticks(3); old.sequence.release(); old.ticks(2); old.sequence.cancel(); old.ticks(50);
         check(!old.events.toString().contains("test:door"), "No stale door-close on re-ON");
 
-        expectInvalid(() -> new DepartureProgram(false).melody("unknown").resolve(Collections.emptyMap()));
+        expectInvalid(() -> { DepartureProgram p = program(false, new String[0]); p.melody = "unknown"; p.resolve(Collections.emptyMap()); });
         for (int invalid : new int[]{0, -1, 72001})
-            expectInvalid(() -> new DepartureProgram(false).melody("x").resolve(Collections.singletonMap("x", invalid)));
+            expectInvalid(() -> { DepartureProgram p = program(false, new String[0]); p.melody = "x"; p.resolve(Collections.singletonMap("x", invalid)); });
         expectInvalid(() -> program(true).resolve(Collections.singletonMap("test:melody", 20)));
         DepartureProgram stale = program(true);
         stale.melodyTicks = 999; stale.doorCloseTicks = 999;
         check(stale.resolve(lengths(20, 5)).melodyTicks == 20 && stale.resolve(lengths(20, 5)).doorCloseTicks == 5,
             "Cached tick fields cannot override JSON lengths");
         expectInvalid(() -> new DepartureProgram(false).interval(-1));
-        DepartureProgram resolved = new DepartureProgram(false).melody("x").resolve(Collections.singletonMap("x", 42));
+        DepartureProgram unresolved = program(false, new String[0]); unresolved.melody = "x";
+        DepartureProgram resolved = unresolved.resolve(Collections.singletonMap("x", 42));
         check(resolved.melodyTicks == 42, "sam_length duration is used");
 
         verifyScripts();
+        verifyOrdinaryRepeatApi();
+        verifyParts();
+        verifyRootSampleScripts();
         verifyPackScripts();
         verifyPackets();
         System.out.println("Departure playback: " + checks + " checks passed");
+    }
+
+    private static void verifyParts() throws Exception {
+        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        engine.put("sam", new SAMScriptAPI());
+        engine.eval("function samMain(tile) { var sounds = []; sounds.push('test:door');"
+            + " sounds.push(sam.interval(0.25)); sounds.push('test:melody');"
+            + " sounds.push(sam.interval(0.10)); sounds.push('test:door');"
+            + " return sam.build('test:melody', sounds, sam.push()); }");
+        AnnouncePackLoader.scriptEngines.put("parts-test.js", engine);
+        AnnouncePackLoader.soundTicks.putAll(lengths(20, 5));
+        DepartureProgram p = AnnouncePackLoader.runDepartureScript("parts-test.js", null);
+        Timeline timeline = new Timeline(p);
+        timeline.ticks(57);
+        timeline.expect("0:test:melody", "20:stop", "20:test:door", "25:stop", "30:test:melody",
+            "50:stop", "52:test:door", "57:stop", "57:finished");
+        ByteBuf buf = Unpooled.buffer();
+        try {
+            PacketDepartureStart packet = new PacketDepartureStart(); packet.departure = p;
+            packet.toBytes(buf);
+            PacketDepartureStart received = new PacketDepartureStart(); received.fromBytes(buf);
+            check(received.departure.doorCloseSounds.equals(p.doorCloseSounds)
+                && received.departure.doorCloseDurations.equals(p.doorCloseDurations), "Parts and durations round trip");
+        } finally { buf.release(); }
+        Timeline canceled = new Timeline(p); canceled.ticks(26); canceled.sequence.cancel(); canceled.ticks(100);
+        check(!canceled.events.contains("30:test:melody") && canceled.playing.isEmpty(), "Cancel suppresses later parts");
+        expectInvalid(() -> ((DepartureProgram) new SAMScriptAPI().build("test:melody", Arrays.<Object>asList("missing"),
+            new DepartureProgram(false))).resolve(lengths(20, 5)));
+        check(new SAMScriptAPI().interval(0.129).ticks == 3, "Part interval truncates to hundredths and rounds to ticks");
+        for (double invalid : new double[]{0, 0.009, -1, Double.NaN, Double.POSITIVE_INFINITY, 3600.01})
+            expectInvalid(() -> new SAMScriptAPI().interval(invalid));
+        AnnouncePackLoader.scriptEngines.remove("parts-test.js");
+    }
+
+    private static void verifyOrdinaryRepeatApi() {
+        SAMScriptAPI api = new SAMScriptAPI();
+        List<Object> body = Arrays.<Object>asList("test:one", "test:two");
+        AnnounceData legacy = (AnnounceData) api.build("test:start", body, "test:arr");
+        AnnounceData explicitOne = api.build("test:start", body, "test:arr", 1);
+        AnnounceData repeated = api.build("test:start", body, "test:arr", 2);
+        check(legacy.repeatCount == 1 && explicitOne.repeatCount == 1, "Three-argument build equals repeatCount 1");
+        check(legacy.startMelo.equals(explicitOne.startMelo) && legacy.bodySounds.equals(explicitOne.bodySounds)
+            && legacy.arrMelo.equals(explicitOne.arrMelo), "Three- and four-argument builds preserve identical content");
+        check(repeated.repeatCount == 2 && repeated.bodySounds.equals(Arrays.asList("test:one", "test:two")),
+            "Repeat count remains separate from body sounds");
+        check(api.build(null, body, "test:arr", 2).startMelo == null, "Repeated announcement permits no start melody");
+        check(api.build("test:start", body, null, 2).arrMelo == null, "Repeated announcement permits no loop melody");
+        check(api.build("test:start", Collections.emptyList(), "test:arr", 2).bodySounds.isEmpty(),
+            "Repeated announcement permits an empty body");
+        for (int invalid : new int[]{0, -1, Integer.MIN_VALUE})
+            check(api.build("test:start", body, "test:arr", invalid).repeatCount == 1,
+                "Non-positive repeat count is normalized to one: " + invalid);
+        check(api.build("test:start", body, "test:arr", Integer.MAX_VALUE).repeatCount
+            == AnnounceData.MAX_REPEAT_COUNT, "Excessive repeat count is capped");
+        check(new AnnounceData("test:start", Collections.singletonList("test:body"), "test:arr").repeatCount == 1,
+            "Existing AnnounceData constructor defaults to one repeat");
+    }
+
+    private static void verifyRootSampleScripts() throws Exception {
+        java.util.Map<String, Integer> sampleLengths = new java.util.HashMap<>();
+        sampleLengths.put("example:melody", 20);
+        sampleLengths.put("example:platform_1", 2);
+        sampleLengths.put("example:door_close", 5);
+        sampleLengths.put("example:please_stand_clear", 3);
+        for (String mode : new String[]{"push", "toggle"}) {
+            java.nio.file.Path samplePath = java.nio.file.Paths.get("departure_" + mode + "_sample.js");
+            if (!java.nio.file.Files.exists(samplePath)) continue;
+            ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+            engine.put("sam", new SAMScriptAPI());
+            try (java.io.Reader reader = java.nio.file.Files.newBufferedReader(
+                    samplePath, java.nio.charset.StandardCharsets.UTF_8)) {
+                engine.eval(reader);
+            }
+            DepartureProgram sample = ((DepartureProgram) ((Invocable) engine)
+                .invokeFunction("samMain", (Object) null)).resolve(sampleLengths);
+            check(sample.alternate == mode.equals("toggle"), "Root JS sample mode: " + mode);
+            check(sample.doorCloseSounds.size() == 4 && sample.doorCloseTicks == 15,
+                "Root JS sample assembles door-close parts: " + mode);
+            check(((Invocable) engine).invokeFunction("getDisplayName").toString().contains("サンプル"),
+                "Root JS sample has a display name: " + mode);
+        }
+        ScriptEngine approachEngine = new ScriptEngineManager().getEngineByName("nashorn");
+        approachEngine.put("sam", new SAMScriptAPI());
+        try (java.io.Reader reader = java.nio.file.Files.newBufferedReader(
+                java.nio.file.Paths.get("approach_announce_sample.js"), java.nio.charset.StandardCharsets.UTF_8)) {
+            approachEngine.eval(reader);
+        }
+        AnnounceData approach = (AnnounceData) ((Invocable) approachEngine).invokeFunction("samMain", (Object) null);
+        check(approach.startMelo.equals("example:approach_chime")
+            && approach.arrMelo.equals("example:approach_melody"), "Root approach sample defines both melodies");
+        check(approach.bodySounds.size() == 4
+            && approach.bodySounds.get(2).equals("stationannouncemod:mute_0.25s"),
+            "Root approach sample assembles announcement parts");
+        check(approach.repeatCount == 2, "Root approach sample demonstrates two complete announcements");
+        check(((Invocable) approachEngine).invokeFunction("getDisplayName").toString().contains("接近放送"),
+            "Root approach sample has a display name");
     }
 
     private static void verifyTachikawa() {
@@ -139,7 +244,7 @@ public final class DeparturePlaybackTest {
         earlyDoor.ticks(10);
         earlyDoor.expect("0:test:melody", "5:test:door", "10:stop", "20:stop", "20:finished");
 
-        Timeline longDoor = new Timeline(program(true).tachikawa(true).interval(0).doorClose("test:door"), lengths(20, 40));
+        Timeline longDoor = new Timeline(program(true).tachikawa(true).interval(0), lengths(20, 40));
         longDoor.ticks(5); longDoor.sequence.release(); longDoor.ticks(15);
         check(longDoor.playing.size() == 1 && longDoor.playing.containsKey(DepartureSequence.Channel.DOOR_CLOSE),
             "Chorus end leaves long door-close playing");
@@ -152,7 +257,7 @@ public final class DeparturePlaybackTest {
         lateDoor.ticks(30);
         lateDoor.expect("0:test:melody", "20:stop", "45:test:door", "50:stop", "50:finished");
 
-        Timeline noDoor = new Timeline(program(true).tachikawa(true).doorClose(""));
+        Timeline noDoor = new Timeline(program(true, new String[0]).tachikawa(true));
         noDoor.ticks(5); noDoor.sequence.release(); noDoor.ticks(15);
         noDoor.expect("0:test:melody", "20:stop", "20:finished");
 
@@ -169,14 +274,14 @@ public final class DeparturePlaybackTest {
         updateOff.ticks(15);
         updateOff.expect("0:test:melody", "20:stop", "30:test:door", "35:stop", "35:finished");
 
-        Timeline sameSound = new Timeline(program(true).tachikawa(true).interval(0).doorClose("test:melody"));
+        Timeline sameSound = new Timeline(program(true, "test:melody").tachikawa(true).interval(0));
         sameSound.ticks(5); sameSound.sequence.release(); sameSound.ticks(15);
         check(sameSound.playing.size() == 1 && sameSound.playing.containsKey(DepartureSequence.Channel.DOOR_CLOSE),
             "Identical sound IDs remain separate channels");
         sameSound.ticks(10);
 
         for (int stopAt : new int[]{6, 16, 21}) {
-            Timeline canceled = new Timeline(program(true).tachikawa(true).doorClose("test:door"), lengths(20, 40));
+            Timeline canceled = new Timeline(program(true).tachikawa(true), lengths(20, 40));
             canceled.ticks(5); canceled.sequence.release(); canceled.ticks(stopAt - 5);
             canceled.sequence.cancel();
             check(canceled.playing.isEmpty(), "Cancellation stops every active channel");
@@ -201,15 +306,12 @@ public final class DeparturePlaybackTest {
 
     private static void verifyPackScripts() throws Exception {
         java.nio.file.Path path = java.nio.file.Files.createTempFile("sam-script-test-", ".zip");
-        String departure = "function configureDeparture(d) { return sam.alternate().melody('test:melody').interval(0.059); }"
-            + "function onDepartureClick(c) { c.toggle(); }";
+        String departure = "function samMain(tile) { return sam.build('test:melody', [], sam.toggle().interval(0.059)); }";
         try {
             try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(path))) {
                 scriptEntry(zip, "sam_length.json", "{\"test:melody\":{\"length\":1.23}}");
-                // Intentionally put scripts/ first: precedence must not depend on entry order.
-                scriptEntry(zip, "scripts/shared.js", departure + "function samMain(t) { return null; } function getDisplayName() { return 'new'; }");
-                scriptEntry(zip, "departure/shared.js", "function getDisplayName() { return 'legacy'; }");
-                scriptEntry(zip, "departure/legacy.js", departure);
+                scriptEntry(zip, "scripts/shared.js", departure + "function getDisplayName() { return 'new'; }");
+                scriptEntry(zip, "departure/ignored.js", departure);
                 scriptEntry(zip, "scripts/ordinary.js", "function samMain(t) { return sam.build(null, [], null); }");
                 scriptEntry(zip, "scripts/sub/departure.js", departure);
             }
@@ -218,21 +320,17 @@ public final class DeparturePlaybackTest {
                 java.util.zip.ZipEntry lengths = zip.getEntry("assets/stationannouncemod/sam_length.json");
                 if (lengths != null) AnnouncePackLoader.parseLengthJson(zip.getInputStream(lengths));
             }
-            check(AnnouncePackLoader.configureDeparture("shared.js", null).melodyTicks == 25, "External JSON supplies chorus duration");
-            check(AnnouncePackLoader.configureDeparture("shared.js", null).intervalTicks == 1, "Shared folder and JS interval truncation");
+            check(AnnouncePackLoader.runDepartureScript("shared.js", null).melodyTicks == 25, "External JSON supplies chorus duration");
+            check(AnnouncePackLoader.runDepartureScript("shared.js", null).intervalTicks == 1, "Shared folder and JS interval truncation");
             check(((Invocable) AnnouncePackLoader.scriptEngines.get("shared.js")).invokeFunction("getDisplayName").equals("new"),
-                "scripts/ overrides legacy folder in same ZIP");
+                "Display name uses the shared script registry");
             check(AnnouncePackLoader.availableScripts.stream().filter(s -> s.fileName.equals("shared.js")).count() == 1,
                 "No duplicate filename registration");
-            check(AnnouncePackLoader.configureDeparture("legacy.js", null).alternate, "Legacy departure folder still works");
-            check(AnnouncePackLoader.configureDeparture("departure.js", null).alternate, "Subfolder scripts resolve by filename");
+            check(!AnnouncePackLoader.scriptEngines.containsKey("ignored.js"), "Legacy departure folder is not loaded");
+            check(AnnouncePackLoader.runDepartureScript("departure.js", null).alternate, "Subfolder scripts resolve by filename");
             check(AnnouncePackLoader.runScript("ordinary.js", null) != null, "Ordinary script runs from shared folder");
-            DepartureClick click = new DepartureClick(false, true);
-            AnnouncePackLoader.clickDeparture("shared.js", click);
-            check(click.getAction() == DepartureClick.Action.ON, "Shared registry dispatches departure clicks");
-            // A later pack retains the existing last-loaded-wins behavior, even using the legacy folder.
             try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(path))) {
-                scriptEntry(zip, "departure/shared.js", departure + "function getDisplayName() { return 'later'; }");
+                scriptEntry(zip, "scripts/shared.js", departure + "function getDisplayName() { return 'later'; }");
             }
             try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(path.toFile())) { AnnouncePackLoader.loadScripts(zip); }
             check(((Invocable) AnnouncePackLoader.scriptEngines.get("shared.js")).invokeFunction("getDisplayName").equals("later"),
@@ -247,36 +345,44 @@ public final class DeparturePlaybackTest {
     }
 
     private static void verifyScripts() throws Exception {
-        for (String mode : new String[]{"momentary", "alternate", "tachikawa"}) {
+        for (String mode : new String[]{"push", "toggle", "tachikawa"}) {
             ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
             check(engine != null, "Java 8 Nashorn is required");
             engine.put("sam", new SAMScriptAPI());
-            engine.eval("function configureDeparture(d) { return sam."
-                + (mode.equals("momentary") ? "momentary()" : "alternate()")
-                + ".melody('test:melody').doorClose('test:door').tachikawa(" + mode.equals("tachikawa") + "); }"
-                + "function onDepartureClick(c) { c.toggle(); }");
+            engine.eval("function samMain(tile) { var sounds = ['test:door']; return sam.build('test:melody', sounds, sam."
+                + (mode.equals("push") ? "push()" : "toggle()")
+                + ".tachikawa(" + mode.equals("tachikawa") + ")); }");
             Invocable inv = (Invocable) engine;
-            DepartureProgram p = ((DepartureProgram) inv.invokeFunction("configureDeparture", (Object) null)).resolve(lengths(20, 5));
-            check(p.alternate == !mode.equals("momentary"), "Script mode: " + mode);
+            DepartureProgram p = ((DepartureProgram) inv.invokeFunction("samMain", (Object) null)).resolve(lengths(20, 5));
+            check(p.alternate == !mode.equals("push"), "Script mode: " + mode);
             check(p.finishChorus == mode.equals("tachikawa"), "Script chorus mode: " + mode);
-            DepartureClick first = new DepartureClick(false, p.alternate);
-            inv.invokeFunction("onDepartureClick", first);
-            check(first.getAction() == (p.alternate ? DepartureClick.Action.ON : DepartureClick.Action.PRESS), "First click");
-            DepartureClick second = new DepartureClick(true, p.alternate);
-            inv.invokeFunction("onDepartureClick", second);
-            check(second.getAction() == (p.alternate ? DepartureClick.Action.OFF : DepartureClick.Action.PRESS), "Second click");
         }
-        for (java.lang.reflect.Method method : DepartureProgram.class.getMethods())
-            if (method.getName().equals("melody") || method.getName().equals("doorClose"))
-                check(method.getParameterCount() == 1, "Audio APIs accept only an ID");
+        java.util.Set<String> apiMethods = new java.util.HashSet<>();
+        for (java.lang.reflect.Method method : SAMScriptAPI.class.getMethods()) apiMethods.add(method.getName());
+        check(!apiMethods.contains("momentary") && !apiMethods.contains("alternate") && !apiMethods.contains("buildDeparture"),
+            "Old departure API names are unavailable");
+        java.util.Set<String> programMethods = new java.util.HashSet<>();
+        for (java.lang.reflect.Method method : DepartureProgram.class.getMethods()) programMethods.add(method.getName());
+        check(!programMethods.contains("melody") && !programMethods.contains("doorClose"), "Old chained audio methods are unavailable");
+        ScriptEngine oldHandler = new ScriptEngineManager().getEngineByName("nashorn");
+        oldHandler.put("sam", new SAMScriptAPI());
+        oldHandler.eval("function configureDeparture(tile) { return null; }");
+        AnnouncePackLoader.scriptEngines.put("old-handler.js", oldHandler);
+        try {
+            AnnouncePackLoader.runDepartureScript("old-handler.js", null);
+            throw new AssertionError("Old configureDeparture handler was accepted");
+        } catch (NoSuchMethodException expected) { checks++; }
+        finally { AnnouncePackLoader.scriptEngines.remove("old-handler.js"); }
         check(new jp.me1han.sam.render.TileEntityDepartureMelody().scriptName.isEmpty(), "No bundled script default");
         String json = "{\"test:valid\":{\"length\":0.051},\"test:zero\":{\"length\":0},"
             + "\"test:negative\":{\"length\":-0.01},\"test:large\":{\"length\":3600.001},"
             + "\"test:nan\":{\"length\":\"NaN\"},\"test:missing\":{}}";
         AnnouncePackLoader.parseLengthJson(new java.io.ByteArrayInputStream(json.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         check(AnnouncePackLoader.soundTicks.get("test:valid") == 2, "JSON seconds round up to ticks");
-        for (String id : new String[]{"test:zero", "test:negative", "test:large", "test:nan", "test:missing"})
-            expectInvalid(() -> new DepartureProgram(false).melody(id).resolve(AnnouncePackLoader.soundTicks));
+        for (String id : new String[]{"test:zero", "test:negative", "test:large", "test:nan", "test:missing"}) {
+            DepartureProgram invalid = program(false, new String[0]); invalid.melody = id;
+            expectInvalid(() -> invalid.resolve(AnnouncePackLoader.soundTicks));
+        }
     }
 
     private static void verifyPackets() {
@@ -294,11 +400,12 @@ public final class DeparturePlaybackTest {
             check(SpeakerRegistry.x(received.targets[0]) == 10 && received.sessionId == 123L, "Compact target and session serialized");
             check(buf.readableBytes() == 0, "Playback packet completely consumed");
             buf.clear();
-            PacketAnnounce ordinary = new PacketAnnounce(new AnnounceData("test:start", Collections.singletonList("test:body"), "test:loop"),
+            PacketAnnounce ordinary = new PacketAnnounce(new AnnounceData("test:start", Collections.singletonList("test:body"), "test:loop", 2),
                 "platform-1", true, 1, 2, 3);
             ordinary.toBytes(buf);
             PacketAnnounce ordinaryRead = new PacketAnnounce(); ordinaryRead.fromBytes(buf);
-            check(ordinaryRead.bodySounds.equals(ordinary.bodySounds) && buf.readableBytes() == 0, "Ordinary sequence round trip");
+            check(ordinaryRead.bodySounds.equals(ordinary.bodySounds) && ordinaryRead.repeatCount == 2
+                && buf.readableBytes() == 0, "Ordinary sequence and repeat count round trip");
             buf.clear();
             PacketDepartureControl control = new PacketDepartureControl(123L, true); control.toBytes(buf);
             PacketDepartureControl decoded = new PacketDepartureControl(); decoded.fromBytes(buf);
@@ -308,10 +415,12 @@ public final class DeparturePlaybackTest {
             PacketDepartureMelodyConfig configRead = new PacketDepartureMelodyConfig(); configRead.fromBytes(buf);
             check(configRead.scriptName.equals(config.scriptName) && configRead.soundId.equals("legacy"), "Script choice serialized");
             buf.clear();
-            new PacketDepartureSwitchConfig(1, 2, 3, "platform-1", "sam_push", 2).toBytes(buf);
+            new PacketDepartureSwitchConfig(1, 2, 3, "platform-1", "melodysw_momentary_sample", 2, 0.25F, -0.5F, 1.25F).toBytes(buf);
             PacketDepartureSwitchConfig switchRead = new PacketDepartureSwitchConfig(); switchRead.fromBytes(buf);
             check(switchRead.x == 1 && switchRead.linkKey.equals("platform-1"), "Switch link serialized");
-            check(switchRead.modelName.equals("sam_push") && switchRead.rotationYaw == 2, "Switch model and yaw serialized");
+            check(switchRead.modelName.equals("melodysw_momentary_sample") && switchRead.rotationYaw == 2, "Switch model and yaw serialized");
+            check(switchRead.offsetX == 0.25F && switchRead.offsetY == -0.5F && switchRead.offsetZ == 1.25F,
+                "Switch offsets serialized");
         } finally { buf.release(); }
     }
 

@@ -2,7 +2,6 @@ package jp.me1han.sam.render;
 
 import jp.me1han.sam.AnnouncePackLoader;
 import jp.me1han.sam.StationAnnounceModCore;
-import jp.me1han.sam.api.DepartureClick;
 import jp.me1han.sam.api.DepartureProgram;
 import jp.me1han.sam.api.DepartureSequence;
 import jp.me1han.sam.network.NetworkHandler;
@@ -85,39 +84,23 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
             TileEntityDepartureSwitch button = source instanceof TileEntityDepartureSwitch ? (TileEntityDepartureSwitch) source : null;
             boolean momentary = button == null || button.isMomentary();
             boolean physicalOn = momentary || !button.isActivated();
-            DepartureClick click = new DepartureClick(button == null ? redstoneOn : button.isControlOn(), candidate.alternate);
-            if (redstone) {
-                if (candidate.alternate) click.on(); else click.press();
-            } else if (candidate.alternate || physicalOn) {
-                if (normalize(scriptName).isEmpty()) click.press();
-                else AnnouncePackLoader.clickDeparture(scriptName, click);
-            }
-            // The model controls the mechanism, even when playback ignores a busy press.
-            // Commit only after the script callback succeeds.
+            boolean wasOn = button == null ? redstoneOn : button.isControlOn();
             if (button != null) button.operate(physicalOn, momentary);
 
-            switch (click.getAction()) {
-                case OFF:
-                    if (!candidate.alternate) break;
+            if (candidate.alternate) {
+                if (wasOn) {
                     if (button != null) {
-                        if (!button.isControlOn()) break;
                         button.setControlOn(false);
                     } else redstoneOn = false;
                     reconcileSwitches();
-                    break;
-                case ON:
-                    if (!candidate.alternate) break;
+                } else {
                     if (button != null) {
-                        if (button.isControlOn()) break;
                         button.setControlOn(true);
                     } else redstoneOn = true;
                     if (!isOn()) begin(parent, candidate);
-                    break;
-                case PRESS:
-                    if (candidate.alternate) break;
-                    if (!isPlaying()) begin(parent, candidate);
-                    break;
-                default: break;
+                }
+            } else if (physicalOn && !isPlaying()) {
+                begin(parent, candidate);
             }
             lastError = "";
             sync();
@@ -131,9 +114,10 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
     }
 
     private DepartureProgram loadProgram() throws Exception {
-        if (!normalize(scriptName).isEmpty()) return AnnouncePackLoader.configureDeparture(scriptName, this);
-        return new DepartureProgram(false).melody(soundId)
-            .resolve(AnnouncePackLoader.soundTicks);
+        if (!normalize(scriptName).isEmpty()) return AnnouncePackLoader.runDepartureScript(scriptName, this);
+        DepartureProgram legacy = new DepartureProgram(false);
+        legacy.melody = normalize(soundId);
+        return legacy.resolve(AnnouncePackLoader.soundTicks);
     }
 
     private void begin(final TileEntityAnnouncer parent, DepartureProgram selected) {

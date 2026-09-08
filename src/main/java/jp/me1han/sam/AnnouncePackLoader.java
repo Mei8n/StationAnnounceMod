@@ -25,9 +25,6 @@ public class AnnouncePackLoader {
     public static final Map<String, Integer> soundTicks = new ConcurrentHashMap<>();
     public static final Map<String, ScriptEngine> scriptEngines = new ConcurrentHashMap<>();
     public static final List<AnnounceScriptInfo> availableScripts = new ArrayList<>();
-    /** Compatibility aliases; both script kinds share the filename namespace. */
-    public static final Map<String, ScriptEngine> departureEngines = scriptEngines;
-    public static final List<AnnounceScriptInfo> availableDepartureScripts = availableScripts;
 
     public static void loadPacks() {
         jp.me1han.sam.switchmodel.SwitchModelRegistry.reset();
@@ -73,16 +70,13 @@ public class AnnouncePackLoader {
     }
 
     static void loadScripts(ZipFile zip) throws java.io.IOException {
-        // Read legacy files first, so scripts/ wins regardless of ZIP entry order.
-        for (String folder : new String[]{"departure", "scripts"}) {
-            Enumeration<? extends ZipEntry> entries = zip.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                String path = entry.getName();
-                if (!entry.isDirectory() && path.startsWith("assets/stationannouncemod/" + folder + "/")
-                    && path.endsWith(".js")) {
-                    parseJavaScript(zip.getInputStream(entry), path.substring(path.lastIndexOf('/') + 1));
-                }
+        Enumeration<? extends ZipEntry> entries = zip.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
+            String path = entry.getName();
+            if (!entry.isDirectory() && path.startsWith("assets/stationannouncemod/scripts/")
+                && path.endsWith(".js")) {
+                parseJavaScript(zip.getInputStream(entry), path.substring(path.lastIndexOf('/') + 1));
             }
         }
     }
@@ -168,24 +162,16 @@ public class AnnouncePackLoader {
         return null;
     }
 
-    public static jp.me1han.sam.api.DepartureProgram configureDeparture(String name,
+    public static jp.me1han.sam.api.DepartureProgram runDepartureScript(String name,
             jp.me1han.sam.render.TileEntityDepartureMelody tile) throws Exception {
         ScriptEngine engine = scriptEngines.get(name);
         if (engine == null) throw new IllegalArgumentException("Departure script not found: " + name);
         synchronized (engine) {
-            Object value = ((Invocable) engine).invokeFunction("configureDeparture", tile);
+            Object value = ((Invocable) engine).invokeFunction("samMain", tile);
             if (!(value instanceof jp.me1han.sam.api.DepartureProgram)) {
-                throw new IllegalArgumentException("configureDeparture must return sam.momentary() or sam.alternate()");
+                throw new IllegalArgumentException("Departure samMain must return sam.build(melody, sounds, mode)");
             }
             return ((jp.me1han.sam.api.DepartureProgram) value).resolve(soundTicks);
-        }
-    }
-
-    public static void clickDeparture(String name, jp.me1han.sam.api.DepartureClick click) throws Exception {
-        ScriptEngine engine = scriptEngines.get(name);
-        if (engine == null) throw new IllegalArgumentException("Departure script not found: " + name);
-        synchronized (engine) {
-            ((Invocable) engine).invokeFunction("onDepartureClick", click);
         }
     }
 }

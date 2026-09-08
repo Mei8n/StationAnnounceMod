@@ -2,38 +2,43 @@
   "mute_0.1s": {
     "category": "neutral",
     "sounds": [
-      "stationannouncemod/mute_0.1s"
+      "stationannouncemod:mute_0.1s"
     ]
   },
   "mute_0.2s": {
     "category": "neutral",
     "sounds": [
-      "stationannouncemod/mute_0.2s"
+      "stationannouncemod:mute_0.2s"
     ]
   },
   "mute_0.25s": {
     "category": "neutral",
     "sounds": [
-      "stationannouncemod/mute_0.25s"
+      "stationannouncemod:mute_0.25s"
     ]
   },
   "mute_0.5s": {
     "category": "neutral",
     "sounds": [
-      "stationannouncemod/mute_0.5s"
+      "stationannouncemod:mute_0.5s"
     ]
   },
   "mute_1s": {
     "category": "neutral",
     "sounds": [
-      "stationannouncemod/mute_1s"
+      "stationannouncemod:mute_1s"
     ]
   },
   "mute_2s": {
     "category": "neutral",
     "sounds": [
-      "stationannouncemod/mute_2s"
+      "stationannouncemod:mute_2s"
+    ]
+  },
+  "melodysw_alternate_off": {
+    "category": "neutral",
+    "sounds": [
+      "stationannouncemod:machine/melodysw_alternate_off"
     ]
   }
 }
-

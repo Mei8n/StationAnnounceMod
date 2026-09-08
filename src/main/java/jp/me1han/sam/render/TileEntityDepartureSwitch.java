@@ -10,9 +10,20 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     public String linkKey = "";
     public String modelName = SwitchModelRegistry.DEFAULT_MODEL;
     private float rotationYaw;
+    private float offsetX, offsetY, offsetZ;
     public float getRotationYaw() { return rotationYaw; }
     public void setRotationYaw(float yaw) {
         rotationYaw = jp.me1han.sam.switchmodel.SwitchYaw.normalize(yaw);
+    }
+    public float getOffsetX() { return offsetX; }
+    public float getOffsetY() { return offsetY; }
+    public float getOffsetZ() { return offsetZ; }
+    public static boolean validOffset(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value);
+    }
+    public void setOffset(float x, float y, float z) {
+        if (!validOffset(x) || !validOffset(y) || !validOffset(z)) throw new IllegalArgumentException("Invalid switch offset");
+        offsetX = x; offsetY = y; offsetZ = z;
     }
     private boolean activated;
     private boolean controlOn;
@@ -31,7 +42,8 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
         pulseUntil = on && momentary ? worldObj.getTotalWorldTime() + 2 : 0;
         SwitchModelDefinition model = SwitchModelRegistry.get(modelName);
         String sound = model == null ? "" : on ? model.soundOn : model.soundOff;
-        if (!sound.isEmpty()) worldObj.playSoundEffect(xCoord + 0.5, yCoord + 0.5, zCoord + 0.5, sound, 0.5F, 1.0F);
+        if (!sound.isEmpty()) worldObj.playSoundEffect(xCoord + 0.5, yCoord + 0.5,
+            zCoord + 0.5, sound, 0.5F, 1.0F);
         sync();
     }
 
@@ -43,11 +55,15 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
         if (pulseUntil != 0 && worldObj.getTotalWorldTime() >= pulseUntil) releaseDisplay();
     }
     public void applyConfig(String key, String model, int yaw) {
+        applyConfig(key, model, yaw, offsetX, offsetY, offsetZ);
+    }
+    public void applyConfig(String key, String model, int yaw, float x, float y, float z) {
         TileEntityDepartureMelody old = DepartureSwitchLink.findDevice(this);
         resetState();
         linkKey = TileEntityDepartureMelody.normalize(key);
         modelName = model;
         setRotationYaw(jp.me1han.sam.switchmodel.SwitchYaw.normalize(yaw));
+        setOffset(x, y, z);
         if (old != null) old.reconcileSwitches();
         sync();
     }
@@ -68,12 +84,17 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
         nbt.setString("linkKey", TileEntityDepartureMelody.normalize(linkKey));
         nbt.setString("modelName", modelName);
         nbt.setFloat("RotationYaw", rotationYaw);
+        nbt.setFloat("offsetX", offsetX);
+        nbt.setFloat("offsetY", offsetY);
+        nbt.setFloat("offsetZ", offsetZ);
         return nbt;
     }
     public void readSettings(NBTTagCompound nbt) {
         linkKey = TileEntityDepartureMelody.normalize(nbt.getString("linkKey"));
         modelName = nbt.hasKey("modelName") ? nbt.getString("modelName") : SwitchModelRegistry.DEFAULT_MODEL;
         setRotationYaw(nbt.getFloat("RotationYaw"));
+        float x = nbt.getFloat("offsetX"), y = nbt.getFloat("offsetY"), z = nbt.getFloat("offsetZ");
+        setOffset(validOffset(x) ? x : 0, validOffset(y) ? y : 0, validOffset(z) ? z : 0);
     }
     private void sync() {
         markDirty();
@@ -84,6 +105,9 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
         nbt.setString("linkKey", TileEntityDepartureMelody.normalize(linkKey));
         nbt.setString("modelName", modelName);
         nbt.setFloat("RotationYaw", rotationYaw);
+        nbt.setFloat("offsetX", offsetX);
+        nbt.setFloat("offsetY", offsetY);
+        nbt.setFloat("offsetZ", offsetZ);
     }
     @Override public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
@@ -101,5 +125,13 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     @Override public void onDataPacket(net.minecraft.network.NetworkManager net, net.minecraft.network.play.server.S35PacketUpdateTileEntity pkt) {
         readSettings(pkt.func_148857_g());
         activated = pkt.func_148857_g().getBoolean("Activated");
+    }
+    @Override public net.minecraft.util.AxisAlignedBB getRenderBoundingBox() {
+        SwitchModelDefinition model = SwitchModelRegistry.getOrDefault(modelName);
+        double[] source = model == null ? new double[]{0.25, 0, 0.25, 0.75, 0.3, 0.75} : model.bounds;
+        double[] b = jp.me1han.sam.switchmodel.SwitchYaw.rotateBounds(source, rotationYaw);
+        return net.minecraft.util.AxisAlignedBB.getBoundingBox(
+            xCoord + b[0] + offsetX, yCoord + b[1] + offsetY, zCoord + b[2] + offsetZ,
+            xCoord + b[3] + offsetX, yCoord + b[4] + offsetY, zCoord + b[5] + offsetZ);
     }
 }

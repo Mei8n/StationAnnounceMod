@@ -31,6 +31,7 @@ public class StationAnnounceModCore {
     public static final int GUI_ID_AWARENESS_ANNOUNCER = 7;
     public static final int GUI_ID_DEPARTURE_MELODY = 8;
     public static final int GUI_ID_DEPARTURE_SWITCH = 9;
+    public static final int GUI_ID_DEPARTURE_SWITCH_ITEM = 10;
 
     public static java.io.File samPacksDir;
 
@@ -83,7 +84,7 @@ public class StationAnnounceModCore {
         blockDepartureMelody = new BlockDepartureMelody();
         GameRegistry.registerBlock(blockDepartureMelody, "blockDepartureMelody");
         blockDepartureSwitch = new BlockDepartureSwitch();
-        GameRegistry.registerBlock(blockDepartureSwitch, "blockDepartureSwitch");
+        GameRegistry.registerBlock(blockDepartureSwitch, jp.me1han.sam.item.ItemDepartureSwitch.class, "blockDepartureSwitch");
 
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         GameRegistry.registerTileEntity(TileEntityStartAnnouncer.class, "tileStartAnnouncer");

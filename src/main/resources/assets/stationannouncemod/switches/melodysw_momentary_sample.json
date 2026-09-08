@@ -1,0 +1,14 @@
+{
+  "name": "melodysw_momentary_sample",
+  "switchMode": "momentary",
+  "displayName": "発車メロディスイッチ (単押し)",
+  "model": {
+    "modelFile": "melodysw_momentary_sample.mqo",
+    "scale": 0.01,
+    "offset": [0, -40, 45],
+    "textures": [
+      ["mat1", "melodysw_momentary_sample.png"]
+    ]
+  },
+  "bounds": [0.425, 0, 0.45, 0.575, 0.2, 0.55]
+}

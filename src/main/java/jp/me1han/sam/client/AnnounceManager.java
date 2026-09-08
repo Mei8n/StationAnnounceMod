@@ -107,6 +107,9 @@ public class AnnounceManager {
         boolean sequenceChangedThisTick;
         boolean releasedThisTick;
         final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
+        final String startMelo;
+        final List<String> bodySounds;
+        int repeatsRemaining;
         String loopSound;
         boolean playLocalSound;
         int x, y, z;
@@ -138,22 +141,29 @@ public class AnnounceManager {
             this.allowOverlap = msg.allowOverlap;
             this.departure = msg instanceof jp.me1han.sam.network.PacketDepartureStart
                 ? ((jp.me1han.sam.network.PacketDepartureStart)msg).departure : null;
+            this.startMelo = msg.startMelo;
+            this.bodySounds = msg.bodySounds == null
+                ? java.util.Collections.<String>emptyList() : new ArrayList<>(msg.bodySounds);
+            this.repeatsRemaining = departure == null
+                ? jp.me1han.sam.api.AnnounceData.normalizeRepeatCount(msg.repeatCount) : 0;
             this.playLocalSound = msg.playLocalSound;
             this.x = msg.x;
             this.y = msg.y;
             this.z = msg.z;
 
-            if (msg.startMelo != null && !msg.startMelo.isEmpty()) {
-                this.queue.add(msg.startMelo);
-            }
-            if (msg.bodySounds != null) {
-                for (String s : msg.bodySounds) {
-                    if (s != null && !s.isEmpty()) {
-                        this.queue.add(s);
-                    }
-                }
-            }
+            enqueueNextRepeat();
             this.loopSound = (msg.arrMelo != null && !msg.arrMelo.isEmpty()) ? msg.arrMelo : null;
+        }
+
+        boolean enqueueNextRepeat() {
+            while (repeatsRemaining > 0) {
+                repeatsRemaining--;
+                if (startMelo != null && !startMelo.isEmpty()) queue.add(startMelo);
+                for (String sound : bodySounds)
+                    if (sound != null && !sound.isEmpty()) queue.add(sound);
+                if (!queue.isEmpty()) return true;
+            }
+            return false;
         }
 
         void stop() {
@@ -275,6 +285,7 @@ public class AnnounceManager {
             }
 
             String nextSound = session.queue.poll();
+            if (nextSound == null && session.enqueueNextRepeat()) nextSound = session.queue.poll();
 
             if (nextSound != null) {
                 playInSession(session, nextSound);

@@ -1,0 +1,26 @@
+{
+  "name": "melodysw_alternate_sample",
+  "switchMode": "alternate",
+  "displayName": "発車メロディスイッチ (ON/OFF)",
+  "model": {
+    "modelFile": "melodysw_alternate_sample.mqo",
+    "scale": 0.01,
+    "offset": [0, -132.60004, -32.25],
+    "textures": [
+      ["mat1", "melodysw_alternate_sample.png"]
+    ]
+  },
+  "sounds": {
+    "on": "stationannouncemod:melodysw_alternate_off",
+    "off": "stationannouncemod:melodysw_alternate_off"
+  },
+  "bounds": [0.42, 0, 0.4175, 0.58, 0.354, 0.5825],
+  "pressedState": {
+    "translations": [
+      {
+        "parts": ["On"],
+        "offset": [0, 0, -1.1]
+      }
+    ]
+  }
+}
