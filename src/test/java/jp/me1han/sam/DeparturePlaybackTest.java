@@ -14,6 +14,7 @@ import jp.me1han.sam.api.DepartureClick;
 import jp.me1han.sam.api.DepartureProgram;
 import jp.me1han.sam.api.DepartureSequence;
 import jp.me1han.sam.network.PacketAnnounce;
+import jp.me1han.sam.network.PacketDepartureStart;
 import jp.me1han.sam.network.PacketDepartureControl;
 import jp.me1han.sam.network.PacketDepartureMelodyConfig;
 import jp.me1han.sam.network.PacketDepartureSwitchConfig;
@@ -281,22 +282,27 @@ public final class DeparturePlaybackTest {
     private static void verifyPackets() {
         ByteBuf buf = Unpooled.buffer();
         try {
-            PacketAnnounce outgoing = new PacketAnnounce(new AnnounceData("", Collections.emptyList(), ""), "platform-1", false,
-                1, 2, 3, Collections.singletonList(new PacketAnnounce.SpeakerData(10, 20, 30, 32, 0.75F)), 1, "platform-1", 20, false);
+            PacketDepartureStart outgoing = new PacketDepartureStart();
+            outgoing.sessionId = 123L; outgoing.linkKey = "platform-1";
+            outgoing.x = 1; outgoing.y = 2; outgoing.z = 3;
+            outgoing.targets = new long[] { SpeakerRegistry.position(10, 20, 30) };
             outgoing.departure = program(true).tachikawa(true).resolve(lengths(20, 5));
             outgoing.toBytes(buf);
-            PacketAnnounce received = new PacketAnnounce(); received.fromBytes(buf);
+            PacketDepartureStart received = new PacketDepartureStart(); received.fromBytes(buf);
             check(received.departure.finishChorus && received.departure.alternate, "Playback mode serialized");
             check(received.departure.melodyTicks == 20 && received.departure.doorCloseTicks == 5 && received.departure.intervalTicks == 10, "Durations serialized");
-            check(received.speakers.get(0).x == 10 && received.speakers.get(0).volume == 0.75F, "Parent speakers serialized");
+            check(SpeakerRegistry.x(received.targets[0]) == 10 && received.sessionId == 123L, "Compact target and session serialized");
             check(buf.readableBytes() == 0, "Playback packet completely consumed");
             buf.clear();
-            outgoing.departure = null; outgoing.toBytes(buf); received.fromBytes(buf);
-            check(received.departure == null, "Ordinary packets have no departure program");
+            PacketAnnounce ordinary = new PacketAnnounce(new AnnounceData("test:start", Collections.singletonList("test:body"), "test:loop"),
+                "platform-1", true, 1, 2, 3);
+            ordinary.toBytes(buf);
+            PacketAnnounce ordinaryRead = new PacketAnnounce(); ordinaryRead.fromBytes(buf);
+            check(ordinaryRead.bodySounds.equals(ordinary.bodySounds) && buf.readableBytes() == 0, "Ordinary sequence round trip");
             buf.clear();
-            PacketDepartureControl control = new PacketDepartureControl("platform-1", true); control.toBytes(buf);
+            PacketDepartureControl control = new PacketDepartureControl(123L, true); control.toBytes(buf);
             PacketDepartureControl decoded = new PacketDepartureControl(); decoded.fromBytes(buf);
-            check(decoded.cancel && decoded.linkKey.equals("platform-1"), "Scoped cancellation serialized");
+            check(decoded.cancel && decoded.sessionId == 123L, "Scoped cancellation serialized");
             buf.clear();
             PacketDepartureMelodyConfig config = new PacketDepartureMelodyConfig(1, 2, 3, "platform-1", "legacy", "departure_tachikawa.js"); config.toBytes(buf);
             PacketDepartureMelodyConfig configRead = new PacketDepartureMelodyConfig(); configRead.fromBytes(buf);

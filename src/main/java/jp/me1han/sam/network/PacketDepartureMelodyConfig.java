@@ -26,9 +26,9 @@ public class PacketDepartureMelodyConfig implements IMessage {
         this.x = buf.readInt();
         this.y = buf.readInt();
         this.z = buf.readInt();
-        this.linkKey = ByteBufUtils.readUTF8String(buf);
-        this.soundId = ByteBufUtils.readUTF8String(buf);
-        this.scriptName = ByteBufUtils.readUTF8String(buf);
+        this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
+        this.soundId = PacketLimits.readString(buf, PacketLimits.NAME);
+        this.scriptName = PacketLimits.readString(buf, PacketLimits.NAME);
     }
 
     @Override

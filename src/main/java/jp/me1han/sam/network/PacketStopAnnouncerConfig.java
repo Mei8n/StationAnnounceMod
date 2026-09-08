@@ -18,7 +18,7 @@ public class PacketStopAnnouncerConfig implements IMessage {
     @Override
     public void fromBytes(ByteBuf buf) {
         this.x = buf.readInt(); this.y = buf.readInt(); this.z = buf.readInt();
-        this.linkKey = ByteBufUtils.readUTF8String(buf);
+        this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         this.isControlCar = buf.readBoolean();
     }
 

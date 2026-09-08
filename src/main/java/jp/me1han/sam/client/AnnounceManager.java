@@ -23,20 +23,32 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class AnnounceManager {
     public static final AnnounceManager INSTANCE = new AnnounceManager();
 
-    private final Map<String, AnnounceSession> activeSessions = new ConcurrentHashMap<>();
+    private final Map<Long, AnnounceSession> activeSessions = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<Runnable> pending = new ConcurrentLinkedQueue<>();
     private World sessionWorld;
+    private long clientTick;
+
+    protected World currentWorld() { return Minecraft.getMinecraft().theWorld; }
+    protected void playSound(ISound sound) { Minecraft.getMinecraft().getSoundHandler().playSound(sound); }
+    protected void stopSound(ISound sound) { Minecraft.getMinecraft().getSoundHandler().stopSound(sound); }
+    protected boolean inSpeakerRange(TileEntitySpeaker speaker) {
+        return inRange(speaker.xCoord, speaker.yCoord, speaker.zCoord, speaker.range);
+    }
+    protected boolean inRange(int x, int y, int z, int range) {
+        return Minecraft.getMinecraft().thePlayer != null
+            && Minecraft.getMinecraft().thePlayer.getDistanceSq(x+.5, y+.5, z+.5) <= (double)range * range;
+    }
+    protected void requestMissing(jp.me1han.sam.network.PacketMissingSpeakers packet) {
+        NetworkHandler.INSTANCE.sendToServer(packet);
+    }
 
     public void receive(PacketAnnounce packet) {
-        pending.add(() -> {
-            if (packet.stopCommand) stopAnnounce(packet.linkKey);
-            else startAnnounce(packet);
-        });
+        pending.add(() -> startAnnounce(packet));
     }
 
     public void receive(jp.me1han.sam.network.PacketDepartureControl packet) {
         pending.add(() -> {
-            String key = getSessionKey(normalizeKey(packet.linkKey), PacketAnnounce.PRIORITY_DEPARTURE_MELODY);
+            long key = packet.sessionId;
             AnnounceSession session = activeSessions.get(key);
             if (session == null || session.departure == null) return;
             if (packet.cancel) {
@@ -52,7 +64,41 @@ public class AnnounceManager {
         });
     }
 
-    private static class AnnounceSession {
+    public void receive(jp.me1han.sam.network.PacketAnnounceStop packet) {
+        pending.add(() -> {
+            if (packet.sessionId == 0) stopAnnounce();
+            else {
+                AnnounceSession session = activeSessions.remove(packet.sessionId);
+                if (session != null) session.stop();
+            }
+        });
+    }
+
+    private static class DeferredSound {
+        final long target, expires;
+        final ResourceLocation sound;
+        final jp.me1han.sam.api.DepartureSequence.Channel channel;
+        DeferredSound(long target, long expires, ResourceLocation sound, jp.me1han.sam.api.DepartureSequence.Channel channel) {
+            this.target = target; this.expires = expires; this.sound = sound; this.channel = channel;
+        }
+    }
+
+    public void receive(jp.me1han.sam.network.PacketSpeakerFallback packet) {
+        pending.add(() -> {
+            AnnounceSession session = activeSessions.get(packet.sessionId);
+            if (session == null || !session.requestedMissing) return;
+            for (jp.me1han.sam.network.PacketSpeakerFallback.Target target : packet.targets)
+                session.fallback.put(target.position, target);
+        });
+    }
+
+    private class AnnounceSession {
+        final long sessionId;
+        final long[] targets;
+        final List<DeferredSound> deferred = new ArrayList<>();
+        final Map<Long, jp.me1han.sam.network.PacketSpeakerFallback.Target> fallback = new java.util.HashMap<>();
+        boolean requestedMissing;
+        long unresolvedSince = -1;
         final String linkKey;
         final int priority;
         final boolean allowOverlap;
@@ -61,9 +107,6 @@ public class AnnounceManager {
         boolean sequenceChangedThisTick;
         boolean releasedThisTick;
         final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
-        final List<PacketAnnounce.SpeakerData> serverSpeakers;
-        final int serverTotalSpeakers;
-        final String serverSampleKeys;
         String loopSound;
         boolean playLocalSound;
         int x, y, z;
@@ -81,29 +124,24 @@ public class AnnounceManager {
         }
 
         void stopChannel(jp.me1han.sam.api.DepartureSequence.Channel channel) {
+            deferred.removeIf(sound -> sound.channel == channel);
             List<ISound> sounds = departureSounds.remove(channel);
             if (sounds != null) for (ISound sound : sounds)
-                Minecraft.getMinecraft().getSoundHandler().stopSound(sound);
+                stopSound(sound);
         }
 
-        // Speakerキャッシュ: セッション開始時の1回だけスキャン
-        List<TileEntitySpeaker> cachedSpeakers;
-        boolean speakersInitialized = false;
-        boolean speakerCheckLogged = false;
-        boolean noMatchLogged = false;
-
         AnnounceSession(PacketAnnounce msg) {
+            this.sessionId = msg.sessionId;
+            this.targets = msg.targets.clone();
             this.linkKey = normalizeKeyStatic(msg.linkKey);
             this.priority = msg.priority;
             this.allowOverlap = msg.allowOverlap;
-            this.departure = msg.departure;
+            this.departure = msg instanceof jp.me1han.sam.network.PacketDepartureStart
+                ? ((jp.me1han.sam.network.PacketDepartureStart)msg).departure : null;
             this.playLocalSound = msg.playLocalSound;
             this.x = msg.x;
             this.y = msg.y;
             this.z = msg.z;
-            this.serverSpeakers = msg.speakers != null ? new ArrayList<PacketAnnounce.SpeakerData>(msg.speakers) : new ArrayList<PacketAnnounce.SpeakerData>();
-            this.serverTotalSpeakers = msg.serverTotalSpeakers;
-            this.serverSampleKeys = msg.serverSampleKeys != null ? msg.serverSampleKeys : "";
 
             if (msg.startMelo != null && !msg.startMelo.isEmpty()) {
                 this.queue.add(msg.startMelo);
@@ -123,6 +161,8 @@ public class AnnounceManager {
             if (sequence != null) sequence.cancel();
             stopSounds();
             queue.clear();
+            deferred.clear();
+            fallback.clear();
         }
 
         void stopSounds() {
@@ -130,24 +170,25 @@ public class AnnounceManager {
                 stopChannel(channel);
             for (ISound s : activeSounds) {
                 if (s != null) {
-                    Minecraft.getMinecraft().getSoundHandler().stopSound(s);
+                    stopSound(s);
                 }
             }
             activeSounds.clear();
         }
     }
 
-    public void startAnnounce(PacketAnnounce msg) {
+    private void startAnnounce(PacketAnnounce msg) {
         if (msg == null || msg.linkKey == null) {
             return;
         }
 
         String key = normalizeKey(msg.linkKey);
-        String sessionKey = getSessionKey(key, msg.priority);
+        long sessionKey = msg.sessionId;
+        if (activeSessions.containsKey(sessionKey)) return;
 
         // Decide whether the new session may start before mutating any active session.
         // This keeps a rejected lower-priority request from stopping unrelated audio.
-        for (Map.Entry<String, AnnounceSession> entry : activeSessions.entrySet()) {
+        for (Map.Entry<Long, AnnounceSession> entry : activeSessions.entrySet()) {
             AnnounceSession existing = entry.getValue();
             if (!key.equals(existing.linkKey)) {
                 continue;
@@ -155,11 +196,12 @@ public class AnnounceManager {
 
             if (existing.priority > msg.priority && !msg.allowOverlap
                 && msg.priority != PacketAnnounce.PRIORITY_AWARENESS) {
+                finished(msg.sessionId);
                 return;
             }
         }
 
-        for (Map.Entry<String, AnnounceSession> entry : activeSessions.entrySet()) {
+        for (Map.Entry<Long, AnnounceSession> entry : activeSessions.entrySet()) {
             AnnounceSession existing = entry.getValue();
             if (!key.equals(existing.linkKey)) {
                 continue;
@@ -169,62 +211,27 @@ public class AnnounceManager {
             if (existing.priority == msg.priority || interruptLower) {
                 existing.stop();
                 activeSessions.remove(entry.getKey(), existing);
+                finished(existing.sessionId);
             }
         }
 
         activeSessions.put(sessionKey, new AnnounceSession(msg));
 
-        // First sound for debug output
-        String firstSound = getFirstSound(msg);
-
-        // Send debug event (will be processed server-side)
-        try {
-            NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent("START", key, firstSound, 0, msg.playLocalSound));
-        } catch (Exception e) {
-            StationAnnounceModCore.logger.error("[SAM] Failed to send debug start event", e);
-        }
-    }
-
-    public void stopAnnounce(String linkKey) {
-        String normalizedKey = normalizeKey(linkKey);
-
-        if (PacketAnnounce.GLOBAL_STOP_KEY.equals(normalizedKey) || normalizedKey.isEmpty()) {
-            // Stop all sessions
-            List<AnnounceSession> sessionsToStop = new ArrayList<>(activeSessions.values());
-            for (AnnounceSession session : sessionsToStop) {
-                try {
-                    NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent("STOP", session.linkKey, "", 0, session.playLocalSound));
-                } catch (Exception e) {
-                    StationAnnounceModCore.logger.error("[SAM] Failed to send debug stop event", e);
-                }
-                session.stop();
-            }
-            activeSessions.clear();
-        } else {
-            for (Map.Entry<String, AnnounceSession> entry : activeSessions.entrySet()) {
-                AnnounceSession session = entry.getValue();
-                if (!normalizedKey.equals(session.linkKey)) {
-                    continue;
-                }
-                try {
-                    NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent("STOP", normalizedKey, "", 0, session.playLocalSound));
-                } catch (Exception e) {
-                    StationAnnounceModCore.logger.error("[SAM] Failed to send debug stop event", e);
-                }
-                session.stop();
-                activeSessions.remove(entry.getKey(), session);
-            }
-        }
     }
 
     public void stopAnnounce() {
-        this.stopAnnounce(null);
+        for (AnnounceSession session : activeSessions.values()) session.stop();
+        activeSessions.clear();
+    }
+
+    protected void finished(long sessionId) {
+        NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketSessionFinished(sessionId));
     }
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
-        World world = Minecraft.getMinecraft().theWorld;
+        World world = currentWorld();
         if (sessionWorld != world) {
             for (AnnounceSession session : activeSessions.values()) session.stop();
             activeSessions.clear();
@@ -232,15 +239,17 @@ public class AnnounceManager {
             sessionWorld = world;
         }
         if (world == null) { pending.clear(); return; }
+        clientTick++;
         Runnable action;
         while ((action = pending.poll()) != null) action.run();
 
-        Iterator<Map.Entry<String, AnnounceSession>> it = activeSessions.entrySet().iterator();
+        Iterator<Map.Entry<Long, AnnounceSession>> it = activeSessions.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, AnnounceSession> entry = it.next();
+            Map.Entry<Long, AnnounceSession> entry = it.next();
             AnnounceSession session = entry.getValue();
 
             if (!session.isPlaying) {
+                finished(session.sessionId);
                 it.remove();
                 continue;
             }
@@ -249,12 +258,14 @@ public class AnnounceManager {
                 continue;
             }
 
+            retryDeferred(session, world);
+
             if (session.departure != null) {
                 if (session.sequence == null) initializeDeparture(session);
                 else if (!session.sequenceChangedThisTick) session.sequence.tick(session.releasedThisTick);
                 session.sequenceChangedThisTick = false;
                 session.releasedThisTick = false;
-                if (session.sequence.isFinished()) it.remove();
+                if (session.sequence.isFinished()) { finished(session.sessionId); it.remove(); }
                 continue;
             }
 
@@ -272,7 +283,8 @@ public class AnnounceManager {
                 playInSession(session, session.loopSound);
                 session.waitTicks = getSoundTicks(session.loopSound);
             } else {
-                session.isPlaying = false;
+                session.stop();
+                finished(session.sessionId);
                 it.remove();
             }
         }
@@ -320,196 +332,94 @@ public class AnnounceManager {
             return;
         }
 
-        if (session.departure == null) session.activeSounds.clear();
+        if (session.departure == null) {
+            // Retain sound handles until the sequence advances, including late TE playback.
+            for (ISound sound : session.activeSounds) stopSound(sound);
+            session.activeSounds.clear();
+            session.deferred.clear();
+        }
         session.hasStartedPlayback = true;
         try {
             ResourceLocation res = new ResourceLocation(soundId);
-            World world = Minecraft.getMinecraft().theWorld;
+            World world = currentWorld();
             if (world == null) {
                 return;
             }
 
-            if (!session.speakersInitialized) {
-                initializeSpeakerCache(session, world);
-                session.speakersInitialized = true;
-            }
-
-            int serverMatchedCount = playAtServerSpeakers(session, res);
-            int matchedCount = serverMatchedCount;
-            int firstMatchedCount = matchedCount;
-            int cachedCount = session.cachedSpeakers != null ? session.cachedSpeakers.size() : 0;
-            boolean rescanned = false;
-
-            if (serverMatchedCount == 0) {
-                matchedCount = playAtMatchedSpeakers(session, res);
-                firstMatchedCount = matchedCount;
-
-                // 専用サーバーではTE同期が遅れることがあるため、未一致時は一度だけ再スキャンする
-                if (matchedCount == 0) {
-                    initializeSpeakerCache(session, world);
-                    matchedCount = playAtMatchedSpeakers(session, res);
-                    rescanned = true;
-                    cachedCount = session.cachedSpeakers != null ? session.cachedSpeakers.size() : 0;
+            for (long target : session.targets) {
+                if (!playTarget(session, res, target, world)) {
+                    session.deferred.add(new DeferredSound(target, clientTick + getSoundTicks(soundId),
+                        res, session.playbackChannel));
                 }
             }
-
-            if (!session.speakerCheckLogged) {
-                session.speakerCheckLogged = true;
-                String detail = "serverProvided=" + session.serverSpeakers.size()
-                    + ", serverTotal=" + session.serverTotalSpeakers
-                    + ", serverKeys=" + (session.serverSampleKeys.isEmpty() ? "none" : session.serverSampleKeys)
-                    + ", serverMatched=" + serverMatchedCount
-                    + ", cached=" + cachedCount
-                    + ", firstMatched=" + firstMatchedCount
-                    + ", rescanned=" + rescanned
-                    + ", finalMatched=" + matchedCount;
-                sendDebugEvent("SPEAKER_CHECK", session.linkKey, soundId, matchedCount, session.playLocalSound, detail);
-            }
-
-            // マッチしたスピーカーがある場合のみデバッグパケット送信
-            if (matchedCount > 0) {
-                sendDebugEvent("PLAY", session.linkKey, soundId, matchedCount, session.playLocalSound, "");
-            }
-
-            if (session.playLocalSound) {
-                playLocalSound(res, session);
-            }
-
-            if (matchedCount == 0 && !session.playLocalSound && !session.noMatchLogged) {
-                session.noMatchLogged = true;
-                sendDebugEvent("NO_MATCH", session.linkKey, soundId, 0, session.playLocalSound,
-                    "serverProvided=" + session.serverSpeakers.size()
-                        + ", serverTotal=" + session.serverTotalSpeakers
-                        + ", serverKeys=" + (session.serverSampleKeys.isEmpty() ? "none" : session.serverSampleKeys)
-                        + ", serverMatched=" + serverMatchedCount
-                        + ", cached=" + cachedCount
-                        + ", speakerKeys=" + sampleSpeakerKeys(session.cachedSpeakers, 5));
-            }
+            if (session.playLocalSound) playLocalSound(res, session);
 
         } catch (Exception e) {
             StationAnnounceModCore.logger.error("[SAM] Session Playback Error: " + soundId, e);
         }
     }
 
-    private String sampleSpeakerKeys(List<TileEntitySpeaker> speakers, int limit) {
-        if (speakers == null || speakers.isEmpty()) {
-            return "none";
+    /** Only supplied coordinates are consulted; missing TE/settings are retried during this sound. */
+    private boolean playTarget(AnnounceSession session, ResourceLocation sound, long target, World world) {
+        int x = jp.me1han.sam.SpeakerRegistry.x(target), y = jp.me1han.sam.SpeakerRegistry.y(target), z = jp.me1han.sam.SpeakerRegistry.z(target);
+        net.minecraft.tileentity.TileEntity tile = world.blockExists(x, y, z) ? world.getTileEntity(x, y, z) : null;
+        if (tile instanceof TileEntitySpeaker && !tile.isInvalid()) {
+            TileEntitySpeaker speaker = (TileEntitySpeaker)tile;
+            if (speaker.isClientConfigSynced()) {
+                session.fallback.remove(target);
+                if (session.linkKey.equals(normalizeKey(speaker.linkKey))) {
+                    playSoundAtSpeaker(sound, session, speaker);
+                }
+                return true; // A synchronized empty/mismatched key is authoritative.
+            }
+            // The TE instance may precede its S35 description; keep fallback/retry active.
         }
-
-        StringBuilder sb = new StringBuilder();
-        int appended = 0;
-        for (TileEntitySpeaker speaker : speakers) {
-            if (speaker == null) {
-                continue;
-            }
-            String key = normalizeKey(speaker.linkKey);
-            if (key.isEmpty()) {
-                continue;
-            }
-            if (appended > 0) {
-                sb.append(",");
-            }
-            sb.append(key);
-            appended++;
-            if (appended >= limit) {
-                break;
-            }
-        }
-
-        return appended == 0 ? "none" : sb.toString();
+        jp.me1han.sam.network.PacketSpeakerFallback.Target settings = session.fallback.get(target);
+        if (settings == null) return false;
+        playAtCoordinates(sound, session, x, y, z, settings.range, settings.volume);
+        return true;
     }
 
-    private void sendDebugEvent(String eventType, String linkKey, String soundId, int matchedSpeakers, boolean playLocalSound, String detail) {
-        try {
-            NetworkHandler.INSTANCE.sendToServer(new jp.me1han.sam.network.PacketDebugAnnounceEvent(
-                eventType,
-                linkKey,
-                soundId,
-                matchedSpeakers,
-                playLocalSound,
-                detail
-            ));
-        } catch (Exception e) {
-            StationAnnounceModCore.logger.error("[SAM] Failed to send debug event: " + eventType, e);
-        }
-    }
-
-    private int playAtMatchedSpeakers(AnnounceSession session, ResourceLocation res) {
-        int matchedCount = 0;
-        if (session.cachedSpeakers == null) {
-            return 0;
-        }
-
-        for (TileEntitySpeaker speaker : session.cachedSpeakers) {
-            if (speaker == null || speaker.linkKey == null) {
-                continue;
-            }
-
-            String speakerKey = normalizeKey(speaker.linkKey);
-            if (!speakerKey.isEmpty() && session.linkKey.equals(speakerKey)) {
-                matchedCount++;
-                playSoundAtSpeaker(res, session, speaker);
-            }
-        }
-
-        return matchedCount;
-    }
-
-    private int playAtServerSpeakers(AnnounceSession session, ResourceLocation res) {
-        if (session.serverSpeakers == null || session.serverSpeakers.isEmpty()) {
-            return 0;
-        }
-
-        int matchedCount = 0;
-        for (PacketAnnounce.SpeakerData speaker : session.serverSpeakers) {
-            if (speaker == null || speaker.range < 1 || speaker.volume <= 0) {
-                continue;
-            }
-
+    private void retryDeferred(AnnounceSession session, World world) {
+        Iterator<DeferredSound> it = session.deferred.iterator();
+        while (it.hasNext()) {
+            DeferredSound deferred = it.next();
+            if (clientTick >= deferred.expires) { it.remove(); continue; }
+            session.playbackChannel = deferred.channel;
             try {
-                float vol = (speaker.range / 16.0F) * speaker.volume;
-                vol = Math.max(0.0F, Math.min(2.0F, vol));
-
-                PositionedSoundRecord psr = new PositionedSoundRecord(res, vol, 1.0F,
-                    (float) speaker.x + 0.5F, (float) speaker.y + 0.5F, (float) speaker.z + 0.5F);
-                Minecraft.getMinecraft().getSoundHandler().playSound(psr);
-                session.trackSound(psr);
-                matchedCount++;
-            } catch (Exception e) {
-                StationAnnounceModCore.logger.error("[SAM] Failed to play sound at server speaker", e);
-            }
+                if (playTarget(session, deferred.sound, deferred.target, world)) it.remove();
+            } finally { session.playbackChannel = null; }
         }
-
-        return matchedCount;
-    }
-
-    private void initializeSpeakerCache(AnnounceSession session, World world) {
-        session.cachedSpeakers = new ArrayList<>();
-
-        for (Object obj : world.loadedTileEntityList) {
-            if (!(obj instanceof TileEntitySpeaker)) {
-                continue;
+        if (!session.deferred.isEmpty() && !session.requestedMissing) {
+            if (session.unresolvedSince < 0) session.unresolvedSince = clientTick;
+            // Allow TE descriptions to catch up without delaying the sequence clock.
+            if (clientTick - session.unresolvedSince >= 2) {
+                java.util.Set<Long> missing = new java.util.LinkedHashSet<>();
+                for (DeferredSound sound : session.deferred) missing.add(sound.target);
+                long[] positions = new long[missing.size()]; int index = 0;
+                for (long position : missing) positions[index++] = position;
+                session.requestedMissing = true;
+                requestMissing(new jp.me1han.sam.network.PacketMissingSpeakers(session.sessionId, positions));
             }
-
-            TileEntitySpeaker speaker = (TileEntitySpeaker) obj;
-
-            // キャッシュには全Speakerを保持し、マッチング処理は再生時に実施
-            session.cachedSpeakers.add(speaker);
         }
     }
 
     private void playSoundAtSpeaker(ResourceLocation res, AnnounceSession session, TileEntitySpeaker speaker) {
+        if (inSpeakerRange(speaker)) playAtCoordinates(res, session, speaker.xCoord, speaker.yCoord, speaker.zCoord, speaker.range, speaker.volume);
+    }
+
+    private void playAtCoordinates(ResourceLocation res, AnnounceSession session, int x, int y, int z, int range, float volume) {
         try {
-            if (speaker.range < 1 || speaker.volume <= 0) {
+            if (!jp.me1han.sam.network.PacketLimits.speaker(range, volume) || volume <= 0 || !inRange(x, y, z, range)) {
                 return;
             }
 
-            float vol = (speaker.range / 16.0F) * speaker.volume;
+            float vol = (range / 16.0F) * volume;
             vol = Math.max(0.0F, Math.min(2.0F, vol)); // Clamp to reasonable range
 
             PositionedSoundRecord psr = new PositionedSoundRecord(res, vol, 1.0F,
-                (float) speaker.xCoord + 0.5F, (float) speaker.yCoord + 0.5F, (float) speaker.zCoord + 0.5F);
-            Minecraft.getMinecraft().getSoundHandler().playSound(psr);
+                (float) x + 0.5F, (float) y + 0.5F, (float) z + 0.5F);
+            playSound(psr);
             session.trackSound(psr);
         } catch (Exception e) {
             StationAnnounceModCore.logger.error("[SAM] Failed to play sound at speaker", e);
@@ -520,21 +430,11 @@ public class AnnounceManager {
         try {
             PositionedSoundRecord psr = new PositionedSoundRecord(res, 1.0F, 1.0F,
                 (float) session.x + 0.5F, (float) session.y + 0.5F, (float) session.z + 0.5F);
-            Minecraft.getMinecraft().getSoundHandler().playSound(psr);
+            playSound(psr);
             session.trackSound(psr);
         } catch (Exception e) {
             StationAnnounceModCore.logger.error("[SAM] Failed to play local sound", e);
         }
-    }
-
-    private String getFirstSound(PacketAnnounce msg) {
-        if (msg.startMelo != null && !msg.startMelo.isEmpty()) {
-            return msg.startMelo;
-        }
-        if (msg.bodySounds != null && !msg.bodySounds.isEmpty()) {
-            return msg.bodySounds.get(0);
-        }
-        return "";
     }
 
     private String normalizeKey(String key) {
@@ -551,7 +451,4 @@ public class AnnounceManager {
         return key.trim();
     }
 
-    private String getSessionKey(String linkKey, int priority) {
-        return linkKey + "\u0000" + priority;
-    }
 }

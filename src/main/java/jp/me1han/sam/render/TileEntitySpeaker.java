@@ -11,6 +11,7 @@ public class TileEntitySpeaker extends TileEntity {
     public String linkKey = "";
     public int range = 16;
     public float volume = 1.0f;
+    private volatile boolean clientConfigSynced;
 
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
@@ -28,11 +29,18 @@ public class TileEntitySpeaker extends TileEntity {
         this.range = nbt.hasKey("range") ? nbt.getInteger("range") : 16;
         this.volume = nbt.hasKey("volume") ? nbt.getFloat("volume") : 1.0f;
 
+        this.range = Math.max(1, Math.min(jp.me1han.sam.network.PacketLimits.MAX_RANGE, this.range));
+        this.volume = Float.isNaN(this.volume) || Float.isInfinite(this.volume) ? 1.0F
+            : Math.max(0, Math.min(jp.me1han.sam.network.PacketLimits.MAX_VOLUME, this.volume));
         syncRegistry();
     }
 
     @Override
-    public void updateEntity() {
+    public boolean canUpdate() { return false; }
+
+    @Override
+    public void validate() {
+        super.validate();
         syncRegistry();
     }
 
@@ -58,6 +66,24 @@ public class TileEntitySpeaker extends TileEntity {
     @Override
     public void onDataPacket(NetworkManager net, S35PacketUpdateTileEntity pkt) {
         this.readFromNBT(pkt.func_148857_g());
+        this.clientConfigSynced = true;
+    }
+
+    /** True only after this client TE has applied a server description packet. */
+    public boolean isClientConfigSynced() {
+        return this.clientConfigSynced;
+    }
+
+    public boolean applyConfig(String key, int range, float volume) {
+        key = SpeakerRegistry.normalize(key);
+        if (!jp.me1han.sam.network.PacketLimits.string(key, jp.me1han.sam.network.PacketLimits.LINK_KEY)
+            || !jp.me1han.sam.network.PacketLimits.speaker(range, volume)) return false;
+        if (key.equals(linkKey) && this.range == range && this.volume == volume) return false;
+        linkKey = key; this.range = range; this.volume = volume;
+        syncRegistry();
+        markDirty();
+        if (worldObj != null && !worldObj.isRemote) worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        return true;
     }
 
     private void syncRegistry() {
@@ -65,15 +91,7 @@ public class TileEntitySpeaker extends TileEntity {
             return;
         }
 
-        SpeakerRegistry.upsert(
-            this.worldObj.provider.dimensionId,
-            this.xCoord,
-            this.yCoord,
-            this.zCoord,
-            this.linkKey,
-            this.range,
-            this.volume
-        );
+        SpeakerRegistry.register(this);
     }
 
     private void removeFromRegistry() {
@@ -81,6 +99,6 @@ public class TileEntitySpeaker extends TileEntity {
             return;
         }
 
-        SpeakerRegistry.removeAt(this.worldObj.provider.dimensionId, this.xCoord, this.yCoord, this.zCoord);
+        SpeakerRegistry.unregister(this);
     }
 }

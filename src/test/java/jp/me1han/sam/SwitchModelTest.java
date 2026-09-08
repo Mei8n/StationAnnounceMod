@@ -105,6 +105,7 @@ public final class SwitchModelTest {
         b.applyConfig("other", b.modelName, 1);
         check(!melody.isOn() && melody.releases == releases + 1, "Relinking last switch releases old device");
         b.applyConfig("test", b.modelName, 1);
+        a.validate(); // Reload before operating the previously unloaded switch again.
         melody.click(a); melody.click(b); melody.cancelPlayback();
         check(!a.isActivated() && !b.isActivated() && !melody.isPlaying(), "Emergency stop resets whole group");
 
@@ -394,7 +395,7 @@ public final class SwitchModelTest {
         long time;
         final List<String> sounds = new ArrayList<>();
         FixtureWorld() { super(new SaveHandlerMP(), "switch-test", new WorldProviderSurface(), new WorldSettings(0, WorldSettings.GameType.CREATIVE, false, false, WorldType.FLAT), new Profiler()); }
-        void add(TileEntity tile, int x) { tile.setWorldObj(this); tile.xCoord = x; loadedTileEntityList.add(tile); }
+        void add(TileEntity tile, int x) { tile.setWorldObj(this); tile.xCoord = x; loadedTileEntityList.add(tile); tile.validate(); }
         @Override protected IChunkProvider createChunkProvider() { return null; }
         @Override protected int func_152379_p() { return 0; }
         @Override public Entity getEntityByID(int id) { return null; }

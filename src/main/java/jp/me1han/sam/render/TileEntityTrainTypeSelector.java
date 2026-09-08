@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TileEntityTrainTypeSelector extends TileEntity {
+public class TileEntityTrainTypeSelector extends RegisteredTileEntity {
     public String linkKey = "";
     public boolean isControlCar = false;
     public List<TrainTypeCondition> conditions = new ArrayList<TrainTypeCondition>();
@@ -81,7 +81,7 @@ public class TileEntityTrainTypeSelector extends TileEntity {
         String normalizedKey = this.linkKey.trim();
         String sourcePos = String.format("%d, %d, %d", xCoord, yCoord, zCoord);
 
-        for (Object obj : this.worldObj.loadedTileEntityList) {
+        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
             if (obj instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
                 jp.me1han.sam.render.TileEntityAnnouncer receiver = (jp.me1han.sam.render.TileEntityAnnouncer) obj;
                 if (receiver.linkKey != null && normalizedKey.equals(receiver.linkKey.trim())) {

@@ -227,3 +227,12 @@ tasks.register('verifySwitchModels', JavaExec) {
     workingDir = projectDir
 }
 check.dependsOn verifySwitchModels
+
+tasks.register('verifyNetwork', JavaExec) {
+    group = 'verification'
+    description = 'Check speaker lifecycle, bounded packets, recipient routing, GUI validation and client session ordering.'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'jp.me1han.sam.network.NetworkVerificationTest'
+}
+check.dependsOn verifyNetwork

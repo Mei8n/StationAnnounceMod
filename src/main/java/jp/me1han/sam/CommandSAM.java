@@ -31,7 +31,7 @@ public class CommandSAM extends CommandBase {
             for (net.minecraft.world.WorldServer world : net.minecraftforge.common.DimensionManager.getWorlds()) {
                 jp.me1han.sam.render.TileEntityDepartureMelody.cancelLinked(world, "");
             }
-            NetworkHandler.INSTANCE.sendToAll(new PacketAnnounce(true, null));
+            jp.me1han.sam.network.ServerSessions.stopAll();
             sender.addChatMessage(new ChatComponentText("§a[SAM] All sound stopped"));
         } else {
             sender.addChatMessage(new ChatComponentText("§c使用法: " + getCommandUsage(sender)));

@@ -15,7 +15,7 @@ public final class DepartureSwitchLink {
         String key = getKey(source);
         if (key.isEmpty() || source.getWorldObj() == null) return null;
         TileEntityDepartureMelody result = null;
-        for (Object obj : source.getWorldObj().loadedTileEntityList) {
+        for (Object obj : LoadedSamTiles.all(source.getWorldObj())) {
             if (obj instanceof TileEntityDepartureMelody && !((TileEntity) obj).isInvalid()) {
                 TileEntityDepartureMelody device = (TileEntityDepartureMelody) obj;
                 if (key.equals(TileEntityDepartureMelody.normalize(device.linkKey))) {

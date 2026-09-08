@@ -14,28 +14,6 @@ import net.minecraft.world.World;
 public class NetworkHandler {
     public static final SimpleNetworkWrapper INSTANCE = NetworkRegistry.INSTANCE.newSimpleChannel("SAM_CHANNEL");
 
-    private static String normalizeKey(String key) {
-        return key == null ? "" : key.trim();
-    }
-
-    public static boolean hasDebugReceiverWithKey(World world, String linkKey) {
-        if (world == null || world.isRemote) return false;
-
-        String normalizedKey = normalizeKey(linkKey);
-        if (normalizedKey.isEmpty()) return false;
-
-        for (Object obj : world.loadedTileEntityList) {
-            if (obj instanceof TileEntityDebugReceiver) {
-                TileEntityDebugReceiver receiver = (TileEntityDebugReceiver) obj;
-                String receiverKey = normalizeKey(receiver.linkKey);
-                if (!receiverKey.isEmpty() && receiverKey.equals(normalizedKey)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     public static void init() {
         // 音声再生処理のサーバー -> クライアント
         INSTANCE.registerMessage(AnnounceHandler.class, PacketAnnounce.class, 0, Side.CLIENT);
@@ -48,18 +26,16 @@ public class NetworkHandler {
         INSTANCE.registerMessage(StartAnnouncerConfigHandler.class, PacketStartAnnouncerConfig.class, 4, Side.SERVER);
         INSTANCE.registerMessage(StopAnnouncerConfigHandler.class, PacketStopAnnouncerConfig.class, 5, Side.SERVER);
         INSTANCE.registerMessage(SpeakerConfigHandler.class, PacketSpeakerConfig.class, 6, Side.SERVER);
-        INSTANCE.registerMessage(DebugAnnounceEventHandler.class, PacketDebugAnnounceEvent.class, 7, Side.SERVER);
+        // Discriminator 7 retired (unused debug events).
         INSTANCE.registerMessage(AwarenessConfigHandler.class, PacketAwarenessConfig.class, 8, Side.SERVER);
         INSTANCE.registerMessage(DepartureMelodyConfigHandler.class, PacketDepartureMelodyConfig.class, 9, Side.SERVER);
         INSTANCE.registerMessage(DepartureControlHandler.class, PacketDepartureControl.class, 10, Side.CLIENT);
         INSTANCE.registerMessage(PacketDepartureSwitchConfig.Handler.class, PacketDepartureSwitchConfig.class, 11, Side.SERVER);
-    }
-
-    /**
-     * Debug message to players if DebugReceiver with matching linkKey exists
-     */
-    public static void sendDebugMessage(World world, String linkKey, String message) {
-        // DebugReceiver is now dedicated to dataMap content output only.
+        INSTANCE.registerMessage(StopHandler.class, PacketAnnounceStop.class, 12, Side.CLIENT);
+        INSTANCE.registerMessage(DepartureStartHandler.class, PacketDepartureStart.class, 13, Side.CLIENT);
+        INSTANCE.registerMessage(FinishedHandler.class, PacketSessionFinished.class, 14, Side.SERVER);
+        INSTANCE.registerMessage(MissingSpeakersHandler.class, PacketMissingSpeakers.class, 15, Side.SERVER);
+        INSTANCE.registerMessage(SpeakerFallbackHandler.class, PacketSpeakerFallback.class, 16, Side.CLIENT);
     }
 
     // --- クライアント側受信 ---
@@ -78,122 +54,96 @@ public class NetworkHandler {
         }
     }
 
-    // --- サーバー側受信 ---
-    public static class TrainTypeConfigHandler implements IMessageHandler<PacketTrainTypeConfig, IMessage> {
-        @Override
-        public IMessage onMessage(PacketTrainTypeConfig message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
 
-            if (te instanceof TileEntityTrainTypeSelector) {
-                TileEntityTrainTypeSelector selector = (TileEntityTrainTypeSelector) te;
-                selector.conditions = message.conditions;
-                selector.linkKey = message.linkKey;
-                selector.isControlCar = message.isControlCar;
-                selector.markDirty();
-                world.markBlockForUpdate(message.x, message.y, message.z);
-            }
-            return null;
+    public static class StopHandler implements IMessageHandler<PacketAnnounceStop, IMessage> {
+        @Override public IMessage onMessage(PacketAnnounceStop message, MessageContext ctx) {
+            jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message); return null;
         }
     }
-
-    public static class StartAnnouncerConfigHandler implements IMessageHandler<PacketStartAnnouncerConfig, IMessage> {
-        @Override
-        public IMessage onMessage(PacketStartAnnouncerConfig message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-
-            if (te instanceof TileEntityStartAnnouncer) {
-                TileEntityStartAnnouncer announcer = (TileEntityStartAnnouncer) te;
-                announcer.linkKey = message.linkKey;
-                announcer.isControlCar = message.isControlCar;
-                announcer.markDirty();
-                world.markBlockForUpdate(message.x, message.y, message.z);
-            }
-            return null;
+    public static class DepartureStartHandler implements IMessageHandler<PacketDepartureStart, IMessage> {
+        @Override public IMessage onMessage(PacketDepartureStart message, MessageContext ctx) {
+            jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message); return null;
         }
     }
-
-    public static class StopAnnouncerConfigHandler implements IMessageHandler<PacketStopAnnouncerConfig, IMessage> {
-        @Override
-        public IMessage onMessage(PacketStopAnnouncerConfig message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            NetworkHandler.sendDebugMessage(world, message.linkKey, "[SAM-DEBUG] StopAnnouncer Config Received! linkKey=" + message.linkKey);
-
-            if (te instanceof TileEntityStopAnnouncer) {
-                TileEntityStopAnnouncer announcer = (TileEntityStopAnnouncer) te;
-                announcer.linkKey = message.linkKey;
-                announcer.isControlCar = message.isControlCar;
-                announcer.markDirty();
-                world.markBlockForUpdate(message.x, message.y, message.z);
-            }
-            return null;
-        }
-    }
-
-    public static class SpeakerConfigHandler implements IMessageHandler<PacketSpeakerConfig, IMessage> {
-        @Override
-        public IMessage onMessage(PacketSpeakerConfig message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            String normalizedKey = normalizeKey(message.linkKey);
-            NetworkHandler.sendDebugMessage(world, normalizedKey, "[SAM-DEBUG] Speaker Config Received! pos=" + message.x + "," + message.y + "," + message.z + " linkKey=" + normalizedKey + " range=" + message.range + " volume=" + message.volume);
-
-            SpeakerRegistry.upsert(world.provider.dimensionId, message.x, message.y, message.z, normalizedKey, message.range, message.volume);
-
-            if (te instanceof TileEntitySpeaker) {
-                TileEntitySpeaker speaker = (TileEntitySpeaker) te;
-                speaker.linkKey = normalizedKey;
-                speaker.range = message.range;
-                speaker.volume = message.volume;
-                speaker.markDirty();
-                world.markBlockForUpdate(message.x, message.y, message.z);
-            }
-            return null;
-        }
-    }
-
-    public static class DebugAnnounceEventHandler implements IMessageHandler<PacketDebugAnnounceEvent, IMessage> {
-        @Override
-        public IMessage onMessage(PacketDebugAnnounceEvent message, MessageContext ctx) {
-            return null;
-        }
-    }
-
-    public static class AwarenessConfigHandler implements IMessageHandler<PacketAwarenessConfig, IMessage> {
-        @Override
-        public IMessage onMessage(PacketAwarenessConfig message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-            if (te instanceof TileEntityAwarenessAnnouncer) {
-                TileEntityAwarenessAnnouncer awareness = (TileEntityAwarenessAnnouncer) te;
-                awareness.applyConfig(message.linkKey, message.soundList, message.intervalTicks,
-                    message.randomOrder, message.allowOverlap, message.playAfterDeparture,
-                    message.departureDelayTicks);
-                awareness.markDirty();
-                world.markBlockForUpdate(message.x, message.y, message.z);
-            }
-            return null;
-        }
-    }
-
-    public static class DepartureMelodyConfigHandler implements IMessageHandler<PacketDepartureMelodyConfig, IMessage> {
-        @Override
-        public IMessage onMessage(PacketDepartureMelodyConfig message, MessageContext ctx) {
+    public static class FinishedHandler implements IMessageHandler<PacketSessionFinished, IMessage> {
+        @Override public IMessage onMessage(PacketSessionFinished message, MessageContext ctx) {
             final net.minecraft.entity.player.EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-            jp.me1han.sam.DepartureEvents.INSTANCE.enqueue(() -> {
-                World world = player.worldObj;
-                if (player.isDead || message.linkKey.length() > 64 || message.scriptName.length() > 256
-                    || message.soundId.length() > 256 || !world.blockExists(message.x, message.y, message.z)) return;
-                TileEntity te = world.getTileEntity(message.x, message.y, message.z);
-                if (te instanceof TileEntityDepartureMelody
-                    && new jp.me1han.sam.container.ContainerDepartureMelody((TileEntityDepartureMelody) te).canInteractWith(player)
-                    && player.canPlayerEdit(message.x, message.y, message.z, 1, player.getHeldItem())) {
-                    ((TileEntityDepartureMelody) te).applyConfig(message.linkKey, message.soundId, message.scriptName);
-                }
-            });
+            ServerTaskQueue.INSTANCE.enqueue(() -> ServerSessions.finished(player, message.sessionId));
             return null;
+        }
+    }
+    public static class MissingSpeakersHandler implements IMessageHandler<PacketMissingSpeakers, IMessage> {
+        @Override public IMessage onMessage(PacketMissingSpeakers message, MessageContext ctx) {
+            final net.minecraft.entity.player.EntityPlayerMP player = ctx.getServerHandler().playerEntity;
+            ServerTaskQueue.INSTANCE.enqueue(() -> ServerSessions.missing(player, message));
+            return null;
+        }
+    }
+    public static class SpeakerFallbackHandler implements IMessageHandler<PacketSpeakerFallback, IMessage> {
+        @Override public IMessage onMessage(PacketSpeakerFallback message, MessageContext ctx) {
+            jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message); return null;
+        }
+    }
+    public static class TrainTypeConfigHandler implements IMessageHandler<PacketTrainTypeConfig, IMessage> {
+        @Override public IMessage onMessage(PacketTrainTypeConfig m, MessageContext ctx) {
+            ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityTrainTypeSelector.class, tile -> {
+                if (!ConfigAccess.key(m.linkKey) || m.conditions == null || m.conditions.size() > PacketLimits.CONDITIONS) return;
+                for (jp.me1han.sam.api.TrainTypeCondition condition : m.conditions)
+                    if (condition == null || !PacketLimits.string(condition.key, PacketLimits.NAME) || condition.type < 0 || condition.type > 3) return;
+                ConfigAccess.change(tile, () -> {
+                    tile.conditions = new java.util.ArrayList<>(m.conditions);
+                    tile.linkKey = ConfigAccess.normalize(m.linkKey); tile.isControlCar = m.isControlCar;
+                });
+            }); return null;
+        }
+    }
+    public static class StartAnnouncerConfigHandler implements IMessageHandler<PacketStartAnnouncerConfig, IMessage> {
+        @Override public IMessage onMessage(PacketStartAnnouncerConfig m, MessageContext ctx) {
+            ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityStartAnnouncer.class, tile -> {
+                if (!ConfigAccess.key(m.linkKey)) return;
+                ConfigAccess.change(tile, () -> { tile.linkKey = ConfigAccess.normalize(m.linkKey); tile.isControlCar = m.isControlCar; });
+            }); return null;
+        }
+    }
+    public static class StopAnnouncerConfigHandler implements IMessageHandler<PacketStopAnnouncerConfig, IMessage> {
+        @Override public IMessage onMessage(PacketStopAnnouncerConfig m, MessageContext ctx) {
+            ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityStopAnnouncer.class, tile -> {
+                if (!ConfigAccess.key(m.linkKey)) return;
+                ConfigAccess.change(tile, () -> { tile.linkKey = ConfigAccess.normalize(m.linkKey); tile.isControlCar = m.isControlCar; });
+            }); return null;
+        }
+    }
+    public static class SpeakerConfigHandler implements IMessageHandler<PacketSpeakerConfig, IMessage> {
+        @Override public IMessage onMessage(PacketSpeakerConfig m, MessageContext ctx) {
+            ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntitySpeaker.class, tile -> {
+                if (!ConfigAccess.key(m.linkKey) || !PacketLimits.speaker(m.range, m.volume)) return;
+                tile.applyConfig(m.linkKey, m.range, m.volume);
+            }); return null;
+        }
+    }
+    public static class AwarenessConfigHandler implements IMessageHandler<PacketAwarenessConfig, IMessage> {
+        @Override public IMessage onMessage(PacketAwarenessConfig m, MessageContext ctx) {
+            ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityAwarenessAnnouncer.class, tile -> {
+                if (!ConfigAccess.key(m.linkKey) || !PacketLimits.sounds(m.soundList)
+                    || m.intervalTicks < 20 || m.intervalTicks > PacketLimits.MAX_TICKS
+                    || m.departureDelayTicks < 0 || m.departureDelayTicks > PacketLimits.MAX_TICKS) return;
+                String sounds = TileEntityAwarenessAnnouncer.normalizeSoundList(m.soundList);
+                if (ConfigAccess.normalize(m.linkKey).equals(tile.linkKey) && sounds.equals(tile.soundList)
+                    && m.intervalTicks == tile.intervalTicks && m.randomOrder == tile.randomOrder
+                    && m.allowOverlap == tile.allowOverlap && m.playAfterDeparture == tile.playAfterDeparture
+                    && m.departureDelayTicks == tile.departureDelayTicks) return;
+                ConfigAccess.change(tile, () -> tile.applyConfig(m.linkKey, sounds, m.intervalTicks,
+                    m.randomOrder, m.allowOverlap, m.playAfterDeparture, m.departureDelayTicks));
+            }); return null;
+        }
+    }
+    public static class DepartureMelodyConfigHandler implements IMessageHandler<PacketDepartureMelodyConfig, IMessage> {
+        @Override public IMessage onMessage(PacketDepartureMelodyConfig m, MessageContext ctx) {
+            ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityDepartureMelody.class, tile -> {
+                if (!ConfigAccess.key(m.linkKey) || !PacketLimits.string(m.scriptName, PacketLimits.NAME)
+                    || !PacketLimits.string(m.soundId, PacketLimits.NAME)) return;
+                tile.applyConfig(m.linkKey, m.soundId, m.scriptName);
+            }); return null;
         }
     }
 }

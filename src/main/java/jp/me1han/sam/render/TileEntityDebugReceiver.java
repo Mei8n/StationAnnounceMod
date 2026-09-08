@@ -8,7 +8,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentText;
 import java.util.Map;
 
-public class TileEntityDebugReceiver extends TileEntity {
+public class TileEntityDebugReceiver extends RegisteredTileEntity {
     public String linkKey = "";
     private long lastReadTime = 0;
     private boolean lastPowered = false;
@@ -28,7 +28,7 @@ public class TileEntityDebugReceiver extends TileEntity {
 
     private void scanForUpdates() {
         String normalizedKey = this.linkKey.trim();
-        for (Object obj : this.worldObj.loadedTileEntityList) {
+        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
                 if (announcer.linkKey != null && normalizedKey.equals(announcer.linkKey.trim())) {
@@ -62,7 +62,7 @@ public class TileEntityDebugReceiver extends TileEntity {
     private void forcePrintData() {
         String normalizedKey = this.linkKey == null ? "" : this.linkKey.trim();
         if (normalizedKey.isEmpty()) return;
-        for (Object obj : this.worldObj.loadedTileEntityList) {
+        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
             if (obj instanceof TileEntityAnnouncer) {
                 TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
                 if (announcer.linkKey != null && normalizedKey.equals(announcer.linkKey.trim())) {

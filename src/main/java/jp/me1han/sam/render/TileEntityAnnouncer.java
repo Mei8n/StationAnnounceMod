@@ -13,13 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
 
-public class TileEntityAnnouncer extends TileEntity {
-    private static class SpeakerCollectResult {
-        final List<PacketAnnounce.SpeakerData> speakers = new ArrayList<PacketAnnounce.SpeakerData>();
-        int totalSpeakers = 0;
-        String sampleKeys = "";
-    }
-
+public class TileEntityAnnouncer extends RegisteredTileEntity {
     private boolean lastPowered = false;
     private String scriptName = "";
     public String linkKey = "";
@@ -29,14 +23,6 @@ public class TileEntityAnnouncer extends TileEntity {
     public Map<String, String> receivedData = new HashMap<String, String>();
     public long lastDataReceivedTime = 0;
 
-    @Override
-    public void updateEntity() {
-        // TileEntityがloadedTileEntityListに登録されるために必須
-        // サーバー側でのみ実行
-        if (this.worldObj != null && !this.worldObj.isRemote) {
-            // 特に処理は不要
-        }
-    }
 
     public void onRedstoneUpdate(boolean powered) {
         if (this.worldObj.isRemote) return;
@@ -49,6 +35,7 @@ public class TileEntityAnnouncer extends TileEntity {
     }
 
     public void startAnnounce() {
+        if (worldObj == null || worldObj.isRemote) return;
         if (scriptName == null || scriptName.isEmpty()) return;
 
         AnnounceData data = AnnouncePackLoader.runScript(scriptName, this);
@@ -57,16 +44,7 @@ public class TileEntityAnnouncer extends TileEntity {
         this.lastDataReceivedTime = System.currentTimeMillis();
         this.markDirty();
 
-        if (data != null) {
-            SpeakerCollectResult scanResult = collectSpeakersByKey(this.linkKey);
-            // Speaker playback is resolved client-side near loaded speakers,
-            // so the trigger packet must reach all clients in this dimension.
-            NetworkHandler.INSTANCE.sendToDimension(
-                new PacketAnnounce(data, this.linkKey, this.playLocalSound, this.xCoord, this.yCoord, this.zCoord,
-                    scanResult.speakers, scanResult.totalSpeakers, scanResult.sampleKeys),
-                this.worldObj.provider.dimensionId
-            );
-        }
+        if (data != null) sendStart(new PacketAnnounce(data, linkKey, playLocalSound, xCoord, yCoord, zCoord));
     }
 
     public void startDirectSound(String soundId, int priority, boolean allowOverlap) {
@@ -75,13 +53,10 @@ public class TileEntityAnnouncer extends TileEntity {
         }
 
         String normalizedSound = soundId.trim();
-        SpeakerCollectResult scanResult = collectSpeakersByKey(this.linkKey);
         AnnounceData data = new AnnounceData("", Collections.singletonList(normalizedSound), "");
-        NetworkHandler.INSTANCE.sendToDimension(
-            new PacketAnnounce(data, this.linkKey, this.playLocalSound, this.xCoord, this.yCoord, this.zCoord,
-                scanResult.speakers, scanResult.totalSpeakers, scanResult.sampleKeys, priority, allowOverlap),
-            this.worldObj.provider.dimensionId
-        );
+        PacketAnnounce packet = new PacketAnnounce(data, linkKey, playLocalSound, xCoord, yCoord, zCoord);
+        packet.priority = priority; packet.allowOverlap = allowOverlap;
+        sendStart(packet);
     }
 
     public void notifyDepartureMelodyFinished() {
@@ -90,7 +65,7 @@ public class TileEntityAnnouncer extends TileEntity {
         }
 
         String normalizedKey = this.linkKey.trim();
-        for (Object obj : this.worldObj.loadedTileEntityList) {
+        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
             if (obj instanceof TileEntityAwarenessAnnouncer) {
                 TileEntityAwarenessAnnouncer awareness = (TileEntityAwarenessAnnouncer) obj;
                 if (normalizedKey.equals(awareness.getNormalizedLinkKey())) {
@@ -100,103 +75,35 @@ public class TileEntityAnnouncer extends TileEntity {
         }
     }
 
+    private long departureSessionId;
+    public long getDepartureSessionId() { return departureSessionId; }
     public void startDeparture(jp.me1han.sam.api.DepartureProgram program) {
-        if (this.worldObj == null || this.worldObj.isRemote) return;
-        SpeakerCollectResult scan = collectSpeakersByKey(this.linkKey);
-        PacketAnnounce packet = new PacketAnnounce(new AnnounceData("", Collections.<String>emptyList(), ""),
-            this.linkKey, this.playLocalSound, this.xCoord, this.yCoord, this.zCoord,
-            scan.speakers, scan.totalSpeakers, scan.sampleKeys, PacketAnnounce.PRIORITY_DEPARTURE_MELODY, false);
+        if (worldObj == null || worldObj.isRemote) return;
+        jp.me1han.sam.network.PacketDepartureStart packet = new jp.me1han.sam.network.PacketDepartureStart();
+        packet.linkKey = SpeakerRegistry.normalize(linkKey);
+        packet.playLocalSound = playLocalSound;
+        packet.x = xCoord; packet.y = yCoord; packet.z = zCoord;
         packet.departure = program;
-        NetworkHandler.INSTANCE.sendToDimension(packet, this.worldObj.provider.dimensionId);
+        departureSessionId = sendStart(packet);
     }
 
-    private SpeakerCollectResult collectSpeakersByKey(String key) {
-        SpeakerCollectResult result = new SpeakerCollectResult();
-        if (this.worldObj == null || this.worldObj.isRemote) {
-            return result;
-        }
-
-        String normalizedKey = key == null ? "" : key.trim();
-        if (normalizedKey.isEmpty()) {
-            return result;
-        }
-
-        int loadedSpeakerCount = 0;
-        StringBuilder sampleKeys = new StringBuilder();
-
-        List<PacketAnnounce.SpeakerData> registered = SpeakerRegistry.findByKey(this.worldObj.provider.dimensionId, normalizedKey);
-        for (PacketAnnounce.SpeakerData speaker : registered) {
-            if (speaker == null) {
-                continue;
-            }
-            result.speakers.add(speaker);
-        }
-        result.totalSpeakers = SpeakerRegistry.countByDimension(this.worldObj.provider.dimensionId);
-        String registeredSample = SpeakerRegistry.sampleKeys(this.worldObj.provider.dimensionId, 8);
-        if (!registeredSample.isEmpty()) {
-            sampleKeys.append(registeredSample);
-        }
-
-        for (Object obj : this.worldObj.loadedTileEntityList) {
-            if (!(obj instanceof TileEntitySpeaker)) {
-                continue;
-            }
-
-            TileEntitySpeaker speaker = (TileEntitySpeaker) obj;
-            loadedSpeakerCount++;
-            String speakerKey = speaker.linkKey == null ? "" : speaker.linkKey.trim();
-            if (!speakerKey.isEmpty() && sampleKeys.length() < 64) {
-                if (sampleKeys.length() > 0) {
-                    sampleKeys.append(",");
-                }
-                sampleKeys.append(speakerKey);
-            }
-            if (!speakerKey.isEmpty() && normalizedKey.equals(speakerKey) && !containsSpeaker(result.speakers, speaker.xCoord, speaker.yCoord, speaker.zCoord)) {
-                result.speakers.add(new PacketAnnounce.SpeakerData(
-                    speaker.xCoord,
-                    speaker.yCoord,
-                    speaker.zCoord,
-                    speaker.range,
-                    speaker.volume
-                ));
-            }
-        }
-
-        if (loadedSpeakerCount > result.totalSpeakers) {
-            result.totalSpeakers = loadedSpeakerCount;
-        }
-
-        result.sampleKeys = sampleKeys.toString();
-
-        NetworkHandler.sendDebugMessage(
-            this.worldObj,
-            normalizedKey,
-            "[SAM-SPEAKER] SERVER_SCAN key=" + normalizedKey
-                + " loadedTE=" + this.worldObj.loadedTileEntityList.size()
-                + " speakers=" + result.totalSpeakers
-                + " matched=" + result.speakers.size()
-                + " sampleKeys=" + (sampleKeys.length() == 0 ? "none" : sampleKeys.toString())
-        );
-
-        return result;
+    private long sendStart(PacketAnnounce packet) {
+        return jp.me1han.sam.network.ServerSessions.start(this, packet);
     }
 
-    private boolean containsSpeaker(List<PacketAnnounce.SpeakerData> speakers, int x, int y, int z) {
-        for (PacketAnnounce.SpeakerData speaker : speakers) {
-            if (speaker != null && speaker.x == x && speaker.y == y && speaker.z == z) {
-                return true;
-            }
-        }
-        return false;
+    @Override public void invalidate() {
+        jp.me1han.sam.network.ServerSessions.stopOwner(this);
+        super.invalidate();
+    }
+    @Override public void onChunkUnload() {
+        jp.me1han.sam.network.ServerSessions.stopOwner(this);
+        super.onChunkUnload();
     }
 
     public void forceStop() {
         if (this.worldObj.isRemote) return;
         TileEntityDepartureMelody.cancelLinked(this.worldObj, this.linkKey);
-        NetworkHandler.INSTANCE.sendToDimension(
-            new PacketAnnounce(true, this.linkKey),
-            this.worldObj.provider.dimensionId
-        );
+        jp.me1han.sam.network.ServerSessions.stopKey(worldObj, linkKey);
     }
 
     public void onDataReceived(Map<String, String> data, String sourcePos) {
