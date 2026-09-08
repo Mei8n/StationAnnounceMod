@@ -41,7 +41,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityTrainTypeSelector.class, "network-test-selector");
         mapping.invoke(null, TileEntityDebugReceiver.class, "network-test-debug");
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
-        lifecycle(); wireBounds(); delivery(); config(); client(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); wireBounds(); delivery(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -124,7 +124,10 @@ public final class NetworkVerificationTest {
     private static PacketDepartureStart departure(long id) {
         PacketDepartureStart packet = new PacketDepartureStart(); packet.linkKey = "A"; packet.sessionId = id;
         Map<String, Integer> lengths = new HashMap<>(); lengths.put("test:m", 20); lengths.put("test:d", 5);
-        packet.departure = new DepartureProgram(true).melody("test:m").doorClose("test:d").resolve(lengths);
+        packet.departure = new DepartureProgram(true);
+        packet.departure.melody = "test:m";
+        packet.departure.doorCloseSounds.add("test:d");
+        packet.departure = packet.departure.resolve(lengths);
         return packet;
     }
     private static void delivery() throws Exception {
@@ -136,11 +139,15 @@ public final class NetworkVerificationTest {
         for (int i = 0; i < 3; i++) nearby.add(player(world, i, 0, 0));
         for (int i = 0; i < 10; i++) player(world, 10000+i, 0, 0);
         RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
-        long id = ServerSessions.start(owner, start(0));
+        PacketAnnounce routed = start(0); routed.repeatCount = 2;
+        long id = ServerSessions.start(owner, routed);
         check(out.messages.size() == 3, "Ten speakers/three near/ten far: exactly three STARTs");
         Set<EntityPlayerMP> unique = new HashSet<>(out.players);
         check(unique.size() == 3 && unique.containsAll(nearby), "Overlapping recipients deduplicated");
-        for (IMessage packet : out.messages) check(((PacketAnnounce)packet).targets.length == 10, "Only compact target IDs in START");
+        for (IMessage packet : out.messages) {
+            check(((PacketAnnounce)packet).targets.length == 10, "Only compact target IDs in START");
+            check(((PacketAnnounce)packet).repeatCount == 2, "Per-recipient START copy preserves repeat count");
+        }
         out.clear();
         PacketMissingSpeakers missing = new PacketMissingSpeakers(id, new long[] {SpeakerRegistry.position(0, 0, 0), SpeakerRegistry.position(999, 0, 0)});
         ServerSessions.missing(nearby.get(0), missing);
@@ -315,6 +322,49 @@ public final class NetworkVerificationTest {
         check(client.missing.size() == requests+1 && client.live.isEmpty(), "Fallback neither polls server nor leaves late sounds playing");
     }
 
+    private static void ordinaryRepeats() {
+        for (String sound : new String[]{"test:start", "test:one", "test:two", "test:arr"})
+            AnnouncePackLoader.soundTicks.put(sound, 1);
+        FixtureWorld world = new FixtureWorld(); world.isRemote = true;
+
+        TestClient repeated = playOrdinary(world,
+            new AnnounceData("test:start", Arrays.asList("test:one", "test:two"), "test:arr", 2), 700, 13);
+        check(soundNames(repeated).subList(0, 7).equals(Arrays.asList("test:start", "test:one", "test:two",
+            "test:start", "test:one", "test:two", "test:arr")),
+            "Repeat two plays start and ordered body twice before arrMelo");
+
+        TestClient noStart = playOrdinary(world,
+            new AnnounceData(null, Arrays.asList("test:one", "test:two"), "test:arr", 2), 701, 9);
+        check(soundNames(noStart).subList(0, 5).equals(Arrays.asList(
+            "test:one", "test:two", "test:one", "test:two", "test:arr")),
+            "Repeat works without startMelo");
+
+        TestClient noArr = playOrdinary(world,
+            new AnnounceData("test:start", Arrays.asList("test:one", "test:two"), null, 2), 702, 13);
+        check(soundNames(noArr).equals(Arrays.asList("test:start", "test:one", "test:two",
+            "test:start", "test:one", "test:two")) && noArr.ended.contains(702L),
+            "No arrMelo completes once after all repeats");
+
+        TestClient emptyBody = playOrdinary(world,
+            new AnnounceData("test:start", Collections.<String>emptyList(), "test:arr", 2), 703, 5);
+        check(soundNames(emptyBody).subList(0, 3).equals(Arrays.asList("test:start", "test:start", "test:arr")),
+            "Empty body repeats startMelo before arrMelo");
+    }
+
+    private static TestClient playOrdinary(FixtureWorld world, AnnounceData data, long id, int ticks) {
+        TestClient client = new TestClient(); client.world = world;
+        PacketAnnounce packet = new PacketAnnounce(data, "A", true, 0, 0, 0); packet.sessionId = id;
+        client.receive(packet);
+        for (int i = 0; i < ticks; i++) client.tick();
+        return client;
+    }
+
+    private static List<String> soundNames(TestClient client) {
+        List<String> result = new ArrayList<>();
+        for (ISound sound : client.played) result.add(sound.getPositionedSoundLocation().toString());
+        return result;
+    }
+
     private static int sessions() throws Exception {
         Field field = ServerSessions.class.getDeclaredField("SESSIONS"); field.setAccessible(true);
         return ((Map<?, ?>)field.get(null)).size();
@@ -336,14 +386,31 @@ public final class NetworkVerificationTest {
             expectInvalid(() -> new PacketSpeakerFallback().fromBytes(buf));
             PacketAnnounce bounded = start(1); bounded.targets = new long[PacketLimits.SESSION_TARGETS];
             bounded.bodySounds = Collections.nCopies(PacketLimits.BODY_SOUNDS, "test:body");
+            bounded.repeatCount = PacketLimits.MAX_ANNOUNCE_REPEATS;
             buf.clear(); bounded.toBytes(buf); PacketAnnounce decoded = new PacketAnnounce(); decoded.fromBytes(buf);
-            check(decoded.targets.length == PacketLimits.SESSION_TARGETS && decoded.bodySounds.size() == PacketLimits.BODY_SOUNDS, "START boundary round trip");
+            check(decoded.targets.length == PacketLimits.SESSION_TARGETS && decoded.bodySounds.size() == PacketLimits.BODY_SOUNDS
+                && decoded.repeatCount == PacketLimits.MAX_ANNOUNCE_REPEATS, "START boundary round trip");
             // Forge header has a variable-length linkKey; use readHeader to find the body count.
             buf.clear(); bounded.writeHeader(buf);
             cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
             cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
             buf.writeInt(PacketLimits.BODY_SOUNDS+1);
             expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
+            for (int repeat : new int[]{0, -1, PacketLimits.MAX_ANNOUNCE_REPEATS + 1}) {
+                buf.clear(); bounded.writeHeader(buf);
+                cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+                cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+                buf.writeInt(0).writeInt(repeat);
+                expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
+            }
+            buf.clear(); bounded.writeHeader(buf);
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+            buf.writeInt(0);
+            PacketAnnounce legacyDecoded = new PacketAnnounce(); legacyDecoded.fromBytes(buf);
+            check(legacyDecoded.repeatCount == 1, "Legacy START payload defaults repeat count to one");
+            buf.writeByte(1);
+            expectInvalid(() -> new PacketAnnounce().fromBytes(buf.readerIndex(0)));
             buf.clear(); bounded.targets = new long[0]; bounded.writeHeader(buf);
             buf.setInt(buf.writerIndex()-4, PacketLimits.SESSION_TARGETS+1);
             expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
@@ -416,6 +483,9 @@ public final class NetworkVerificationTest {
         PacketAnnounce tooMany = start(0); tooMany.bodySounds = Collections.nCopies(PacketLimits.BODY_SOUNDS+1, "test:body");
         int count = sessions(); out.clear();
         check(ServerSessions.start(owner, tooMany) == 0 && out.messages.isEmpty() && sessions() == count, "Oversized script sequence rejected before session allocation");
+        PacketAnnounce invalidRepeat = start(0); invalidRepeat.repeatCount = 0;
+        check(ServerSessions.start(owner, invalidRepeat) == 0 && sessions() == count,
+            "Invalid direct repeat count is rejected before session allocation");
         ServerSessions.clear(); SpeakerRegistry.clear(world); LoadedSamTiles.clear(world);
     }
 

@@ -1,0 +1,26 @@
+{
+
+	"name": "MhnDepSw1-1",
+
+	"model": {
+
+		"modelFile": "ModelMachine_MhnDepSw1-1.mqo",
+
+		"textures": [["mat1", "textures/machine/MhnDepSw.png"]],
+
+		"rendererPath": "scripts/RenderPoint_MhnDepSw.js"
+	},
+
+	"buttonTexture": "textures/machine/button_MhnDepSw.png",
+
+	"machineType": "Point",
+
+	"sound_OnActivate": "sound_mhntelephone:MhnSwitch",
+
+	"smoothing": true,
+
+	"doCulling": true,
+
+	"accuracy": "MEDIUM"
+
+}

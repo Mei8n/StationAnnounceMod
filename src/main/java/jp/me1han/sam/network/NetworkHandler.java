@@ -36,6 +36,7 @@ public class NetworkHandler {
         INSTANCE.registerMessage(FinishedHandler.class, PacketSessionFinished.class, 14, Side.SERVER);
         INSTANCE.registerMessage(MissingSpeakersHandler.class, PacketMissingSpeakers.class, 15, Side.SERVER);
         INSTANCE.registerMessage(SpeakerFallbackHandler.class, PacketSpeakerFallback.class, 16, Side.CLIENT);
+        INSTANCE.registerMessage(PacketDepartureSwitchItemConfig.Handler.class, PacketDepartureSwitchItemConfig.class, 17, Side.SERVER);
     }
 
     // --- クライアント側受信 ---

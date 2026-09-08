@@ -15,7 +15,9 @@ public final class DepartureSequence {
     private Phase phase = Phase.MELODY;
     private int melodyRemaining;
     private int closingRemaining;
+    private int closingIndex;
     private boolean melodyPlaying = true;
+    private boolean closingPlaying;
     private boolean closingDone;
     private boolean on;
 
@@ -56,8 +58,10 @@ public final class DepartureSequence {
         if (advanceClosing && !closingDone && --closingRemaining <= 0) {
             if (phase == Phase.INTERVAL) beginDoorClose();
             else if (phase == Phase.DOOR_CLOSE) {
-                output.stop(Channel.DOOR_CLOSE);
-                closingDone = true;
+                if (closingPlaying) output.stop(Channel.DOOR_CLOSE);
+                closingPlaying = false;
+                closingIndex++;
+                beginDoorClose();
             }
         }
         finishIfDone();
@@ -77,10 +81,12 @@ public final class DepartureSequence {
 
     private void beginDoorClose() {
         phase = Phase.DOOR_CLOSE;
-        if (program.doorClose.isEmpty()) closingDone = true;
+        if (closingIndex >= program.doorCloseSounds.size()) closingDone = true;
         else {
-            closingRemaining = program.doorCloseTicks;
-            output.play(Channel.DOOR_CLOSE, program.doorClose);
+            closingRemaining = program.doorCloseDurations.get(closingIndex);
+            String sound = program.doorCloseSounds.get(closingIndex);
+            closingPlaying = !sound.isEmpty();
+            if (closingPlaying) output.play(Channel.DOOR_CLOSE, sound);
         }
     }
 
@@ -96,7 +102,7 @@ public final class DepartureSequence {
         if (isFinished()) return;
         on = false;
         stopMelody();
-        if (phase == Phase.DOOR_CLOSE && !closingDone) output.stop(Channel.DOOR_CLOSE);
+        if (phase == Phase.DOOR_CLOSE && closingPlaying) output.stop(Channel.DOOR_CLOSE);
         phase = Phase.FINISHED;
     }
 }

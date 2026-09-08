@@ -7,14 +7,14 @@ public final class DepartureProgram {
     public boolean alternate;
     public boolean finishChorus;
     public String melody = "";
-    public String doorClose = "";
+    public final java.util.List<String> doorCloseSounds = new java.util.ArrayList<>();
+    public final java.util.List<Integer> doorCloseIntervalTicks = new java.util.ArrayList<>();
+    public final java.util.List<Integer> doorCloseDurations = new java.util.ArrayList<>();
     public int melodyTicks;
     public int doorCloseTicks;
     public int intervalTicks;
 
     public DepartureProgram(boolean alternate) { this.alternate = alternate; }
-    public DepartureProgram melody(String id) { melody = clean(id); melodyTicks = 0; return this; }
-    public DepartureProgram doorClose(String id) { doorClose = clean(id); doorCloseTicks = 0; return this; }
     public DepartureProgram interval(double seconds) {
         ticks(seconds, true); // Validate before truncating, including negative fractions.
         java.math.BigDecimal hundredths = java.math.BigDecimal.valueOf(seconds)
@@ -29,10 +29,20 @@ public final class DepartureProgram {
         DepartureProgram copy = new DepartureProgram(alternate);
         copy.finishChorus = finishChorus;
         copy.melody = clean(melody);
-        copy.doorClose = clean(doorClose);
         if (copy.melody.isEmpty()) throw new IllegalArgumentException("A departure melody is required");
         copy.melodyTicks = duration(copy.melody, lengths);
-        copy.doorCloseTicks = copy.doorClose.isEmpty() ? 0 : duration(copy.doorClose, lengths);
+        copy.doorCloseSounds.addAll(doorCloseSounds);
+        copy.doorCloseIntervalTicks.addAll(doorCloseIntervalTicks);
+        if (copy.doorCloseSounds.size() > 256) throw new IllegalArgumentException("Too many door-close sounds (maximum 256)");
+        for (int i = 0; i < copy.doorCloseSounds.size(); i++) {
+            String sound = copy.doorCloseSounds.get(i);
+            int interval = i < doorCloseIntervalTicks.size() ? doorCloseIntervalTicks.get(i) : 0;
+            if (sound.isEmpty() && interval == 0 && i < doorCloseDurations.size()) interval = doorCloseDurations.get(i);
+            int length = interval > 0 ? interval : duration(sound, lengths);
+            if (interval > 72000) throw new IllegalArgumentException("Invalid door-close interval");
+            copy.doorCloseDurations.add(length);
+            copy.doorCloseTicks += length;
+        }
         if (intervalTicks < 0 || intervalTicks > 72000) throw new IllegalArgumentException("Invalid interval");
         copy.intervalTicks = intervalTicks;
         return copy;

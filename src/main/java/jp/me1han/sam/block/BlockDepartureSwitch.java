@@ -15,22 +15,17 @@ public class BlockDepartureSwitch extends Block implements ITileEntityProvider {
     public BlockDepartureSwitch() {
         super(Material.iron);
         setBlockName("sam.departure_switch");
-        setBlockTextureName("minecraft:iron_block");
+        setBlockTextureName("stationannouncemod:departure_switch");
         setCreativeTab(StationAnnounceModCore.tabSAM);
         setHardness(1.0F);
-        setBlockBounds(0.25F, 0, 0.25F, 0.75F, 0.25F, 0.75F);
+        setBlockBounds(0, 0, 0, 1, 1, 1);
     }
     @Override public boolean isOpaqueCube() { return false; }
     @Override public boolean renderAsNormalBlock() { return false; }
     @Override public int getRenderType() { return -1; }
     @Override public void setBlockBoundsBasedOnState(IBlockAccess world, int x, int y, int z) {
-        TileEntity tile = world.getTileEntity(x, y, z);
-        jp.me1han.sam.switchmodel.SwitchModelDefinition model = tile instanceof TileEntityDepartureSwitch
-            ? jp.me1han.sam.switchmodel.SwitchModelRegistry.getOrDefault(((TileEntityDepartureSwitch) tile).modelName) : null;
-        if (model == null) { setBlockBounds(0.25F, 0, 0.25F, 0.75F, 0.3F, 0.75F); return; }
-        double[] b = jp.me1han.sam.switchmodel.SwitchYaw.rotateBounds(model.bounds,
-            ((TileEntityDepartureSwitch) tile).getRotationYaw());
-        setBlockBounds((float) b[0], (float) b[1], (float) b[2], (float) b[3], (float) b[4], (float) b[5]);
+        // Keep interaction/collision at the placed block, like RTM's machine base.
+        setBlockBounds(0, 0, 0, 1, 1, 1);
     }
     @Override public void onBlockPlacedBy(World world, int x, int y, int z, net.minecraft.entity.EntityLivingBase placer, net.minecraft.item.ItemStack stack) {
         if (world.isRemote) return;

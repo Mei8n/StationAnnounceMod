@@ -6,6 +6,7 @@ import java.nio.file.*;
 import java.util.*;
 import javax.script.*;
 import jp.me1han.sam.api.DepartureProgram;
+import jp.me1han.sam.network.PacketDepartureSwitchItemConfig;
 import jp.me1han.sam.render.*;
 import jp.me1han.sam.switchmodel.*;
 import net.minecraft.entity.Entity;
@@ -24,26 +25,9 @@ public final class SwitchModelTest {
     }
     public static void main(String[] args) throws Exception {
         verifyYaw();
-        for (String name : new String[]{"push", "alternate"}) {
-            SwitchModelDefinition definition;
-            MqoMesh mesh;
-            try (Reader reader = resource(name + ".json")) { definition = SwitchModelDefinition.parse(reader, "stationannouncemod:switches/" + name + ".json"); }
-            try (Reader reader = resource(name + ".mqo")) { mesh = MqoMesh.read(reader); }
-            definition.validateParts(mesh.parts.keySet());
-            check(mesh.materials.size() == 3, "MQO material count");
-            check(definition.soundOn.equals("random.click") && definition.soundOff.equals("random.wood_click"), "JSON click sounds");
-            check(definition.visible("housing", false) && definition.visible("housing", true), "Common body is always visible");
-            if (name.equals("push")) {
-                check(definition.buttonTexture.isEmpty(), "Text-only default");
-                check(definition.offset("button", true)[1] == -2 && definition.offset("button", false)[1] == 0, "Instant press movement");
-            } else {
-                check(!definition.buttonTexture.isEmpty(), "Optional image");
-                check(definition.visible("button_on", true) && !definition.visible("button_on", false), "Pressed part visibility");
-                check(!definition.visible("button_off", true) && definition.visible("button_off", false), "Normal part visibility");
-            }
-            check(mesh.parts.get("housing").size() == 12, "Quad triangulation");
-            check(Math.abs(mesh.parts.get("housing").get(0).normal[2]) == 1, "Face normals");
-        }
+        verifyBundledModels();
+        verifySoundResources();
+        verifyItemModelSelection();
         String config = "{\"name\":\"sample\",\"model\":{\"modelFile\":\"sample.mqo\",\"offset\":[0,-132.60004,-32.25]},"
             + "\"pressedState\":{\"translations\":[{\"parts\":[\"On\"],\"offset\":[0,0,-1.1]}]}}";
         SwitchModelDefinition sample = SwitchModelDefinition.parse(new StringReader(config), "stationannouncemod:switches/test.json");
@@ -51,24 +35,11 @@ public final class SwitchModelTest {
         check(Math.abs(sample.modelOffset[1] + 132.60004) < 1e-9, "Whole-model origin correction");
         try { SwitchModelDefinition.resolveResource("stationannouncemod:switches/x.json", "../escape.mqo"); throw new AssertionError("Traversal accepted"); }
         catch (IllegalArgumentException expected) { checks++; }
-        // Read user-provided references directly; never copy or change them.
-        Path references = Paths.get("switch_sample");
-        if (Files.isDirectory(references)) {
-            try (java.util.stream.Stream<Path> files = Files.walk(references)) {
-                for (Path path : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".mqo"))::iterator) {
-                    byte[] before = Files.readAllBytes(path);
-                    MqoMesh mesh;
-                    try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) { mesh = MqoMesh.read(reader); }
-                    check(mesh.parts.size() == 2, "Reference part count: " + path);
-                    if (mesh.parts.containsKey("On")) sample.validateParts(mesh.parts.keySet());
-                    check(Arrays.equals(before, Files.readAllBytes(path)), "Reference unchanged");
-                }
-            }
-        }
         AnnouncePackLoader.soundTicks.put("test:m", 20);
         AnnouncePackLoader.soundTicks.put("test:d", 5);
         verifyBlockClick();
         verifySwitches();
+        verifyEventDrivenControlSources();
         verifyModeMatrix();
         verifyModeJson();
         verifyTachikawaCompletion();
@@ -77,79 +48,346 @@ public final class SwitchModelTest {
         System.out.println("Switch models and interactions: " + checks + " checks passed");
     }
 
+    private static void verifyBundledModels() throws Exception {
+        SwitchModelRegistry.reset();
+        SwitchModelDefinition alternate = SwitchModelRegistry.get("melodysw_alternate_sample");
+        SwitchModelDefinition momentary = SwitchModelRegistry.get("melodysw_momentary_sample");
+        check(alternate != null && alternate.switchMode == SwitchModelDefinition.SwitchMode.ALTERNATE,
+            "Bundled alternate switch mode");
+        check(momentary != null && momentary.switchMode == SwitchModelDefinition.SwitchMode.MOMENTARY,
+            "Bundled momentary switch mode");
+        check(SwitchModelRegistry.list().size() == 2, "Only the organized switch definitions are registered");
+        try (Reader reader = resource("melodysw_alternate_sample.mqo")) {
+            MqoMesh mesh = MqoMesh.read(reader);
+            alternate.validateParts(mesh.parts.keySet());
+            check(mesh.materials.size() == 1 && mesh.parts.containsKey("Main") && mesh.parts.containsKey("On"),
+                "Bundled alternate MQO");
+        }
+        try (Reader reader = resource("melodysw_momentary_sample.mqo")) {
+            MqoMesh mesh = MqoMesh.read(reader);
+            momentary.validateParts(mesh.parts.keySet());
+            check(mesh.materials.size() == 1 && mesh.parts.containsKey("obj1") && mesh.parts.containsKey("obj3"),
+                "Edited bundled momentary MQO");
+        }
+        check(alternate.soundOn.equals("stationannouncemod:melodysw_alternate_off")
+            && alternate.soundOff.equals("stationannouncemod:melodysw_alternate_off"), "RTM activation sound is used both ways");
+        check(alternate.offset("On", true)[2] == -1.1, "RTM Point movement is preserved");
+        check(alternate.buttonTexture.isEmpty() && momentary.buttonTexture.isEmpty(), "Organized models use text-only lists");
+    }
+
+    private static void verifySoundResources() throws Exception {
+        try (Reader reader = new InputStreamReader(SwitchModelTest.class.getResourceAsStream(
+                "/assets/stationannouncemod/sounds.json"), StandardCharsets.UTF_8)) {
+            com.google.gson.JsonObject sounds = new com.google.gson.JsonParser().parse(reader).getAsJsonObject();
+            for (Map.Entry<String, com.google.gson.JsonElement> event : sounds.entrySet()) {
+                for (com.google.gson.JsonElement element : event.getValue().getAsJsonObject().getAsJsonArray("sounds")) {
+                    String name = element.getAsString();
+                    net.minecraft.util.ResourceLocation location = new net.minecraft.util.ResourceLocation(name);
+                    String domain = name.contains(":") ? location.getResourceDomain() : "stationannouncemod";
+                    String path = "/assets/" + domain + "/sounds/" + location.getResourcePath() + ".ogg";
+                    try (InputStream stream = SwitchModelTest.class.getResourceAsStream(path)) {
+                        check(stream != null && stream.read() >= 0, "Sound resource resolves: " + event.getKey());
+                    }
+                }
+            }
+        }
+    }
+
+    private static void verifyItemModelSelection() {
+        net.minecraft.item.ItemStack stack = new net.minecraft.item.ItemStack(new net.minecraft.item.Item());
+        NBTTagCompound root = new NBTTagCompound();
+        root.setString("unrelated", "preserved");
+        NBTTagCompound block = new NBTTagCompound();
+        block.setString("linkKey", "platform-1");
+        root.setTag("BlockEntityTag", block);
+        stack.setTagCompound(root);
+        check(jp.me1han.sam.item.ItemDepartureSwitch.selectedModel(stack).equals(SwitchModelRegistry.DEFAULT_MODEL),
+            "Unconfigured item uses the default switch model");
+        check(jp.me1han.sam.item.ItemDepartureSwitch.selectModel(stack, "melodysw_alternate_sample"),
+            "Picker applies an installed model");
+        check(jp.me1han.sam.item.ItemDepartureSwitch.selectedModel(stack).equals("melodysw_alternate_sample"),
+            "Picker selection round trip");
+        check(stack.getTagCompound().getString("unrelated").equals("preserved")
+            && stack.getTagCompound().getCompoundTag("BlockEntityTag").getString("linkKey").equals("platform-1"),
+            "Picker preserves unrelated and portable item metadata");
+        check(!jp.me1han.sam.item.ItemDepartureSwitch.selectModel(stack, "missing-model")
+            && jp.me1han.sam.item.ItemDepartureSwitch.selectedModel(stack).equals("melodysw_alternate_sample"),
+            "Picker rejects an unavailable model without changing the item");
+
+        io.netty.buffer.ByteBuf buffer = io.netty.buffer.Unpooled.buffer();
+        try {
+            new PacketDepartureSwitchItemConfig(4, "melodysw_momentary_sample").toBytes(buffer);
+            PacketDepartureSwitchItemConfig decoded = new PacketDepartureSwitchItemConfig();
+            decoded.fromBytes(buffer);
+            check(decoded.slot == 4 && decoded.modelName.equals("melodysw_momentary_sample"), "Item picker packet round trip");
+        } finally {
+            buffer.release();
+        }
+    }
+
     private static void verifySwitches() throws Exception {
         SwitchModelRegistry.reset();
         ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
         engine.put("sam", new SAMScriptAPI());
-        engine.eval("function configureDeparture(d) { return sam.alternate().melody('test:m').doorClose('test:d').tachikawa(true); } function onDepartureClick(c) { c.toggle(); }");
-        AnnouncePackLoader.departureEngines.put("test.js", engine);
+        engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam.toggle().tachikawa(true)); }");
+        AnnouncePackLoader.scriptEngines.put("test.js", engine);
         FixtureWorld world = new FixtureWorld();
         Parent parent = new Parent(); parent.linkKey = "test";
         Melody melody = new Melody(); melody.linkKey = "test"; melody.scriptName = "test.js";
-        Button a = new Button(); a.linkKey = "test"; a.modelName = "sam_alternate";
-        Button b = new Button(); b.linkKey = "test"; b.modelName = "sam_alternate";
+        Button a = new Button(); a.linkKey = "test"; a.modelName = "melodysw_alternate_sample";
+        Button b = new Button(); b.linkKey = "test"; b.modelName = "melodysw_alternate_sample";
         world.add(parent, 0); world.add(melody, 1); world.add(a, 2); world.add(b, 3);
         check(melody.click(a), "A click succeeds");
-        check(a.isLatched() && !b.isActivated() && melody.isOn() && parent.starts == 1, "Independent A ON");
+        check(a.isLatched() && !b.isActivated() && melody.isOn() && parent.starts == 1
+            && melody.getActiveSwitchCount() == 1, "Independent A ON");
         check(melody.click(b), "B click succeeds");
-        check(b.isLatched() && parent.starts == 1, "Second ON does not restart");
+        check(b.isLatched() && parent.starts == 1 && melody.getActiveSwitchCount() == 2,
+            "Second ON does not restart");
         melody.click(a);
-        check(!a.isActivated() && b.isLatched() && melody.isOn() && melody.releases == 0, "A OFF while B stays ON");
+        check(!a.isActivated() && b.isLatched() && melody.isOn() && melody.releases == 0
+            && melody.getActiveSwitchCount() == 1, "A OFF while B stays ON");
         melody.click(b);
-        check(!b.isActivated() && !melody.isOn() && melody.isPlaying() && melody.releases == 1, "Last OFF begins Tachikawa finish");
-        check(world.sounds.equals(Arrays.asList("random.click", "random.click", "random.wood_click", "random.wood_click")), "One model click sound per operated switch");
+        check(!b.isActivated() && !melody.isOn() && melody.isPlaying() && melody.releases == 1
+            && melody.getActiveSwitchCount() == 0, "Last OFF begins Tachikawa finish");
+        check(world.sounds.equals(Arrays.asList("stationannouncemod:melodysw_alternate_off",
+            "stationannouncemod:melodysw_alternate_off", "stationannouncemod:melodysw_alternate_off",
+            "stationannouncemod:melodysw_alternate_off")), "One model click sound per operated switch");
         melody.click(a); melody.click(b);
         int releases = melody.releases;
         a.onChunkUnload();
-        check(b.isLatched() && melody.isOn() && melody.releases == releases, "Unloading A leaves B active");
+        check(b.isLatched() && melody.isOn() && melody.releases == releases
+            && melody.getActiveSwitchCount() == 1, "Unloading A leaves B active");
         b.applyConfig("other", b.modelName, 1);
-        check(!melody.isOn() && melody.releases == releases + 1, "Relinking last switch releases old device");
+        check(!melody.isOn() && melody.releases == releases + 1 && melody.getActiveSwitchCount() == 0,
+            "Relinking last switch releases old device");
         b.applyConfig("test", b.modelName, 1);
         a.validate(); // Reload before operating the previously unloaded switch again.
         melody.click(a); melody.click(b); melody.cancelPlayback();
-        check(!a.isActivated() && !b.isActivated() && !melody.isPlaying(), "Emergency stop resets whole group");
+        check(!a.isActivated() && !b.isActivated() && !melody.isPlaying()
+            && !a.isControlOn() && !b.isControlOn() && melody.getActiveSwitchCount() == 0,
+            "Emergency stop resets whole group");
+        check(a.controlOwner() == null && b.controlOwner() == null,
+            "Emergency stop clears every switch owner");
 
-        a.modelName = "sam_alternate"; a.setRotationYaw(137);
+        a.modelName = "melodysw_alternate_sample"; a.setRotationYaw(137); a.setOffset(0.25F, -0.5F, 1.25F);
         a.operate(true, false);
+        check(world.soundX == 2.5D && world.soundY == 0.5D && world.soundZ == 0.5D,
+            "Click sound remains at the placed block when the model is offset");
         NBTTagCompound portable = a.copySettings();
         check(!portable.hasKey("x") && !portable.hasKey("Activated"), "Portable metadata excludes position and live state");
         Button copy = new Button(); world.add(copy, 8); copy.readSettings(portable);
-        check(copy.xCoord == 8 && copy.linkKey.equals("test") && copy.modelName.equals("sam_alternate") && copy.getRotationYaw() == 137 && !copy.isActivated(), "Copy preserves settings at a new position");
+        check(copy.xCoord == 8 && copy.linkKey.equals("test") && copy.modelName.equals("melodysw_alternate_sample") && copy.getRotationYaw() == 137
+            && copy.getOffsetX() == 0.25F && copy.getOffsetY() == -0.5F && copy.getOffsetZ() == 1.25F
+            && !copy.isActivated(), "Copy preserves settings and offsets at a new position");
         NBTTagCompound saved = (NBTTagCompound) portable.copy();
         saved.setInteger("x", 12); saved.setInteger("y", 4); saved.setInteger("z", 7); saved.setBoolean("Activated", true);
         Button restored = new Button(); restored.readFromNBT(saved);
-        check(restored.xCoord == 12 && restored.yCoord == 4 && restored.zCoord == 7 && restored.modelName.equals("sam_alternate")
-            && restored.getRotationYaw() == 137 && !restored.isActivated(), "Save reload retains settings without restoring stale ON state");
+        check(restored.xCoord == 12 && restored.yCoord == 4 && restored.zCoord == 7 && restored.modelName.equals("melodysw_alternate_sample")
+            && restored.getRotationYaw() == 137 && restored.getOffsetX() == 0.25F && restored.getOffsetY() == -0.5F
+            && restored.getOffsetZ() == 1.25F && !restored.isActivated(), "Save reload retains settings and offsets without restoring stale ON state");
         jp.me1han.sam.block.BlockDepartureSwitch block = new jp.me1han.sam.block.BlockDepartureSwitch();
         net.minecraft.item.ItemStack stack = new net.minecraft.item.ItemStack(new net.minecraft.item.Item());
         NBTTagCompound itemTag = new NBTTagCompound(); itemTag.setTag("BlockEntityTag", portable); stack.setTagCompound(itemTag);
         Button placed = new Button(); world.add(placed, 9);
         block.onBlockPlacedBy(world, 9, 0, 0, new net.minecraft.entity.passive.EntityPig(world), stack);
-        check(placed.xCoord == 9 && placed.modelName.equals("sam_alternate") && placed.linkKey.equals("test") && placed.getRotationYaw() == 0
+        check(placed.xCoord == 9 && placed.modelName.equals("melodysw_alternate_sample") && placed.linkKey.equals("test") && placed.getRotationYaw() == 180
+            && placed.getOffsetX() == 0.25F && placed.getOffsetY() == -0.5F && placed.getOffsetZ() == 1.25F
             && !portable.hasKey("x"), "Block placement restores metadata without mutating copied item data");
+        placed.setOffset(10000, -10000, 5000);
+        block.setBlockBoundsBasedOnState(world, 9, 0, 0);
+        net.minecraft.util.AxisAlignedBB interaction = block.getCollisionBoundingBoxFromPool(world, 9, 0, 0);
+        check(interaction.minX == 9 && interaction.minY == 0 && interaction.minZ == 0
+            && interaction.maxX == 10 && interaction.maxY == 1 && interaction.maxZ == 1,
+            "Interaction remains one block at the placement position regardless of offset");
+        placed.setOffset(0.25F, -0.5F, 1.25F);
         net.minecraft.entity.passive.EntityPig placer = new net.minecraft.entity.passive.EntityPig(world);
         placer.rotationYaw = -32.6F;
         block.onBlockPlacedBy(world, 9, 0, 0, placer, stack);
-        check(placed.getRotationYaw() == 30, "Placement hook snaps after loading copied settings");
+        check(placed.getRotationYaw() == 210, "Placement hook snaps after loading copied settings");
         placer.setSneaking(true);
         block.onBlockPlacedBy(world, 9, 0, 0, placer, stack);
-        check(placed.getRotationYaw() == 33, "Placement hook uses entity sneaking state");
+        check(placed.getRotationYaw() == 213, "Placement hook uses entity sneaking state");
         world.isRemote = true;
         placer.rotationYaw = 90;
         block.onBlockPlacedBy(world, 9, 0, 0, placer, stack);
-        check(placed.getRotationYaw() == 33, "Client placement cannot decide yaw");
+        check(placed.getRotationYaw() == 213, "Client placement cannot decide yaw");
         world.isRemote = false;
         a.resetState(); copy.resetState();
-        a.modelName = "sam_push";
-        engine.eval("function configureDeparture(d) { return sam.momentary().melody('test:m').doorClose('test:d'); } function onDepartureClick(c) { c.press(); }");
+        a.modelName = "melodysw_momentary_sample";
+        engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam.push()); }");
         world.sounds.clear();
         melody.click(a);
         check(a.isActivated() && !b.isActivated() && !a.isLatched(), "Momentary only presses source");
         world.time += 2; a.updateEntity();
-        check(!a.isActivated() && world.sounds.equals(Collections.singletonList("random.click")), "Momentary release is silent");
+        check(!a.isActivated() && world.sounds.isEmpty(), "Momentary model and automatic release are silent");
         int starts = parent.starts; melody.click(b);
         check(parent.starts == starts && b.isActivated(), "Busy momentary does not overlap playback");
         melody.cancelPlayback();
+    }
+
+    private static void verifyEventDrivenControlSources() throws Exception {
+        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        engine.put("sam", new SAMScriptAPI());
+        engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam.toggle().interval(0)); }");
+        AnnouncePackLoader.scriptEngines.put("event-sources.js", engine);
+
+        FixtureWorld redstoneWorld = new FixtureWorld();
+        Parent redstoneParent = new Parent(); redstoneParent.linkKey = "redstone";
+        Melody redstoneMelody = new Melody(); redstoneMelody.linkKey = redstoneParent.linkKey;
+        redstoneMelody.scriptName = "event-sources.js";
+        Button redstoneButton = new Button(); redstoneButton.linkKey = redstoneParent.linkKey;
+        redstoneWorld.add(redstoneParent, 0); redstoneWorld.add(redstoneMelody, 1); redstoneWorld.add(redstoneButton, 2);
+        redstoneMelody.click(redstoneButton);
+        check(redstoneMelody.getActiveSwitchCount() == 1 && redstoneMelody.isOn()
+            && redstoneButton.controlOwner() == redstoneMelody,
+            "Switch source starts toggle playback");
+        redstoneButton.setControlOn(true);
+        check(redstoneMelody.getActiveSwitchCount() == 1 && redstoneParent.starts == 1,
+            "Duplicate ON notification does not duplicate a source or restart playback");
+        redstoneMelody.onRedstoneUpdate(true);
+        redstoneMelody.click(redstoneButton);
+        check(redstoneMelody.getActiveSwitchCount() == 0 && redstoneMelody.isOn() && redstoneMelody.releases == 0
+            && redstoneButton.controlOwner() == null,
+            "Redstone keeps playback ON after the last switch turns OFF");
+        redstoneMelody.onRedstoneUpdate(false);
+        check(!redstoneMelody.isOn() && redstoneMelody.releases == 1,
+            "Redstone OFF releases playback when no switch remains");
+        redstoneMelody.cancelPlayback();
+
+        FixtureWorld unloadWorld = new FixtureWorld();
+        Parent unloadParent = new Parent(); unloadParent.linkKey = "unload";
+        Melody unloadMelody = new Melody(); unloadMelody.linkKey = unloadParent.linkKey;
+        unloadMelody.scriptName = "event-sources.js";
+        Button unloaded = new Button(); unloaded.linkKey = unloadParent.linkKey;
+        unloadWorld.add(unloadParent, 0); unloadWorld.add(unloadMelody, 1); unloadWorld.add(unloaded, 2);
+        unloadMelody.click(unloaded);
+        unloaded.onChunkUnload();
+        int unloadReleases = unloadMelody.releases;
+        unloaded.invalidate();
+        check(unloadMelody.getActiveSwitchCount() == 0 && !unloadMelody.isOn() && unloadReleases == 1
+            && unloadMelody.releases == unloadReleases && unloaded.controlOwner() == null,
+            "Unloading the last ON switch removes its source and releases playback");
+        unloadMelody.cancelPlayback();
+
+        FixtureWorld removalWorld = new FixtureWorld();
+        Parent removalParent = new Parent(); removalParent.linkKey = "removal";
+        Melody removalMelody = new Melody(); removalMelody.linkKey = removalParent.linkKey;
+        removalMelody.scriptName = "event-sources.js";
+        Button removed = new Button(); removed.linkKey = removalParent.linkKey;
+        removalWorld.add(removalParent, 0); removalWorld.add(removalMelody, 1); removalWorld.add(removed, 2);
+        removalMelody.click(removed);
+        removed.invalidate();
+        check(removalMelody.getActiveSwitchCount() == 0 && !removalMelody.isOn() && removalMelody.releases == 1
+            && removed.controlOwner() == null,
+            "Invalidating the last ON switch removes its source and releases playback");
+        removalMelody.cancelPlayback();
+
+        FixtureWorld linkWorld = new FixtureWorld();
+        Parent linkParent = new Parent(); linkParent.linkKey = "old-link";
+        Melody linkMelody = new Melody(); linkMelody.linkKey = linkParent.linkKey;
+        linkMelody.scriptName = "event-sources.js";
+        Button relinked = new Button(); relinked.linkKey = linkParent.linkKey;
+        Parent newLinkParent = new Parent(); newLinkParent.linkKey = "new-link";
+        Melody newLinkMelody = new Melody(); newLinkMelody.linkKey = newLinkParent.linkKey;
+        newLinkMelody.scriptName = "event-sources.js";
+        linkWorld.add(linkParent, 0); linkWorld.add(linkMelody, 1); linkWorld.add(relinked, 2);
+        linkWorld.add(newLinkParent, 3); linkWorld.add(newLinkMelody, 4);
+        linkMelody.click(relinked);
+        relinked.applyConfig("new-link", relinked.modelName, 0);
+        int releases = linkMelody.releases;
+        relinked.setControlOn(false);
+        relinked.setControlOn(false);
+        check(linkMelody.getActiveSwitchCount() == 0 && !relinked.isControlOn() && !linkMelody.isOn()
+            && releases == 1 && linkMelody.releases == releases && relinked.controlOwner() == null
+            && newLinkMelody.getActiveSwitchCount() == 0,
+            "Relink and duplicate OFF notifications are idempotent");
+        linkMelody.cancelPlayback();
+
+        FixtureWorld identityWorld = new FixtureWorld();
+        Parent identityParent = new Parent(); identityParent.linkKey = "identity";
+        Melody identityMelody = new Melody(); identityMelody.linkKey = identityParent.linkKey;
+        identityMelody.scriptName = "event-sources.js";
+        Button oldButton = new Button(); oldButton.linkKey = identityParent.linkKey;
+        identityWorld.add(identityParent, 0); identityWorld.add(identityMelody, 1); identityWorld.add(oldButton, 2);
+        identityMelody.click(oldButton);
+        Button replacement = new Button(); replacement.linkKey = identityParent.linkKey;
+        identityWorld.add(replacement, 2);
+        identityMelody.click(replacement);
+        oldButton.invalidate();
+        check(identityMelody.getActiveSwitchCount() == 1 && replacement.isControlOn()
+            && replacement.controlOwner() == identityMelody && identityMelody.isOn(),
+            "Late invalidation of an old TE cannot remove its same-position replacement");
+        identityMelody.click(replacement);
+        check(identityMelody.getActiveSwitchCount() == 0 && identityMelody.releases == 1,
+            "Replacement TE remains the owner of its source");
+        identityMelody.cancelPlayback();
+
+        FixtureWorld duplicateWorld = new FixtureWorld();
+        Parent duplicateParent = new Parent(); duplicateParent.linkKey = "duplicate";
+        Melody originalMelody = new Melody(); originalMelody.linkKey = duplicateParent.linkKey;
+        originalMelody.scriptName = "event-sources.js";
+        Button owned = new Button(); owned.linkKey = duplicateParent.linkKey;
+        duplicateWorld.add(duplicateParent, 0); duplicateWorld.add(originalMelody, 1); duplicateWorld.add(owned, 2);
+        originalMelody.click(owned);
+        Melody duplicateMelody = new Melody(); duplicateMelody.linkKey = duplicateParent.linkKey;
+        duplicateMelody.scriptName = "event-sources.js"; duplicateWorld.add(duplicateMelody, 3);
+        check(DepartureSwitchLink.findDevice(owned) == null && owned.controlOwner() == originalMelody,
+            "Switch retains its original owner when a duplicate melody appears");
+        owned.setControlOn(false);
+        check(originalMelody.getActiveSwitchCount() == 0 && originalMelody.releases == 1
+            && owned.controlOwner() == null,
+            "OFF reaches the recorded owner despite duplicate melody detection");
+        originalMelody.cancelPlayback(); duplicateMelody.cancelPlayback();
+
+        FixtureWorld duplicateUnloadWorld = new FixtureWorld();
+        Parent duplicateUnloadParent = new Parent(); duplicateUnloadParent.linkKey = "duplicate-unload";
+        Melody unloadOwner = new Melody(); unloadOwner.linkKey = duplicateUnloadParent.linkKey;
+        unloadOwner.scriptName = "event-sources.js";
+        Button duplicateUnloaded = new Button(); duplicateUnloaded.linkKey = duplicateUnloadParent.linkKey;
+        duplicateUnloadWorld.add(duplicateUnloadParent, 0); duplicateUnloadWorld.add(unloadOwner, 1);
+        duplicateUnloadWorld.add(duplicateUnloaded, 2); unloadOwner.click(duplicateUnloaded);
+        Melody unloadDuplicate = new Melody(); unloadDuplicate.linkKey = duplicateUnloadParent.linkKey;
+        unloadDuplicate.scriptName = "event-sources.js"; duplicateUnloadWorld.add(unloadDuplicate, 3);
+        duplicateUnloaded.onChunkUnload();
+        check(unloadOwner.getActiveSwitchCount() == 0 && unloadOwner.releases == 1
+            && duplicateUnloaded.controlOwner() == null,
+            "Chunk unload reaches the recorded owner after a duplicate melody appears");
+        duplicateUnloaded.invalidate();
+        check(unloadOwner.releases == 1, "Late invalidate after unload is idempotent");
+        unloadOwner.cancelPlayback(); unloadDuplicate.cancelPlayback();
+
+        FixtureWorld tailWorld = new FixtureWorld();
+        Parent tailParent = new Parent(); tailParent.linkKey = "tail";
+        Melody tailMelody = new Melody(); tailMelody.linkKey = tailParent.linkKey;
+        tailMelody.scriptName = "event-sources.js";
+        Button tailButton = new Button(); tailButton.linkKey = tailParent.linkKey;
+        tailWorld.add(tailParent, 0); tailWorld.add(tailMelody, 1); tailWorld.add(tailButton, 2);
+        tailMelody.click(tailButton);
+        tailMelody.click(tailButton);
+        check(tailMelody.getActiveSwitchCount() == 0 && tailMelody.isPlaying() && !tailMelody.isOn(),
+            "Toggle OFF enters its tail with no active switch source");
+        tailMelody.click(tailButton);
+        check(tailMelody.getActiveSwitchCount() == 1 && tailButton.controlOwner() == tailMelody
+            && tailParent.starts == 2 && tailMelody.isOn(),
+            "Re-ON during the OFF tail retains the new owner while replacing the sequence");
+        tailMelody.cancelPlayback();
+
+        FixtureWorld pulseWorld = new FixtureWorld();
+        Parent pulseParent = new Parent(); pulseParent.linkKey = "pulse";
+        Melody pulseMelody = new Melody(); pulseMelody.linkKey = pulseParent.linkKey;
+        pulseMelody.scriptName = "event-sources.js";
+        Button pulse = new Button(); pulse.linkKey = pulseParent.linkKey;
+        pulse.modelName = "melodysw_momentary_sample";
+        pulseWorld.add(pulseParent, 0); pulseWorld.add(pulseMelody, 1); pulseWorld.add(pulse, 2);
+        pulseMelody.click(pulse);
+        pulseWorld.time = 2; pulse.updateEntity();
+        check(!pulse.isActivated() && pulse.isControlOn() && pulseMelody.getActiveSwitchCount() == 1
+            && pulseMelody.isOn() && pulse.controlOwner() == pulseMelody,
+            "Momentary display return preserves its logical ON source");
+        pulseMelody.cancelPlayback();
+        check(!pulse.isControlOn() && pulseMelody.getActiveSwitchCount() == 0 && pulse.controlOwner() == null,
+            "Cancel clears linked logical controls and the active source set");
+        AnnouncePackLoader.scriptEngines.remove("event-sources.js");
     }
 
     private static void verifyModeJson() throws Exception {
@@ -161,13 +399,18 @@ public final class SwitchModelTest {
             throw new AssertionError("Invalid mode accepted");
         } catch (IllegalArgumentException expected) { checks++; }
         for (String mode : new String[]{"alternate", "momentary"}) {
-            try (Reader reader = Files.newBufferedReader(Paths.get("switch_" + mode + "_sample.json"), StandardCharsets.UTF_8)) {
-                SwitchModelDefinition model = SwitchModelDefinition.parse(reader, "stationannouncemod:switches/sample.json");
+            String modelName = "melodysw_" + mode + "_sample";
+            try (Reader reader = resource(modelName + ".json")) {
+                SwitchModelDefinition model = SwitchModelDefinition.parse(reader,
+                    "stationannouncemod:switches/" + modelName + ".json");
                 check(model.switchMode.name().equalsIgnoreCase(mode), "Sample mode " + mode);
-                try (Reader mesh = resource(mode.equals("alternate") ? "alternate.mqo" : "push.mqo")) {
+                try (Reader mesh = resource(mode.equals("alternate") ? "melodysw_alternate_sample.mqo" : "melodysw_momentary_sample.mqo")) {
                     model.validateParts(MqoMesh.read(mesh).parts.keySet());
                 }
-                check(model.modelFile.equals("stationannouncemod:switches/" + (mode.equals("alternate") ? "alternate" : "push") + ".mqo"), "Sample resource exists");
+                check(model.modelFile.equals("stationannouncemod:switches/" + modelName + ".mqo"),
+                    "Bundled sample resource exists");
+                if (mode.equals("alternate")) check(model.soundOn.equals("stationannouncemod:melodysw_alternate_off")
+                    && model.soundOff.equals("stationannouncemod:melodysw_alternate_off"), "Sample uses a registered click sound");
             }
         }
     }
@@ -180,16 +423,18 @@ public final class SwitchModelTest {
         for (boolean alternateJs : new boolean[]{false, true}) for (boolean alternateSwitch : new boolean[]{false, true}) {
             ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
             engine.put("sam", new SAMScriptAPI());
-            engine.eval("function configureDeparture(d) { return sam." + (alternateJs ? "alternate" : "momentary")
-                + "().melody('test:m').interval(0.5).doorClose('test:d'); } function onDepartureClick(c) { c.toggle(); }");
+            engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam."
+                + (alternateJs ? "toggle" : "push") + "().interval(0.5)); }");
             AnnouncePackLoader.scriptEngines.put("matrix.js", engine);
             FixtureWorld world = new FixtureWorld();
             Parent parent = new Parent(); parent.linkKey = "matrix";
             Melody melody = new Melody(); melody.linkKey = parent.linkKey; melody.scriptName = "matrix.js";
             Button button = new Button(); button.linkKey = parent.linkKey;
-            button.modelName = alternateSwitch ? "sam_alternate" : "sam_push";
+            button.modelName = alternateSwitch ? "melodysw_alternate_sample" : "melodysw_momentary_sample";
             world.add(parent, 0); world.add(melody, 1); world.add(button, 2);
             check(melody.click(button) && parent.starts == 1 && button.isActivated(), "Matrix first press");
+            if (!alternateJs) check(melody.getActiveSwitchCount() == 0 && !button.isControlOn()
+                && button.controlOwner() == null, "Push playback does not register a toggle source");
             advance(world, melody, button, 3);
             check(button.isActivated() == alternateSwitch && melody.isPlaying(), "Model determines display return");
             Button client = new Button();
@@ -200,7 +445,7 @@ public final class SwitchModelTest {
                 advance(world, melody, button, 40);
                 check(melody.isOn() && parent.finishes == 0, "ON loops past chorus end");
                 Button other = new Button(); other.linkKey = parent.linkKey;
-                other.modelName = alternateSwitch ? "sam_push" : "sam_alternate"; world.add(other, 3);
+                other.modelName = alternateSwitch ? "melodysw_momentary_sample" : "melodysw_alternate_sample"; world.add(other, 3);
                 melody.click(other); melody.click(button);
                 check(!button.isControlOn() && other.isControlOn() && melody.isOn() && parent.starts == 1, "Mixed models retain independent ON");
                 world.time += 2; other.updateEntity();
@@ -215,7 +460,8 @@ public final class SwitchModelTest {
                     int sounds = world.sounds.size();
                     melody.click(button);
                     if (alternateSwitch) melody.click(button); // OFF and ON while busy.
-                    check(parent.starts == 1 && world.sounds.size() > sounds, "Busy click has feedback without replay");
+                    check(parent.starts == 1 && (alternateSwitch ? world.sounds.size() > sounds : world.sounds.size() == sounds),
+                        "Busy click follows model feedback without replay");
                 }
                 advance(world, melody, button, 100);
                 check(parent.finishes == 1 && parent.starts == 1 && !melody.isPlaying(), "Single sequence never loops or queues");
@@ -233,37 +479,51 @@ public final class SwitchModelTest {
     }
 
     private static void verifyYaw() throws Exception {
+        SwitchModelRegistry.reset();
         java.lang.reflect.Method mapping = TileEntity.class.getDeclaredMethod("addMapping", Class.class, String.class);
         mapping.setAccessible(true);
         mapping.invoke(null, Button.class, "sam_test_switch_yaw");
-        double[][] normal = {{3,0},{7,0},{8,15},{22,15},{23,30},{82,75},{83,90},{178,180},{359,0},{352.5,0}};
+        double[][] normal = {{3,180},{7,180},{8,195},{22,195},{23,210},{82,255},{83,270},{178,0},{359,180},{352.5,180}};
         for (double[] pair : normal) check(SwitchYaw.placement((float) -pair[0], false) == pair[1], "15 degree placement " + pair[0]);
-        double[][] sneak = {{32.2,32},{32.4,32},{32.6,33},{137.2,137},{137.8,138},{359.6,0}};
+        double[][] sneak = {{32.2,212},{32.4,212},{32.6,213},{137.2,317},{137.8,318},{359.6,180}};
         for (double[] pair : sneak) check(SwitchYaw.placement((float) -pair[0], true) == pair[1], "1 degree placement " + pair[0]);
         int[][] inputs = {{360,0},{361,1},{-1,359},{450,90},{-450,270},{Integer.MAX_VALUE,127},{Integer.MIN_VALUE,232}};
         Button tile = new Button();
         for (int[] pair : inputs) {
             check(SwitchYaw.parse(Integer.toString(pair[0])) == pair[1], "Integer normalization " + pair[0]);
-            tile.applyConfig("", "sam_push", pair[0]);
+            tile.applyConfig("", "melodysw_momentary_sample", pair[0]);
             check(tile.getRotationYaw() == pair[1], "Server config normalization " + pair[0]);
         }
         for (String invalid : new String[]{"", "abc", "12.5", "-", "2147483648"}) {
             try { SwitchYaw.parse(invalid); throw new AssertionError("Accepted " + invalid); }
             catch (NumberFormatException expected) { checks++; }
         }
+        tile.setRotationYaw(0); tile.setOffset(1, 2, 3);
+        net.minecraft.util.AxisAlignedBB shifted = tile.getRenderBoundingBox();
+        check(Math.abs(shifted.minX - 1.425) < 1e-6 && Math.abs(shifted.minY - 2.0) < 1e-6
+            && Math.abs(shifted.minZ - 3.45) < 1e-6, "Render bounds follow world-axis offsets");
+        try { tile.setOffset(Float.NaN, 0, 0); throw new AssertionError("NaN offset accepted"); }
+        catch (IllegalArgumentException expected) { checks++; }
+        tile.setOffset(10000, -10000, Float.MAX_VALUE);
+        check(tile.getOffsetX() == 10000 && tile.getOffsetY() == -10000 && tile.getOffsetZ() == Float.MAX_VALUE,
+            "RTM-compatible finite offsets are not range-limited");
         for (int playerYaw = -720; playerYaw <= 720; playerYaw += 45) {
             double angle = Math.toRadians(SwitchYaw.placement(playerYaw, false));
             double playerAngle = Math.toRadians(playerYaw);
-            check(Math.abs(Math.sin(angle) + Math.sin(playerAngle)) < 1e-6
-                && Math.abs(Math.cos(angle) - Math.cos(playerAngle)) < 1e-6, "Model +Z front matches player " + playerYaw);
+            check(Math.abs(Math.sin(angle) - Math.sin(playerAngle)) < 1e-6
+                && Math.abs(Math.cos(angle) + Math.cos(playerAngle)) < 1e-6, "RTM model -Z front matches player " + playerYaw);
         }
-        tile.setRotationYaw(137.25F);
+        tile.setRotationYaw(137.25F); tile.setOffset(0.25F, -0.5F, 1.25F);
         NBTTagCompound saved = new NBTTagCompound(); tile.writeToNBT(saved);
         Button restored = new Button(); restored.readFromNBT(saved);
-        check(restored.getRotationYaw() == 137.25F && !saved.hasKey("facing"), "Float yaw NBT round trip only uses RotationYaw");
+        check(restored.getRotationYaw() == 137.25F && restored.getOffsetX() == 0.25F
+            && restored.getOffsetY() == -0.5F && restored.getOffsetZ() == 1.25F
+            && !saved.hasKey("facing"), "Float yaw and offsets survive NBT round trip");
         Button client = new Button();
         client.onDataPacket(null, (net.minecraft.network.play.server.S35PacketUpdateTileEntity) tile.getDescriptionPacket());
-        check(client.getRotationYaw() == 137.25F, "Description packet retains yaw");
+        check(client.getRotationYaw() == 137.25F && client.getOffsetX() == 0.25F
+            && client.getOffsetY() == -0.5F && client.getOffsetZ() == 1.25F,
+            "Description packet retains yaw and offsets");
         double[] bounds = SwitchYaw.rotateBounds(new double[]{0.3,0,0.3,0.7,0.2,0.7}, 45);
         check(Math.abs(bounds[0] - (0.5 - Math.sqrt(0.08))) < 1e-6
             && Math.abs(bounds[5] - (0.5 + Math.sqrt(0.08))) < 1e-6, "Diagonal bounds enclose the rotated model");
@@ -272,7 +532,7 @@ public final class SwitchModelTest {
     private static void verifyTachikawaCompletion() throws Exception {
         ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
         engine.put("sam", new SAMScriptAPI());
-        engine.eval("function configureDeparture(d) { return sam.alternate().melody('test:m').doorClose('test:d').interval(0).tachikawa(true); } function onDepartureClick(c) { c.toggle(); }");
+        engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam.toggle().interval(0).tachikawa(true)); }");
         AnnouncePackLoader.scriptEngines.put("completion.js", engine);
         FixtureWorld world = new FixtureWorld();
         Parent parent = new Parent(); parent.linkKey = "completion";
@@ -318,7 +578,7 @@ public final class SwitchModelTest {
                 zip.write("{\"name\":\"external_test\",\"model\":{\"modelFile\":\"external.mqo\"},\"sounds\":{\"on\":\"custom_switch:on\"}}".getBytes(StandardCharsets.UTF_8));
                 zip.closeEntry();
                 zip.putNextEntry(new java.util.zip.ZipEntry("assets/stationannouncemod/switches/external.mqo"));
-                try (InputStream source = SwitchModelTest.class.getResourceAsStream("/assets/stationannouncemod/switches/push.mqo")) {
+                try (InputStream source = SwitchModelTest.class.getResourceAsStream("/assets/stationannouncemod/switches/melodysw_momentary_sample.mqo")) {
                     byte[] buffer = new byte[4096]; int length;
                     while ((length = source.read(buffer)) >= 0) zip.write(buffer, 0, length);
                 }
@@ -332,7 +592,7 @@ public final class SwitchModelTest {
             jp.me1han.sam.client.SAMResourcePack pack = new jp.me1han.sam.client.SAMResourcePack(path.toFile());
             check(pack.getResourceDomains().contains("custom_switch"), "External sound namespace discovered");
             try (Reader reader = new InputStreamReader(pack.getInputStream(new net.minecraft.util.ResourceLocation(model.modelFile)), StandardCharsets.UTF_8)) {
-                check(MqoMesh.read(reader).parts.containsKey("button"), "External ZIP MQO resource loads through the production resource pack");
+            check(MqoMesh.read(reader).parts.containsKey("obj1"), "External ZIP MQO resource loads through the production resource pack");
             }
             try (InputStream stream = pack.getInputStream(new net.minecraft.util.ResourceLocation("custom_switch:sounds.json"))) {
                 check(stream.read() == '{', "External resources readable");
@@ -356,7 +616,7 @@ public final class SwitchModelTest {
         block.onBlockActivated(world, 2, 0, 0, player, 1, 0.5F, 0.5F, 0.5F);
         check(player.opened == 0 && player.messages == 0 && parent.starts == 0 && world.sounds.isEmpty(),
             "Unlinked ordinary right-click has no effects");
-        button.applyConfig("click-test", "sam_push", 0);
+        button.applyConfig("click-test", "melodysw_momentary_sample", 0);
         block.onBlockActivated(world, 2, 0, 0, player, 1, 0.5F, 0.5F, 0.5F);
         check(parent.starts == 1 && button.isActivated() && player.opened == 0 && player.messages == 0,
             "Configured block right-click reaches linked melody device");
@@ -378,7 +638,10 @@ public final class SwitchModelTest {
         @Override public void openGui(Object mod, int id, World world, int x, int y, int z) { opened++; }
     }
 
-    private static class Button extends TileEntityDepartureSwitch { @Override public void markDirty() {} }
+    private static class Button extends TileEntityDepartureSwitch {
+        TileEntityDepartureMelody controlOwner() { return getControlDevice(); }
+        @Override public void markDirty() {}
+    }
     private static class Parent extends TileEntityAnnouncer {
         int starts;
         int finishes;
@@ -394,6 +657,7 @@ public final class SwitchModelTest {
     private static class FixtureWorld extends World {
         long time;
         final List<String> sounds = new ArrayList<>();
+        double soundX, soundY, soundZ;
         FixtureWorld() { super(new SaveHandlerMP(), "switch-test", new WorldProviderSurface(), new WorldSettings(0, WorldSettings.GameType.CREATIVE, false, false, WorldType.FLAT), new Profiler()); }
         void add(TileEntity tile, int x) { tile.setWorldObj(this); tile.xCoord = x; loadedTileEntityList.add(tile); tile.validate(); }
         @Override protected IChunkProvider createChunkProvider() { return null; }
@@ -407,6 +671,8 @@ public final class SwitchModelTest {
             return null;
         }
         @Override public void markBlockForUpdate(int x, int y, int z) {}
-        @Override public void playSoundEffect(double x, double y, double z, String sound, float volume, float pitch) { sounds.add(sound); }
+        @Override public void playSoundEffect(double x, double y, double z, String sound, float volume, float pitch) {
+            sounds.add(sound); soundX = x; soundY = y; soundZ = z;
+        }
     }
 }

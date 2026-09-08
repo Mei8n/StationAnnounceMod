@@ -10,6 +10,7 @@ public final class PacketLimits {
     public static final int CONDITIONS = 64, SOUNDS = 256, SOUND_LIST = 8192;
     public static final int SESSION_TARGETS = 512, MISSING_TARGETS = SESSION_TARGETS;
     public static final int BODY_SOUNDS = 256;
+    public static final int MAX_ANNOUNCE_REPEATS = jp.me1han.sam.api.AnnounceData.MAX_REPEAT_COUNT;
     public static final int MAX_RANGE = 128, MAX_TICKS = 1728000;
     public static final float MAX_VOLUME = 1.0F;
     private PacketLimits() {}
