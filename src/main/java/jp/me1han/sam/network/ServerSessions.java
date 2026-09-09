@@ -64,6 +64,11 @@ public final class ServerSessions {
             jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Announcement rejected: bodySounds exceeds " + PacketLimits.BODY_SOUNDS);
             return 0;
         }
+        if (!(packet instanceof PacketDepartureStart) && hasInterval(packet.bodyIntervalTicks)
+            && (packet.bodySounds == null || packet.bodyIntervalTicks.size() != packet.bodySounds.size())) {
+            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Announcement rejected: body interval count mismatch");
+            return 0;
+        }
         if (!(packet instanceof PacketDepartureStart)
             && (packet.repeatCount < 1 || packet.repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)) {
             jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Announcement rejected: invalid repeatCount");
@@ -107,6 +112,10 @@ public final class ServerSessions {
         }
         return session.id;
     }
+    private static boolean hasInterval(List<Integer> intervals) {
+        if (intervals != null) for (int ticks : intervals) if (ticks > 0) return true;
+        return false;
+    }
     private static PacketAnnounce copy(PacketAnnounce source, long[] targets) {
         PacketAnnounce result;
         if (source instanceof PacketDepartureStart) {
@@ -119,6 +128,7 @@ public final class ServerSessions {
         result.playLocalSound = source.playLocalSound;
         result.x = source.x; result.y = source.y; result.z = source.z; result.targets = targets;
         result.startMelo = source.startMelo; result.arrMelo = source.arrMelo; result.bodySounds = source.bodySounds;
+        result.bodyIntervalTicks = source.bodyIntervalTicks;
         result.repeatCount = source.repeatCount;
         return result;
     }

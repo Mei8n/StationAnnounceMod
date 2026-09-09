@@ -349,6 +349,17 @@ public final class NetworkVerificationTest {
             new AnnounceData("test:start", Collections.<String>emptyList(), "test:arr", 2), 703, 5);
         check(soundNames(emptyBody).subList(0, 3).equals(Arrays.asList("test:start", "test:start", "test:arr")),
             "Empty body repeats startMelo before arrMelo");
+
+        TestClient interval = new TestClient(); interval.world = world;
+        interval.receive(new PacketAnnounce(new AnnounceData(null,
+            Arrays.asList("test:one", "", "test:two"), Arrays.asList(0, 3, 0), null, 1),
+            "A", true, 0, 0, 0));
+        for (int i = 0; i < 5; i++) interval.tick();
+        check(soundNames(interval).equals(Collections.singletonList("test:one")),
+            "Ordinary body interval delays the following part");
+        interval.tick();
+        check(soundNames(interval).equals(Arrays.asList("test:one", "test:two")),
+            "Ordinary body interval resumes after its tick duration");
     }
 
     private static TestClient playOrdinary(FixtureWorld world, AnnounceData data, long id, int ticks) {

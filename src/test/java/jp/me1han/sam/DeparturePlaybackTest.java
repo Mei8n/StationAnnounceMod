@@ -191,6 +191,11 @@ public final class DeparturePlaybackTest {
             == AnnounceData.MAX_REPEAT_COUNT, "Excessive repeat count is capped");
         check(new AnnounceData("test:start", Collections.singletonList("test:body"), "test:arr").repeatCount == 1,
             "Existing AnnounceData constructor defaults to one repeat");
+        AnnounceData withInterval = api.build(null,
+            Arrays.<Object>asList("test:one", api.interval(0.25), "test:two"), null, 2);
+        check(withInterval.bodySounds.equals(Arrays.asList("test:one", "", "test:two"))
+            && withInterval.bodyIntervalTicks.equals(Arrays.asList(0, 5, 0)),
+            "Ordinary announcement accepts an exact-position interval");
     }
 
     private static void verifyTachikawa() {
@@ -365,6 +370,16 @@ public final class DeparturePlaybackTest {
             PacketAnnounce ordinaryRead = new PacketAnnounce(); ordinaryRead.fromBytes(buf);
             check(ordinaryRead.bodySounds.equals(ordinary.bodySounds) && ordinaryRead.repeatCount == 2
                 && buf.readableBytes() == 0, "Ordinary sequence and repeat count round trip");
+            buf.clear();
+            PacketAnnounce withInterval = new PacketAnnounce(new AnnounceData(null,
+                Arrays.asList("test:body", "", "test:body"), Arrays.asList(0, 5, 0), null, 2),
+                "platform-1", true, 1, 2, 3);
+            withInterval.toBytes(buf);
+            PacketAnnounce intervalRead = new PacketAnnounce(); intervalRead.fromBytes(buf);
+            check(intervalRead.bodySounds.equals(withInterval.bodySounds)
+                && intervalRead.bodyIntervalTicks.equals(Arrays.asList(0, 5, 0))
+                && intervalRead.repeatCount == 2 && buf.readableBytes() == 0,
+                "Ordinary interval positions and repeat count round trip");
             buf.clear();
             PacketDepartureControl control = new PacketDepartureControl(123L, true); control.toBytes(buf);
             PacketDepartureControl decoded = new PacketDepartureControl(); decoded.fromBytes(buf);
