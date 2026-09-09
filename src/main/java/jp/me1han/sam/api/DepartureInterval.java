@@ -1,6 +1,6 @@
 package jp.me1han.sam.api;
 
-/** A silent item inserted between door-close announcement parts by JavaScript. */
+/** A silent item inserted between announcement parts by JavaScript. */
 public final class DepartureInterval {
     public final int ticks;
 

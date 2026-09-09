@@ -83,6 +83,15 @@ public class AnnounceManager {
         }
     }
 
+    private static class AnnouncePart {
+        final String sound;
+        final int intervalTicks;
+        AnnouncePart(String sound, int intervalTicks) {
+            this.sound = sound;
+            this.intervalTicks = intervalTicks;
+        }
+    }
+
     public void receive(jp.me1han.sam.network.PacketSpeakerFallback packet) {
         pending.add(() -> {
             AnnounceSession session = activeSessions.get(packet.sessionId);
@@ -106,9 +115,10 @@ public class AnnounceManager {
         jp.me1han.sam.api.DepartureSequence sequence;
         boolean sequenceChangedThisTick;
         boolean releasedThisTick;
-        final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
+        final ConcurrentLinkedQueue<AnnouncePart> queue = new ConcurrentLinkedQueue<>();
         final String startMelo;
         final List<String> bodySounds;
+        final List<Integer> bodyIntervalTicks;
         int repeatsRemaining;
         String loopSound;
         boolean playLocalSound;
@@ -144,6 +154,8 @@ public class AnnounceManager {
             this.startMelo = msg.startMelo;
             this.bodySounds = msg.bodySounds == null
                 ? java.util.Collections.<String>emptyList() : new ArrayList<>(msg.bodySounds);
+            this.bodyIntervalTicks = msg.bodyIntervalTicks == null
+                ? java.util.Collections.<Integer>emptyList() : new ArrayList<>(msg.bodyIntervalTicks);
             this.repeatsRemaining = departure == null
                 ? jp.me1han.sam.api.AnnounceData.normalizeRepeatCount(msg.repeatCount) : 0;
             this.playLocalSound = msg.playLocalSound;
@@ -158,9 +170,13 @@ public class AnnounceManager {
         boolean enqueueNextRepeat() {
             while (repeatsRemaining > 0) {
                 repeatsRemaining--;
-                if (startMelo != null && !startMelo.isEmpty()) queue.add(startMelo);
-                for (String sound : bodySounds)
-                    if (sound != null && !sound.isEmpty()) queue.add(sound);
+                if (startMelo != null && !startMelo.isEmpty()) queue.add(new AnnouncePart(startMelo, 0));
+                for (int i = 0; i < bodySounds.size(); i++) {
+                    String sound = bodySounds.get(i);
+                    int interval = i < bodyIntervalTicks.size() ? bodyIntervalTicks.get(i) : 0;
+                    if (interval > 0 || (sound != null && !sound.isEmpty()))
+                        queue.add(new AnnouncePart(sound, interval));
+                }
                 if (!queue.isEmpty()) return true;
             }
             return false;
@@ -284,12 +300,20 @@ public class AnnounceManager {
                 continue;
             }
 
-            String nextSound = session.queue.poll();
-            if (nextSound == null && session.enqueueNextRepeat()) nextSound = session.queue.poll();
+            AnnouncePart nextPart = session.queue.poll();
+            if (nextPart == null && session.enqueueNextRepeat()) nextPart = session.queue.poll();
 
-            if (nextSound != null) {
-                playInSession(session, nextSound);
-                session.waitTicks = getSoundTicks(nextSound);
+            if (nextPart != null) {
+                if (nextPart.intervalTicks > 0) {
+                    for (ISound sound : session.activeSounds) stopSound(sound);
+                    session.activeSounds.clear();
+                    session.deferred.clear();
+                    // This tick is already the first silent tick.
+                    session.waitTicks = nextPart.intervalTicks - 1;
+                } else {
+                    playInSession(session, nextPart.sound);
+                    session.waitTicks = getSoundTicks(nextPart.sound);
+                }
             } else if (session.loopSound != null) {
                 playInSession(session, session.loopSound);
                 session.waitTicks = getSoundTicks(session.loopSound);
