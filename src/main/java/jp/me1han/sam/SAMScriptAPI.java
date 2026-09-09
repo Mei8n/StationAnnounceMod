@@ -38,25 +38,31 @@ public class SAMScriptAPI {
             return mode;
         }
         List<String> sounds = new ArrayList<>();
-        copySounds(body, sounds, "Announcement");
-        return new AnnounceData(start, sounds, ending == null ? null : ending.toString());
+        List<Integer> intervals = new ArrayList<>();
+        copySounds(body, sounds, intervals, "Announcement");
+        return new AnnounceData(start, sounds, intervals, ending == null ? null : ending.toString(), 1);
     }
 
     public AnnounceData build(String start, List<Object> body, String loop, int repeatCount) {
         List<String> sounds = new ArrayList<>();
-        copySounds(body, sounds, "Announcement");
-        return new AnnounceData(start, sounds, loop, repeatCount);
+        List<Integer> intervals = new ArrayList<>();
+        copySounds(body, sounds, intervals, "Announcement");
+        return new AnnounceData(start, sounds, intervals, loop, repeatCount);
     }
 
-    private static void copySounds(List<Object> source, List<String> target, String type) {
+    private static void copySounds(List<Object> source, List<String> target, List<Integer> intervals, String type) {
         if (source == null) return;
         if (source.size() > 256) throw new IllegalArgumentException("Too many " + type.toLowerCase() + " sounds (maximum 256)");
         for (Object sound : source) {
-            if (sound instanceof jp.me1han.sam.api.DepartureInterval)
-                throw new IllegalArgumentException("sam.interval() is only available in departure announcements");
+            if (sound instanceof jp.me1han.sam.api.DepartureInterval) {
+                target.add("");
+                intervals.add(((jp.me1han.sam.api.DepartureInterval) sound).ticks);
+                continue;
+            }
             String id = clean(sound == null ? null : sound.toString());
             if (id.isEmpty()) throw new IllegalArgumentException(type + " sound ID must not be empty");
             target.add(id);
+            intervals.add(0);
         }
     }
 

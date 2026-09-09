@@ -1,25 +1,31 @@
 # StationAnnounceMod
+
 [![MCVer](https://img.shields.io/badge/Minecraft-1.7.10-brightgreen)](https://www.minecraft.net/)
 [![ForgeVer](https://img.shields.io/badge/Forge-10.13.4.1614-important)](https://files.minecraftforge.net/maven/net/minecraftforge/forge/index_1.7.10.html)
 [![DLCount](https://img.shields.io/github/downloads/Mei8n/stationannouncemod/total)](https://github.com/Mei8n/stationannouncemod/releases)
-[![DLCountLatest](https://img.shields.io/github/downloads/Mei8n/stationannouncemod/latest/total)](https://github.com/Mei8n/stationannouncemod/releases/latest)
-[![LatestRelease](https://img.shields.io/github/v/release/Mei8n/stationannouncemod)](https://github.com/Mei8n/stationannouncemod/releases/latest)
 [![LatestPreRelease](https://img.shields.io/github/v/release/Mei8n/stationannouncemod?include_prereleases)](https://github.com/Mei8n/stationannouncemod/releases)
 
 Minecraftで駅放送を流せるようにするModです。\
 現実の駅放送と同じく、パーツ単位で音声を用意しそれを組み合わせることができます。\
 また、RealTrainModと連携して詳細放送も流すことができます。
 
-## 注意事項
-**本Modはベータ版です。**\
-本Modの導入によって生じた損害について、私は一切責任を負いません。\
-予告なしに破壊的変更が加えられることがあります。\
-ワールドデータの破損等が起こる可能性があるので使用前に必ずセーブデータのバックアップを取ってください。
+**本Modはベータ版です。** 更新により互換性が失われる場合があるため、導入・更新前にワールドをバックアップしてください。本Modの導入によって生じた損害について、作者は一切責任を負いません。
 
-## Download
+## 導入
 
-Latest Release [Download](https://github.com/Mei8n/stationannouncemod/releases/latest)\
-Latest Pre-Release [Download](https://github.com/Mei8n/stationannouncemod/releases)
+### 動作環境
+
+- Minecraft 1.7.10
+- Minecraft Forge 10.13.4.1614
+
+### インストール手順
+
+0. ワールドデータのバックアップを取ってください
+1. `mods`フォルダにStationAnnounceModを入れてください
+2. 一度起動すると`mods/SAMpacks`フォルダが生成されます
+3. Minecraftを終了し、放送パックを`mods/SAMpacks`に入れて再起動します
+
+マルチプレイでは、サーバーと各クライアントの両方に同じバージョンのModと同じパックを導入してください。
 
 ## 追加ブロック、アイテムの説明
 ### ・放送装置ブロック
@@ -43,6 +49,21 @@ Link Keyフィールドに"リンクキー"を登録することで、後述の�
 連携したい放送装置ブロックと同じリンクキーを登録して使用します。\
 レッドストーンまたはRTMの車両検知で再生されている放送を停止します。
 
+### ・啓発放送ブロック
+連携したい放送装置ブロックと同じリンクキーを登録して使用します。\
+登録した音声を設定した間隔で順番またはランダムに再生します。\
+他の放送との重複再生や、発車メロディと戸閉放送の終了後に再生する設定もできます。
+
+### ・発車メロディブロック
+連携したい放送装置ブロックと同じリンクキーを登録して使用します。\
+設定画面に `.js` を含む発車メロディ用JSファイル名を入力します。\
+レッドストーン入力または発車メロディスイッチの操作で、発車メロディと戸閉放送を再生します。
+
+### ・発車メロディスイッチ
+連携したい発車メロディブロックと同じリンクキーを登録して使用します。\
+設置したスイッチは右クリックで操作し、スニークしながら右クリックすることでリンクキー、モデル、角度、位置のオフセットを設定できます。\
+設置前にアイテムを持って右クリックすることでスイッチのモデルを選択できます。
+
 ## RealTrainModを導入していると追加されるブロックの説明
 ### ・列車選別装置
 連携したい放送装置ブロックと同じリンクキーを登録して使用します。\
@@ -55,4 +76,4 @@ Key NameにdataMapの名前を登録し、Typeで適切な型を指定します�
 [こちら](howtoAddAnnounce.md) を参照してください
 
 ## 発車メロディ装置について
- [こちら](howtoDepartureMelody.md) を参照してください
+[こちら](howtoDepartureMelody.md) を参照してください

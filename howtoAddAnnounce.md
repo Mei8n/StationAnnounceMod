@@ -1,163 +1,194 @@
-# 追加パックについて
+# 放送パック・通常放送JSの作成
 
-本Modは、RealTrainModの追加アドオンのような形式で、放送パーツと放送スクリプトを導入することができます。
+放送パック作成ガイドです。音声ファイルをJSONで登録し、JavaScript（JS）で再生順を指定します。
 
-## 導入方法
+導入・ブロックの操作は[README](README.md)、発車メロディ用JSとスイッチモデルは[発車メロディの設定](howtoDepartureMelody.md)を参照してください。
 
-本Modを導入して起動するとmodsフォルダにSAMpacksというフォルダが生成されるので、その中にファイルを配置します。
+## パックの構成
 
-親の放送装置の設定画面には、使用するJSのファイル名を拡張子 `.js` 付きで入力します。通常放送用・発車メロディ用のJSは、どちらもパック内の `assets/stationannouncemod/scripts/` に配置してください。
-
-## パック作成方法
-
-ファイル階層は以下の通りです。
+パックはZIP形式にして`mods/SAMpacks`へ入れます。ZIPを開いた直下に`assets`が来るように圧縮してください。
 
 ```text
-(パック名)
-  assets
-    stationannouncemod
-      scripts
-        jsファイル
-    sound_(任意の名前)
-      sounds
-        音声パーツ
-      sam_length.json
-      sounds.json
+SamplePack.zip
+  assets/stationannouncemod/scripts/approach.js
+  assets/sound_sample/sounds.json
+  assets/sound_sample/sam_length.json
+  assets/sound_sample/packname/chime.ogg
+  assets/sound_sample/packname/approaching.ogg
+  assets/sound_sample/packname/platform_1.ogg
+  assets/sound_sample/packname/approach_melody.ogg
 ```
 
-### sounds.jsonの記法
+| ファイル | 役割 |
+| --- | --- |
+| `scripts/*.js` | 放送内容と再生順を指定 |
+| `sounds/*.ogg` | 音声・メロディのパーツ |
+| `sounds.json` | 音声IDとOGGファイルの対応を登録 |
+| `sam_length.json` | 音声IDごとの再生時間を登録 |
+
+JS・JSONはUTF-8で保存します。`sound_sample`は音源を区別する名前（名前空間）で、パック独自の名前に変更できます。JSの配置先は`assets/stationannouncemod/scripts/`です。
+
+JSは通常放送用・発車メロディ用ともファイル名で選択されるため、用途やパックごとに重複しない名前を付けてください。異なるZIPに同名JSがある場合、ZIPファイル名順で後から読み込まれたものが使われます。
+
+## 音声を登録する
+
+### sounds.json
+
+`assets/sound_sample/sounds.json`に、次のように記述します。
+
+### sounds.json
 
 リソースパックやRTM用追加アドオンのものと全く同じです。
 
 [こちら](https://akikawaken.github.io/RTM/howto/ht_sounds.json.html)を参考にするか、[RTM Sound File Generator](https://hi03s.com/)をご利用ください。
 
-### sam_length.jsonの記法
+### sam_length.json
 
-sounds.jsonで登録した名前と、そのファイルの秒数(小数第2位まで有効)を記入します。
-
-発車メロディ・戸閉放送の各パーツの長さも、このファイルへの登録が必須です。発車用JSは `sam.build(melody, sounds, mode)` にメロディ音源ID・戸閉放送のパーツ配列・再生モードを渡します。長さが未登録または不正な場合は再生されず、対象の音源IDを含むエラーが表示されます。開始前インターバルは再生モードの `.interval(秒)`、戸閉放送のパーツ間隔は `sounds.push(sam.interval(秒))` で指定します。`sam.interval()` は音源ではないため、このJSONへの登録は不要です。詳しくは[発車メロディの説明](howtoDepartureMelody.md)を参照してください。
+同じ名前空間の`sam_length.json`に、**音声IDと実際の長さ（秒）**を記述します。
 
 ```json
 {
-  "sound_sample:hoge": {
-    "length": 1.23
-  },
-  "sound_sample:fuga": {
-    "length": 4.50
-  }
+  "sound_sample:chime": { "length": 2.5 },
+  "sound_sample:approaching": { "length": 1.8 },
+  "sound_sample:platform_1": { "length": 1.2 },
+  "sound_sample:approach_melody": { "length": 12.8 }
 }
 ```
 
-sam_length.jsonの作成には、是非[こちら](https://raw.githubusercontent.com/Mei8n/zatta/refs/heads/main/get_length.py)をご活用ください。
+上の数値は例です。用意した音源の長さに置き換えてください。登録できる長さは0秒より大きく3600秒以下です。再生の切り替えは通常0.05秒単位に切り上げられます。
 
-このファイルと同階層に音声ファイルを配置して実行することで、音声ファイルの長さを取得してsam_length.jsonを自動生成してくれます。
+SAMはこの長さを使って次のパーツへ進みます。短すぎると音声が切れたり重なったりし、長すぎると余分な間ができます。開始メロディ・放送パーツ・接近メロディ・発車メロディ・戸閉放送・啓発放送に使う音源を登録してください。発車用の音源に未登録・不正な長さがある場合は、再生時にエラーになります。
 
-## スクリプトの記法
+## 通常放送のJS
 
-### 接近放送の関数
+### 基本例
 
-#### getDisplayName()
-
-- 戻り値: String
-
-スクリプトの表示名を定義する省略可能な関数です。親の放送装置・発車メロディ装置の設定画面で、JSファイル名入力欄の下に表示されます。入力したファイル名に応じて表示が切り替わります。長い表示名は省略され、マウスを重ねると全文を確認できます。関数がない場合や表示名が空の場合はファイル名を表示します。
-
-#### samMain(tile)
-
-- 引数: tile (`TileEntityAnnouncer` インスタンス)
-- 戻り値: sam.build() で生成された放送データ
-
-自動実行されるイベントハンドラ関数です。この関数内にスクリプトを記述してください。
-
-`samMain(tile)` は必須です。接近放送用JSでは `TileEntityAnnouncer`、発車メロディ用JSでは `TileEntityDepartureMelody` が渡されます。
-
-### sam オブジェクト
-
-#### sam.startmelo(soundId)
-
-放送冒頭のメロディ用メソッドです。
-
-#### sam.arrmelo(soundId)
-
-放送が終わった後に鳴る、接近メロディ用メソッドです。
-
-このメソッドで定義した音声は自動的にループし、放送停止でループが終了します。
-
-#### sam.build(startmelo, sounds, arrmelo[, repeatCount])
-
-```javascript
-sam.build(startmelo, sounds, arrmelo)
-sam.build(startmelo, sounds, arrmelo, repeatCount)
-```
-
-- 引数:
-  - startmelo: sam.startmelo() の戻り値 (ない場合は null)
-  - sounds: 再生する音声を順番に入れた配列 (Array)
-  - arrmelo: sam.arrmelo() の戻り値 (ない場合は null)
-  - repeatCount: `startmelo + sounds` を繰り返す回数 (省略可能、既定値1)
-- 戻り値: 放送データ
-
-ビルドメソッドです。samMain 関数は最後に必ずこれをreturnする必要があります。
-
-メロディを省略したい場合は、その引数に `null` を直接渡してください。
-
-4引数形式では、`startmelo` と `sounds` を1回分の通常放送として、全体を `repeatCount` 回再生します。`arrmelo` は繰り返しの対象ではなく、すべての通常放送が終了した後に従来通りループします。3引数形式は `repeatCount` に1を指定した場合と同じです。
-
-`repeatCount` が0以下の場合は1に補正され、上限は100回です。`startmelo` が `null` なら `sounds` だけが繰り返され、`sounds` が空なら開始メロディだけが繰り返されます。`arrmelo` が `null` の場合は、指定回数の通常放送を再生した時点で終了します。開始メロディを `sounds` に手動で追加する必要はありません。
-
-### tile オブジェクト
-
-samMain(tile) の引数として渡されるオブジェクトで、列車選別装置から送信されたdataMapを取得するために使用します。
-
-#### tile.receivedData.get(key)
-
-- 引数: key (文字列) - 設定したdataMap キー名
-- 戻り値: データ（通常は文字列型 String として取得されます）
-
-設定されたキーに対応するデータを取得します。
-
-受信データがまだ無い場合は `null` が返ります。
-
-数値として条件分岐（if や switch）に使いたい場合は、JavaScript標準の parseInt() などで変換してください。
-
-### サンプルスクリプト
-
-以下は接近放送のサンプルです。音源IDの `example:*` をパックで登録したIDへ置き換え、JSファイルとしてパックZIPの `assets/stationannouncemod/scripts/` に入れてください。
-
-発車メロディ用JSも `getDisplayName()` と `samMain(tile)` を使いますが、`tile` は `TileEntityDepartureMelody` です。戸閉放送を `sounds.push("音源ID")` で組み立て、パーツ間の無音は `sounds.push(sam.interval(秒数))` で指定します。最後に `sam.build(melody, sounds, mode)` を返してください。再生モードは `sam.push()` または `sam.toggle()` です。詳しい例は[発車メロディの説明](howtoDepartureMelody.md)を参照してください。
+次の内容を`approach.js`として保存します。前述の音声登録例と組み合わせて使用できます。
 
 ```javascript
 function getDisplayName() {
-    return "サンプル 接近放送（2回放送）";
+    return "サンプル・1番線接近放送";
 }
 
 function samMain(tile) {
-    var startmelo = sam.startmelo("example:approach_chime");
+    var startmelo = sam.startmelo("sound_sample:chime");
 
     var sounds = [];
-    sounds.push("example:train_approaching");
-    sounds.push("example:platform_1");
-    sounds.push("stationannouncemod:mute_0.25s");
-    sounds.push("example:please_stand_behind_yellow_line");
+    sounds.push("sound_sample:approaching");
+    sounds.push("sound_sample:platform_1");
+    sounds.push(sam.interval(0.25));
 
-    var arrmelo = sam.arrmelo("example:approach_melody");
-
-    // startmelo + sounds を2回再生してから、arrmeloをループします。
-    return sam.build(startmelo, sounds, arrmelo, 2);
+    var arrmelo = sam.arrmelo("sound_sample:approach_melody");
+    return sam.build(startmelo, sounds, arrmelo);
 }
 ```
 
-### 発車メロディ用JSとの違い
+この例では、チャイム、接近案内、番線案内、0.25秒の無音の順に再生し、その後は接近メロディをループします。ループは放送停止ブロックなどで止めます。
 
-どちらも `getDisplayName()`、`samMain(tile)`、`sounds.push(...)`、`sam.build(...)` を共通して使います。`sam.build(...)` の第1・第3引数と、パーツ間隔の指定方法が異なります。
+### 関数と再生順
 
-| 項目 | 接近放送 | 発車メロディ |
+| 記述 | 役割 |
+| --- | --- |
+| `getDisplayName()` | 設定画面に表示する名前を返す。省略時はファイル名 |
+| `samMain(tile)` | 放送開始時に呼ばれる関数。最後に`sam.build(...)`を返す |
+| `sam.startmelo("音声ID")` | 冒頭のメロディ |
+| `sounds.push("音声ID")` | 配列の末尾に音声を追加。追加した順に再生 |
+| `sounds.push(sam.interval(秒数))` | 配列のその位置に任意の長さの無音区間を追加 |
+| `sam.arrmelo("音声ID")` | 本放送の終了後、停止操作までループするメロディ |
+
+通常放送は次の形で組み立てます。
+
+```javascript
+return sam.build(startmelo, sounds, arrmelo);
+return sam.build(startmelo, sounds, arrmelo, repeatCount);
+```
+
+| 引数 | 内容 |
+| --- | --- |
+| `startmelo` | `sam.startmelo(...)`の戻り値。省略する場合は`null` |
+| `sounds` | 本放送の音声IDと`sam.interval(...)`を再生順に入れた配列。音声と無音区間を合わせて最大256パーツ |
+| `arrmelo` | `sam.arrmelo(...)`の戻り値。省略する場合は`null` |
+| `repeatCount` | 冒頭メロディ＋本放送の再生回数。1～100の整数、省略時1 |
+
+メロディを付けずに放送パーツだけを再生する場合は、次のように指定します。
+
+```javascript
+return sam.build(null, sounds, null);
+```
+
+### 冒頭メロディを含めて繰り返す
+
+第4引数で1回分の放送全体を繰り返せます。
+
+```javascript
+return sam.build(startmelo, sounds, arrmelo, 2);
+```
+
+再生順は「冒頭メロディ → 本放送 → 冒頭メロディ → 本放送 → 接近メロディのループ」です。`arrmelo`を`null`にすると、指定回数の本放送を終えて停止します。
+
+### パーツ間に間を入れる
+
+`sam.interval(秒数)`を`sounds`へ追加します。秒数には任意の数値を指定でき、その位置に無音区間が入ります。
+
+```javascript
+sounds.push("sound_sample:approaching");
+sounds.push(sam.interval(0.75));
+sounds.push("sound_sample:platform_1");
+```
+
+指定範囲は0.01～3600秒です。小数第3位以下を切り捨て、20tick/秒に換算するときは切り上げます。
+
+## 列車データで放送を変える（RTM連携）
+
+列車選別装置で指定したdataMapは、通常放送の`samMain(tile)`内で次のように取得します。
+
+```javascript
+var value = tile.receivedData.get("キー名");
+```
+
+値は文字列として受け取ります。未受信のキーは`null`になるため、数値で比較する場合は未受信時の処理と数値変換を入れます。
+
+以下は種別IDが100以上なら通過、100未満なら停車として放送パーツを選ぶ例です。`trainType`というキー名と判定値100は例なので、車両側の仕様に合わせて変更してください。例に登場する各音声IDは、パックへの登録が必要です。
+
+```javascript
+function getDisplayName() {
+    return "列車種別に応じた接近放送";
+}
+
+function samMain(tile) {
+    var sounds = [];
+    var raw = tile.receivedData.get("trainType");
+    var typeId = raw == null ? NaN : parseInt(String(raw), 10);
+
+    if (isNaN(typeId)) {
+        sounds.push("sound_sample:train_approaching");
+    } else if (typeId >= 100) {
+        sounds.push("sound_sample:train_passing");
+    } else {
+        sounds.push("sound_sample:train_arriving");
+    }
+
+    return sam.build(null, sounds, null);
+}
+```
+
+文字列を比較する場合は`String(value)`、小数は`parseFloat(...)`を使えます。真偽値は文字列の`"true"`／`"false"`として比較します。
+
+受信したデータは通常放送のJSを実行した後にクリアされます。列車選別装置がデータを渡してから放送開始ブロックが動作するように配置してください。同じ放送内での繰り返しには、`sam.build(...)`の第4引数を使えます。
+
+このデータ取得例は通常放送用です。発車用JSに渡される`tile`には`receivedData`がありません。
+
+## 発車用JSとの使い分け
+
+| 項目 | 通常放送 | 発車放送 |
 | --- | --- | --- |
-| `sam.build()` 第1引数 | `sam.startmelo(id)` または `null` | メロディの音源ID |
-| 第2引数 | 接近放送の音声パーツ | 戸閉放送の音声パーツと `sam.interval()` |
-| 第3引数 | `sam.arrmelo(id)` または `null` | `sam.push()` または `sam.toggle()` |
-| 第4引数 | 通常放送の繰り返し回数（省略時1） | 使用しない |
-| パーツ間の無音 | `stationannouncemod:mute_0.25s` などの無音音源 | `sam.interval(秒数)` |
-| `tile` | `TileEntityAnnouncer` | `TileEntityDepartureMelody` |
+| 配置先 | `assets/stationannouncemod/scripts/` | 同左 |
+| 設定する装置 | 放送装置ブロック | 発車メロディブロック |
+| 開始関数 | `samMain(tile)` | 同左 |
+| `sam.build(...)` | `sam.build(startmelo, sounds, arrmelo[, repeatCount])` | `sam.build(melody, sounds, mode)` |
+| 第1引数 | 冒頭メロディまたは`null` | 発車メロディの音声ID |
+| 第2引数 | 本放送の音声パーツ | 戸閉放送の音声パーツと無音区間 |
+| 第3引数 | 接近メロディまたは`null` | `sam.push()`または`sam.toggle()` |
+| パーツ間の無音 | `sam.interval(秒数)` | `sam.interval(秒数)` |
 
-接近放送の `arrmelo` は本放送後にループし、放送停止で終了します。発車メロディでは選択したモードが、単発再生かON中のループ再生かを決めます。`sam.interval()` は発車メロディの戸閉放送配列専用です。
+発車用の具体例と再生モードは、[発車メロディの設定](howtoDepartureMelody.md)にまとめています。
