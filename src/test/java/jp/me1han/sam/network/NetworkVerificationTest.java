@@ -41,7 +41,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityTrainTypeSelector.class, "network-test-selector");
         mapping.invoke(null, TileEntityDebugReceiver.class, "network-test-debug");
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
-        lifecycle(); wireBounds(); delivery(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); wireBounds(); delivery(); departureInterval(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -188,6 +188,37 @@ public final class NetworkVerificationTest {
         ServerSessions.start(owner, local);
         check(out.around == 1 && out.radius == ServerSessions.LOCAL_RANGE + ServerSessions.RANGE_MARGIN, "Local-only uses bounded TargetPoint");
         ServerSessions.clear();
+    }
+
+    private static void departureInterval() throws Exception {
+        ServerSessions.clear();
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.linkKey = "A"; world.add(owner, 0, 0, 0);
+        TileEntityAwarenessAnnouncer awareness = new TileEntityAwarenessAnnouncer();
+        awareness.applyConfig("A", "test:a", 20, false, false, true, 3);
+        world.add(awareness, 1, 0, 0);
+        Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 2, 0, 0);
+        player(world, 2, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+
+        owner.startDirectSound("test:a", PacketAnnounce.PRIORITY_AWARENESS, false);
+        check(out.messages.size() == 1 && out.messages.get(0) instanceof PacketAnnounce,
+            "Awareness session starts before departure completion");
+        out.clear();
+        owner.notifyDepartureMelodyFinished();
+        check(out.messages.size() == 1 && out.messages.get(0) instanceof PacketAnnounceStop,
+            "Queued Awareness is stopped when post-departure interval begins");
+        out.clear();
+        awareness.updateEntity(); awareness.updateEntity();
+        check(out.messages.isEmpty(), "Awareness remains silent during post-departure interval");
+        awareness.updateEntity();
+        check(out.messages.size() == 1 && out.messages.get(0) instanceof PacketAnnounce,
+            "Awareness starts when post-departure interval expires");
+
+        TileEntityAwarenessAnnouncer defaults = new TileEntityAwarenessAnnouncer();
+        defaults.readFromNBT(new NBTTagCompound());
+        check(defaults.departureDelayTicks == 0, "Missing post-departure interval defaults to zero");
+        ServerSessions.clear(); SpeakerRegistry.clear(world); LoadedSamTiles.clear(world);
     }
 
     private static void config() throws Exception {

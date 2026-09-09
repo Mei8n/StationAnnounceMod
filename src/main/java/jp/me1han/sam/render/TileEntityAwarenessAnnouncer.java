@@ -14,7 +14,7 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
     public boolean randomOrder = false;
     public boolean allowOverlap = false;
     public boolean playAfterDeparture = false;
-    public int departureDelayTicks = 100;
+    public int departureDelayTicks = 0;
 
     private int ticksUntilNext = 1200;
     private int pendingDepartureTicks = -1;
@@ -26,20 +26,20 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
             return;
         }
 
-        boolean played = false;
         if (this.pendingDepartureTicks >= 0) {
-            if (this.pendingDepartureTicks == 0) {
-                played = playNextSound();
-                this.pendingDepartureTicks = -1;
-            } else {
+            if (this.pendingDepartureTicks > 0) {
                 this.pendingDepartureTicks--;
             }
+            if (this.pendingDepartureTicks == 0) {
+                playNextSound();
+                this.pendingDepartureTicks = -1;
+                this.ticksUntilNext = getSafeIntervalTicks();
+            }
+            return;
         }
 
         if (this.ticksUntilNext <= 0) {
-            if (!played) {
-                playNextSound();
-            }
+            playNextSound();
             this.ticksUntilNext = getSafeIntervalTicks();
         } else {
             this.ticksUntilNext--;
@@ -179,7 +179,7 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
         this.randomOrder = nbt.getBoolean("randomOrder");
         this.allowOverlap = nbt.getBoolean("allowOverlap");
         this.playAfterDeparture = nbt.getBoolean("playAfterDeparture");
-        this.departureDelayTicks = nbt.hasKey("departureDelayTicks") ? Math.max(0, nbt.getInteger("departureDelayTicks")) : 100;
+        this.departureDelayTicks = nbt.hasKey("departureDelayTicks") ? Math.max(0, nbt.getInteger("departureDelayTicks")) : 0;
         this.ticksUntilNext = nbt.hasKey("ticksUntilNext") ? Math.max(0, nbt.getInteger("ticksUntilNext")) : this.intervalTicks;
         this.pendingDepartureTicks = nbt.hasKey("pendingDepartureTicks") ? nbt.getInteger("pendingDepartureTicks") : -1;
         this.nextSoundIndex = Math.max(0, nbt.getInteger("nextSoundIndex"));
