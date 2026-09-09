@@ -157,6 +157,11 @@ public final class ServerSessions {
         if (owner.getWorldObj() == null || owner.getWorldObj().isRemote) return;
         for (Session session : new ArrayList<>(SESSIONS.values())) if (session.owner == owner) stop(session);
     }
+    public static void stopPriority(TileEntityAnnouncer owner, int priority) {
+        if (owner == null || owner.getWorldObj() == null || owner.getWorldObj().isRemote) return;
+        for (Session session : new ArrayList<>(SESSIONS.values()))
+            if (session.owner == owner && session.priority == priority) stop(session);
+    }
     public static void stopAll() {
         delivery.all(new PacketAnnounceStop(0));
         clear();

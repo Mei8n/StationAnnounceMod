@@ -64,7 +64,7 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
 
         try {
             int intervalTicks = secondsToTicks(this.intervalField.getText(), 60.0D, 20);
-            int departureDelayTicks = secondsToTicks(this.departureDelayField.getText(), 5.0D, 0);
+            int departureDelayTicks = secondsToTicks(this.departureDelayField.getText(), 0.0D, 0);
             String linkKey = this.linkKeyField.getText() == null ? "" : this.linkKeyField.getText().trim();
             String soundList = this.soundListField.getText() == null ? "" : this.soundListField.getText().trim();
 

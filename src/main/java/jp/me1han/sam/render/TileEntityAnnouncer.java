@@ -65,13 +65,18 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
         }
 
         String normalizedKey = this.linkKey.trim();
+        boolean scheduled = false;
         for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
             if (obj instanceof TileEntityAwarenessAnnouncer) {
                 TileEntityAwarenessAnnouncer awareness = (TileEntityAwarenessAnnouncer) obj;
-                if (normalizedKey.equals(awareness.getNormalizedLinkKey())) {
+                if (awareness.playAfterDeparture && normalizedKey.equals(awareness.getNormalizedLinkKey())) {
                     awareness.scheduleAfterDeparture();
+                    scheduled = true;
                 }
             }
+        }
+        if (scheduled) {
+            jp.me1han.sam.network.ServerSessions.stopPriority(this, PacketAnnounce.PRIORITY_AWARENESS);
         }
     }
 
