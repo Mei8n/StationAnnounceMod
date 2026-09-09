@@ -97,7 +97,7 @@ public class GuiDepartureSwitch extends GuiScreen {
                 return;
             }
             NetworkHandler.INSTANCE.sendToServer(new PacketDepartureSwitchConfig(tile.xCoord, tile.yCoord, tile.zCoord,
-                key.getText().trim(), selected, yaw, offsetX, offsetY, offsetZ));
+                jp.me1han.sam.link.LinkKey.normalize(key.getText()), selected, yaw, offsetX, offsetY, offsetZ));
             mc.thePlayer.closeScreen();
         } else if (button.id == 1) mc.thePlayer.closeScreen();
         else if (button.id == 3) { pressedPreview = !pressedPreview; button.displayString = previewText(); }

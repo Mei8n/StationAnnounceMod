@@ -36,7 +36,7 @@ public class GuiDepartureMelody extends GuiScriptConfig {
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
-            String linkKey = this.linkKeyField.getText() == null ? "" : this.linkKeyField.getText().trim();
+            String linkKey = jp.me1han.sam.link.LinkKey.normalize(this.linkKeyField.getText());
             String soundId = this.soundIdField.getText() == null ? "" : this.soundIdField.getText().trim();
             NetworkHandler.INSTANCE.sendToServer(new PacketDepartureMelodyConfig(
                 this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, this.tile.soundId, soundId));

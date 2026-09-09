@@ -46,7 +46,7 @@ public class GuiAnnouncer extends GuiScriptConfig {
             tile.xCoord, tile.yCoord, tile.zCoord, scriptName,
             linkKeyField.getText(), chkPlayLocal.isChecked()));
         this.tile.setScriptName(scriptName);
-        this.tile.linkKey = this.linkKeyField.getText();
+        this.tile.setLinkKey(this.linkKeyField.getText());
         this.tile.playLocalSound = this.chkPlayLocal.isChecked();
         this.mc.thePlayer.closeScreen();
     }

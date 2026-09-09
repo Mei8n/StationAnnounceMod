@@ -35,7 +35,7 @@ public class PacketDebugConfig implements IMessage {
         @Override public IMessage onMessage(PacketDebugConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityDebugReceiver.class, tile -> {
                 if (!ConfigAccess.key(m.linkKey)) return;
-                ConfigAccess.change(tile, () -> tile.linkKey = ConfigAccess.normalize(m.linkKey));
+                ConfigAccess.change(tile, () -> tile.setLinkKey(m.linkKey));
             }); return null;
         }
     }

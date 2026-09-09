@@ -23,7 +23,7 @@ public final class SpeakerRegistry {
         }
     }
     private SpeakerRegistry() {}
-    public static String normalize(String key) { return key == null ? "" : key.trim(); }
+    public static String normalize(String key) { return jp.me1han.sam.link.LinkKey.normalize(key); }
     /** 26-bit signed X/Z, 12-bit Y; supports the Minecraft world limits and y=0. */
     public static long position(int x, int y, int z) {
         return ((long)x & 0x3ffffffL) << 38 | ((long)z & 0x3ffffffL) << 12 | (y & 0xfffL);

@@ -14,6 +14,9 @@ import jp.me1han.sam.*;
 import jp.me1han.sam.api.*;
 import jp.me1han.sam.client.AnnounceManager;
 import jp.me1han.sam.render.*;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkRegistry;
+import jp.me1han.sam.trigger.*;
 import net.minecraft.client.audio.ISound;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.*;
@@ -41,8 +44,8 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityTrainTypeSelector.class, "network-test-selector");
         mapping.invoke(null, TileEntityDebugReceiver.class, "network-test-debug");
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
-        lifecycle(); wireBounds(); delivery(); departureInterval(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
-        SpeakerRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
+        lifecycle(); linkRouting(); wireBounds(); delivery(); departureInterval(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
+        SpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
 
@@ -85,6 +88,65 @@ public final class NetworkVerificationTest {
         }
         SpeakerRegistry.clear(world);
         check(SpeakerRegistry.findByKey(world, "A").isEmpty(), "World unload cleanup");
+    }
+
+    private static void linkRouting() {
+        SamLinkRegistry.clear();
+        check(LinkKey.isEmpty(null) && LinkKey.isEmpty("") && LinkKey.isEmpty("   "), "Null and blank link keys are empty");
+        check(LinkKey.equals(" test ", "test"), "Link keys ignore surrounding whitespace");
+        check(!LinkKey.equals("Test", "test"), "Link keys remain case-sensitive");
+
+        FixtureWorld world = new FixtureWorld();
+        CountingAnnouncer first = new CountingAnnouncer(); first.setLinkKey(" A "); world.add(first, 1, 0, 0);
+        CountingAnnouncer second = new CountingAnnouncer(); second.setLinkKey("A"); world.add(second, 2, 0, 0);
+        check(SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).size() == 2, "Validate registers multiple devices per key");
+        check(SamLinkRegistry.findFirst(world, " A ", TileEntityAnnouncer.class) == first, "findFirst preserves registration order");
+
+        FixtureWorld another = new FixtureWorld();
+        CountingAnnouncer isolated = new CountingAnnouncer(); isolated.setLinkKey("A"); another.add(isolated, 1, 0, 0);
+        check(SamLinkRegistry.findAll(another, "A", TileEntityAnnouncer.class).size() == 1, "World identity isolates logical links");
+
+        first.setLinkKey("B");
+        check(SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).size() == 1
+            && SamLinkRegistry.findFirst(world, "B", TileEntityAnnouncer.class) == first, "A to B reindex is immediate");
+        first.setLinkKey("   ");
+        check(SamLinkRegistry.findFirst(world, "B", TileEntityAnnouncer.class) == null, "Empty key removes registry entry");
+        first.setLinkKey("A");
+        check(SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).size() == 2, "Key can be registered again");
+
+        TileEntityStartAnnouncer start = new TileEntityStartAnnouncer(); start.setLinkKey("A"); world.add(start, 3, 0, 0);
+        start.onRedstoneUpdate(true);
+        check(first.starts == 0 && second.starts == 1, "START routes only to the first currently registered announcer");
+
+        TileEntityStopAnnouncer stop = new TileEntityStopAnnouncer(); stop.setLinkKey("A"); world.add(stop, 4, 0, 0);
+        stop.onRedstoneUpdate(true);
+        check(first.stops == 0 && second.stops == 1, "STOP performs key-level stop once");
+
+        CountingAwareness awareness1 = new CountingAwareness(); awareness1.setLinkKey("A"); awareness1.playAfterDeparture = true;
+        world.add(awareness1, 5, 0, 0);
+        CountingAwareness awareness2 = new CountingAwareness(); awareness2.setLinkKey(" A "); awareness2.playAfterDeparture = true;
+        world.add(awareness2, 6, 0, 0);
+        second.notifyDepartureMelodyFinished();
+        check(awareness1.scheduled == 1 && awareness2.scheduled == 1, "DEPARTURE_FINISHED reaches every awareness device");
+
+        TileEntityTrainTypeSelector selector = new TileEntityTrainTypeSelector(); selector.setLinkKey("A"); world.add(selector, 7, 0, 0);
+        Map<String, String> data = new HashMap<>(); data.put("type", "rapid"); selector.dispatchData(data);
+        check("rapid".equals(first.receivedData.get("type")) && "rapid".equals(second.receivedData.get("type")),
+            "Train selector data routes to every linked announcer");
+
+        SamTrigger metadata = new SamTrigger(SamTriggerType.ANNOUNCE_START, " A ", 8, 9, 10, SamTriggerSourceType.TRAIN, 42L);
+        check(metadata.linkKey.equals("A") && metadata.formationId == 42L && metadata.sourceX == 8,
+            "Trigger preserves normalized key, position, source type and formation ID");
+
+        second.onChunkUnload();
+        check(!SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).contains(second), "Chunk unload removes stale target");
+        first.invalidate();
+        check(SamLinkRegistry.findFirst(world, "A", TileEntityAnnouncer.class) == null, "Invalidate unregisters target");
+
+        FixtureWorld clientWorld = new FixtureWorld(); clientWorld.isRemote = true;
+        CountingAnnouncer client = new CountingAnnouncer(); client.setLinkKey("A"); clientWorld.add(client, 1, 0, 0);
+        check(SamLinkRegistry.findAll(clientWorld, "A", TileEntityAnnouncer.class).isEmpty(), "Client world never creates link registry entries");
+        SamLinkRegistry.clear(world); SamLinkRegistry.clear(another);
     }
 
     private static void wireBounds() {
@@ -578,6 +640,15 @@ public final class NetworkVerificationTest {
     }
 
     private static class Speaker extends TileEntitySpeaker { int dirty; @Override public void markDirty() { dirty++; } }
+    private static class CountingAnnouncer extends TileEntityAnnouncer {
+        int starts, stops;
+        @Override public void startAnnounce() { starts++; }
+        @Override public void forceStop() { stops++; }
+    }
+    private static class CountingAwareness extends TileEntityAwarenessAnnouncer {
+        int scheduled;
+        @Override public void scheduleAfterDeparture() { scheduled++; }
+    }
     private static class FixtureWorld extends World {
         int updates;
         final Map<Long, TileEntity> tiles = new HashMap<>();

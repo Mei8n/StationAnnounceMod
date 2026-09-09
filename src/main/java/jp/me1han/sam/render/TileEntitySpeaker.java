@@ -25,7 +25,7 @@ public class TileEntitySpeaker extends TileEntity {
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
         String key = nbt.getString("linkKey");
-        this.linkKey = key == null ? "" : key.trim();
+        this.linkKey = jp.me1han.sam.link.LinkKey.normalize(key);
         this.range = nbt.hasKey("range") ? nbt.getInteger("range") : 16;
         this.volume = nbt.hasKey("volume") ? nbt.getFloat("volume") : 1.0f;
 

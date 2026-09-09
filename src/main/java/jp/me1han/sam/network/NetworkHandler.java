@@ -93,7 +93,7 @@ public class NetworkHandler {
                     if (condition == null || !PacketLimits.string(condition.key, PacketLimits.NAME) || condition.type < 0 || condition.type > 3) return;
                 ConfigAccess.change(tile, () -> {
                     tile.conditions = new java.util.ArrayList<>(m.conditions);
-                    tile.linkKey = ConfigAccess.normalize(m.linkKey); tile.isControlCar = m.isControlCar;
+                    tile.setLinkKey(m.linkKey); tile.isControlCar = m.isControlCar;
                 });
             }); return null;
         }
@@ -102,7 +102,7 @@ public class NetworkHandler {
         @Override public IMessage onMessage(PacketStartAnnouncerConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityStartAnnouncer.class, tile -> {
                 if (!ConfigAccess.key(m.linkKey)) return;
-                ConfigAccess.change(tile, () -> { tile.linkKey = ConfigAccess.normalize(m.linkKey); tile.isControlCar = m.isControlCar; });
+                ConfigAccess.change(tile, () -> { tile.setLinkKey(m.linkKey); tile.isControlCar = m.isControlCar; });
             }); return null;
         }
     }
@@ -110,7 +110,7 @@ public class NetworkHandler {
         @Override public IMessage onMessage(PacketStopAnnouncerConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityStopAnnouncer.class, tile -> {
                 if (!ConfigAccess.key(m.linkKey)) return;
-                ConfigAccess.change(tile, () -> { tile.linkKey = ConfigAccess.normalize(m.linkKey); tile.isControlCar = m.isControlCar; });
+                ConfigAccess.change(tile, () -> { tile.setLinkKey(m.linkKey); tile.isControlCar = m.isControlCar; });
             }); return null;
         }
     }

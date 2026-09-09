@@ -22,7 +22,7 @@ public class PacketAnnounce implements IMessage {
 
     public PacketAnnounce() {}
     public PacketAnnounce(AnnounceData data, String key, boolean local, int x, int y, int z) {
-        linkKey = key == null ? "" : key.trim(); playLocalSound = local;
+        linkKey = jp.me1han.sam.link.LinkKey.normalize(key); playLocalSound = local;
         this.x = x; this.y = y; this.z = z;
         startMelo = data.startMelo; bodySounds = data.bodySounds;
         bodyIntervalTicks = data.bodyIntervalTicks; arrMelo = data.arrMelo;

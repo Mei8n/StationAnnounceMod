@@ -12,8 +12,15 @@ import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkedTile;
+import jp.me1han.sam.link.SamLinkRegistry;
+import jp.me1han.sam.trigger.SamTrigger;
+import jp.me1han.sam.trigger.SamTriggerDispatcher;
+import jp.me1han.sam.trigger.SamTriggerSourceType;
+import jp.me1han.sam.trigger.SamTriggerType;
 
-public class TileEntityAnnouncer extends RegisteredTileEntity {
+public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
     private boolean lastPowered = false;
     private String scriptName = "";
     public String linkKey = "";
@@ -60,24 +67,8 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
     }
 
     public void notifyDepartureMelodyFinished() {
-        if (this.worldObj == null || this.worldObj.isRemote || this.linkKey == null || this.linkKey.trim().isEmpty()) {
-            return;
-        }
-
-        String normalizedKey = this.linkKey.trim();
-        boolean scheduled = false;
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
-            if (obj instanceof TileEntityAwarenessAnnouncer) {
-                TileEntityAwarenessAnnouncer awareness = (TileEntityAwarenessAnnouncer) obj;
-                if (awareness.playAfterDeparture && normalizedKey.equals(awareness.getNormalizedLinkKey())) {
-                    awareness.scheduleAfterDeparture();
-                    scheduled = true;
-                }
-            }
-        }
-        if (scheduled) {
-            jp.me1han.sam.network.ServerSessions.stopPriority(this, PacketAnnounce.PRIORITY_AWARENESS);
-        }
+        SamTriggerDispatcher.dispatch(this.worldObj, SamTrigger.from(this, SamTriggerType.DEPARTURE_FINISHED,
+            this.linkKey, SamTriggerSourceType.INTERNAL, SamTrigger.NO_FORMATION));
     }
 
     private long departureSessionId;
@@ -123,6 +114,12 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
         this.scriptName = name;
     }
 
+    @Override public String getLinkKey() { return this.linkKey; }
+    @Override public void setLinkKey(String key) {
+        this.linkKey = LinkKey.normalize(key);
+        SamLinkRegistry.reindex(this);
+    }
+
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
@@ -137,7 +134,7 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
         this.scriptName = nbt.getString("scriptName");
-        this.linkKey = nbt.getString("linkKey");
+        this.setLinkKey(nbt.getString("linkKey"));
         this.playLocalSound = nbt.getBoolean("playLocalSound");
     }
 

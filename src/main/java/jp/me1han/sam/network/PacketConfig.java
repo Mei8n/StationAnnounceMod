@@ -52,7 +52,7 @@ public class PacketConfig implements IMessage {
                 if (!ConfigAccess.key(m.linkKey) || !PacketLimits.string(m.scriptName, PacketLimits.NAME)) return;
                 if (!ConfigAccess.normalize(m.linkKey).equals(ConfigAccess.normalize(tile.linkKey))) ServerSessions.stopOwner(tile);
                 ConfigAccess.change(tile, () -> {
-                    tile.setScriptName(m.scriptName); tile.linkKey = ConfigAccess.normalize(m.linkKey);
+                    tile.setScriptName(m.scriptName); tile.setLinkKey(m.linkKey);
                     tile.playLocalSound = m.playLocalSound;
                 });
             }); return null;
