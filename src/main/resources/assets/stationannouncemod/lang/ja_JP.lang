@@ -15,6 +15,7 @@ gui.sam.link_key=Link Key
 # Awareness Announcer GUI
 gui.sam.awareness.title=啓発放送設定
 gui.sam.awareness.sound_ids=音声ID（カンマ区切り、1項目につき1音声ファイル）
+gui.sam.awareness.sound_ids_example=例: pack:sound1, pack:sound2
 gui.sam.awareness.interval=放送間隔（秒）
 gui.sam.awareness.departure_delay=メロディ終了後（秒）
 gui.sam.awareness.random_order=ランダムな順番で再生

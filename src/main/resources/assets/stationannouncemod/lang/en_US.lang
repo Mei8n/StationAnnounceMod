@@ -13,6 +13,7 @@ gui.sam.link_key=Link Key
 # Awareness Announcer GUI
 gui.sam.awareness.title=Awareness Announcer Config
 gui.sam.awareness.sound_ids=Sound IDs (comma-separated, one complete file each)
+gui.sam.awareness.sound_ids_example=e.g. pack:sound1, pack:sound2
 gui.sam.awareness.interval=Interval (seconds)
 gui.sam.awareness.departure_delay=After melody (seconds)
 gui.sam.awareness.random_order=Play in random order

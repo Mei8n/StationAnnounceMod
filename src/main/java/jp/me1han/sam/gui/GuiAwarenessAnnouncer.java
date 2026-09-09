@@ -95,6 +95,10 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
 
         this.linkKeyField.drawTextBox();
         this.soundListField.drawTextBox();
+        if (this.soundListField.getText().isEmpty() && !this.soundListField.isFocused()) {
+            drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.sound_ids_example"),
+                left + 4, top + 66, 0x707070);
+        }
         this.intervalField.drawTextBox();
         this.departureDelayField.drawTextBox();
         super.drawScreen(mouseX, mouseY, partialTicks);
