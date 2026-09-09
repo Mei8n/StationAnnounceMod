@@ -35,7 +35,7 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
 
         this.linkKeyField = new GuiTextField(this.fontRendererObj, left, top + 20, 240, 20);
         this.linkKeyField.setMaxStringLength(64);
-        this.linkKeyField.setText(this.tile.linkKey == null ? "" : this.tile.linkKey);
+        this.linkKeyField.setText(this.tile.getLinkKey());
 
         this.soundListField = new GuiTextField(this.fontRendererObj, left, top + 60, 240, 20);
         this.soundListField.setMaxStringLength(2048);

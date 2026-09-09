@@ -14,7 +14,7 @@ import jp.me1han.sam.trigger.SamTriggerSourceType;
 import jp.me1han.sam.trigger.SamTriggerType;
 
 public class TileEntityStopAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
-    public String linkKey = "";
+    private String linkKey = "";
     public boolean isControlCar = false;
     private boolean lastPowered = false;
     private long lastFormationId = -1L;
@@ -79,7 +79,7 @@ public class TileEntityStopAnnouncer extends RegisteredTileEntity implements Sam
 
     private void dispatchStopTrigger(SamTriggerSourceType sourceType, long formationId) {
         SamTriggerDispatcher.dispatch(this.worldObj, SamTrigger.from(this, SamTriggerType.ANNOUNCE_STOP,
-            this.linkKey, sourceType, formationId));
+            this.getLinkKey(), sourceType, formationId));
     }
 
     @Override public String getLinkKey() { return this.linkKey; }
@@ -91,7 +91,7 @@ public class TileEntityStopAnnouncer extends RegisteredTileEntity implements Sam
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
+        nbt.setString("linkKey", this.getLinkKey());
         nbt.setBoolean("isControlCar", this.isControlCar);
     }
 

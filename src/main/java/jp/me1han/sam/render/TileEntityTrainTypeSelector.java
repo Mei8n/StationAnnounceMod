@@ -15,7 +15,7 @@ import jp.me1han.sam.link.SamLinkedTile;
 import jp.me1han.sam.link.SamLinkRegistry;
 
 public class TileEntityTrainTypeSelector extends RegisteredTileEntity implements SamLinkedTile {
-    public String linkKey = "";
+    private String linkKey = "";
     public boolean isControlCar = false;
     public List<TrainTypeCondition> conditions = new ArrayList<TrainTypeCondition>();
     public Map<String, String> extractedData = new HashMap<String, String>();
@@ -79,11 +79,11 @@ public class TileEntityTrainTypeSelector extends RegisteredTileEntity implements
     }
 
     public void dispatchData(Map<String, String> dataMap) {
-        if (this.worldObj.isRemote || LinkKey.isEmpty(this.linkKey)) return;
+        if (this.worldObj.isRemote || LinkKey.isEmpty(this.getLinkKey())) return;
 
         String sourcePos = String.format("%d, %d, %d", xCoord, yCoord, zCoord);
 
-        for (TileEntityAnnouncer receiver : SamLinkRegistry.findAll(this.worldObj, this.linkKey, TileEntityAnnouncer.class)) {
+        for (TileEntityAnnouncer receiver : SamLinkRegistry.findAll(this.worldObj, this.getLinkKey(), TileEntityAnnouncer.class)) {
             receiver.onDataReceived(dataMap, sourcePos);
         }
     }
@@ -106,7 +106,7 @@ public class TileEntityTrainTypeSelector extends RegisteredTileEntity implements
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
+        nbt.setString("linkKey", this.getLinkKey());
         nbt.setBoolean("isControlCar", this.isControlCar);
 
         NBTTagList list = new NBTTagList();

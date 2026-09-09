@@ -24,7 +24,7 @@ public class GuiStartAnnouncer extends GuiScreen {
         this.buttonList.clear();
 
         this.linkKeyField = new GuiTextField(fontRendererObj, width / 2 - 100, height / 2 - 20, 200, 20);
-        this.linkKeyField.setText(tile.linkKey != null ? tile.linkKey : "");
+        this.linkKeyField.setText(tile.getLinkKey());
         this.linkKeyField.setFocused(true);
 
 

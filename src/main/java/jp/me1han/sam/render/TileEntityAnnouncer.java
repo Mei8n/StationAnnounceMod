@@ -23,7 +23,7 @@ import jp.me1han.sam.trigger.SamTriggerType;
 public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
     private boolean lastPowered = false;
     private String scriptName = "";
-    public String linkKey = "";
+    private String linkKey = "";
 
     public boolean playLocalSound = false;
 
@@ -51,7 +51,7 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
         this.lastDataReceivedTime = System.currentTimeMillis();
         this.markDirty();
 
-        if (data != null) sendStart(new PacketAnnounce(data, linkKey, playLocalSound, xCoord, yCoord, zCoord));
+        if (data != null) sendStart(new PacketAnnounce(data, getLinkKey(), playLocalSound, xCoord, yCoord, zCoord));
     }
 
     public void startDirectSound(String soundId, int priority, boolean allowOverlap) {
@@ -61,14 +61,14 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
 
         String normalizedSound = soundId.trim();
         AnnounceData data = new AnnounceData("", Collections.singletonList(normalizedSound), "");
-        PacketAnnounce packet = new PacketAnnounce(data, linkKey, playLocalSound, xCoord, yCoord, zCoord);
+        PacketAnnounce packet = new PacketAnnounce(data, getLinkKey(), playLocalSound, xCoord, yCoord, zCoord);
         packet.priority = priority; packet.allowOverlap = allowOverlap;
         sendStart(packet);
     }
 
     public void notifyDepartureMelodyFinished() {
         SamTriggerDispatcher.dispatch(this.worldObj, SamTrigger.from(this, SamTriggerType.DEPARTURE_FINISHED,
-            this.linkKey, SamTriggerSourceType.INTERNAL, SamTrigger.NO_FORMATION));
+            this.getLinkKey(), SamTriggerSourceType.INTERNAL, SamTrigger.NO_FORMATION));
     }
 
     private long departureSessionId;
@@ -76,7 +76,7 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
     public void startDeparture(jp.me1han.sam.api.DepartureProgram program) {
         if (worldObj == null || worldObj.isRemote) return;
         jp.me1han.sam.network.PacketDepartureStart packet = new jp.me1han.sam.network.PacketDepartureStart();
-        packet.linkKey = SpeakerRegistry.normalize(linkKey);
+        packet.linkKey = SpeakerRegistry.normalize(getLinkKey());
         packet.playLocalSound = playLocalSound;
         packet.x = xCoord; packet.y = yCoord; packet.z = zCoord;
         packet.departure = program;
@@ -98,8 +98,8 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
 
     public void forceStop() {
         if (this.worldObj.isRemote) return;
-        TileEntityDepartureMelody.cancelLinked(this.worldObj, this.linkKey);
-        jp.me1han.sam.network.ServerSessions.stopKey(worldObj, linkKey);
+        TileEntityDepartureMelody.cancelLinked(this.worldObj, this.getLinkKey());
+        jp.me1han.sam.network.ServerSessions.stopKey(worldObj, getLinkKey());
     }
 
     public void onDataReceived(Map<String, String> data, String sourcePos) {
@@ -124,9 +124,7 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
         if (this.scriptName != null) nbt.setString("scriptName", this.scriptName);
-        if (this.linkKey != null) {
-            nbt.setString("linkKey", this.linkKey);
-        }
+        nbt.setString("linkKey", this.getLinkKey());
         nbt.setBoolean("playLocalSound", this.playLocalSound);
     }
 

@@ -11,7 +11,7 @@ import jp.me1han.sam.link.SamLinkedTile;
 import jp.me1han.sam.link.SamLinkRegistry;
 
 public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
-    public String linkKey = "";
+    private String linkKey = "";
     public String soundList = "";
     public int intervalTicks = 1200;
     public boolean randomOrder = false;
@@ -71,7 +71,7 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
     }
 
     public String getNormalizedLinkKey() {
-        return LinkKey.normalize(this.linkKey);
+        return LinkKey.normalize(this.getLinkKey());
     }
 
     @Override public String getLinkKey() { return this.linkKey; }
@@ -158,7 +158,7 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        nbt.setString("linkKey", this.linkKey == null ? "" : this.linkKey);
+        nbt.setString("linkKey", this.getLinkKey());
         nbt.setString("soundList", this.soundList == null ? "" : this.soundList);
         nbt.setInteger("intervalTicks", this.intervalTicks);
         nbt.setBoolean("randomOrder", this.randomOrder);

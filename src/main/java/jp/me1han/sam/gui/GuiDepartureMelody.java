@@ -26,7 +26,7 @@ public class GuiDepartureMelody extends GuiScriptConfig {
 
         this.linkKeyField = new GuiTextField(this.fontRendererObj, left, top + 20, 220, 20);
         this.linkKeyField.setMaxStringLength(64);
-        this.linkKeyField.setText(this.tile.linkKey == null ? "" : this.tile.linkKey);
+        this.linkKeyField.setText(this.tile.getLinkKey());
         this.soundIdField = new GuiTextField(this.fontRendererObj, left, top + 60, 220, 20);
         this.soundIdField.setMaxStringLength(256);
         this.soundIdField.setText(this.tile.scriptName == null ? "" : this.tile.scriptName);

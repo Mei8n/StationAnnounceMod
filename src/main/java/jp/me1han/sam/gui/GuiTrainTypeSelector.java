@@ -44,7 +44,7 @@ public class GuiTrainTypeSelector extends GuiScreen {
 
         if (this.linkKeyField == null) {
             this.linkKeyField = new GuiTextField(fontRendererObj, width / 2 - 60, 60, 180, 20);
-            this.linkKeyField.setText(tile.linkKey != null ? tile.linkKey : "");
+            this.linkKeyField.setText(tile.getLinkKey());
             this.linkKeyField.setMaxStringLength(32);
         } else {
             this.linkKeyField.xPosition = width / 2 - 60;

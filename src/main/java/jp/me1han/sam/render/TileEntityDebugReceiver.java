@@ -12,7 +12,7 @@ import jp.me1han.sam.link.SamLinkedTile;
 import jp.me1han.sam.link.SamLinkRegistry;
 
 public class TileEntityDebugReceiver extends RegisteredTileEntity implements SamLinkedTile {
-    public String linkKey = "";
+    private String linkKey = "";
     private long lastReadTime = 0;
     private boolean lastPowered = false;
     private long lastCacheTime = 0;
@@ -20,7 +20,7 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity implements Sam
 
     @Override
     public void updateEntity() {
-        if (this.worldObj.isRemote || LinkKey.isEmpty(this.linkKey)) return;
+        if (this.worldObj.isRemote || LinkKey.isEmpty(this.getLinkKey())) return;
 
         // 100フレーム毎にスキャン（毎10フレームから大幅削減）
         if (this.worldObj.getTotalWorldTime() - this.lastCacheTime > CACHE_DURATION) {
@@ -30,7 +30,7 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity implements Sam
     }
 
     private void scanForUpdates() {
-        for (TileEntityAnnouncer announcer : SamLinkRegistry.findAll(this.worldObj, this.linkKey, TileEntityAnnouncer.class)) {
+        for (TileEntityAnnouncer announcer : SamLinkRegistry.findAll(this.worldObj, this.getLinkKey(), TileEntityAnnouncer.class)) {
             if (announcer.lastDataReceivedTime > this.lastReadTime) {
                 this.lastReadTime = announcer.lastDataReceivedTime;
                 this.printAnnouncerData(announcer);
@@ -44,7 +44,7 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity implements Sam
             return;
         }
 
-        if (LinkKey.isEmpty(this.linkKey)) {
+        if (LinkKey.isEmpty(this.getLinkKey())) {
             this.lastPowered = powered;
             return;
         }
@@ -56,8 +56,8 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity implements Sam
     }
 
     private void forcePrintData() {
-        if (LinkKey.isEmpty(this.linkKey)) return;
-        for (TileEntityAnnouncer announcer : SamLinkRegistry.findAll(this.worldObj, this.linkKey, TileEntityAnnouncer.class)) {
+        if (LinkKey.isEmpty(this.getLinkKey())) return;
+        for (TileEntityAnnouncer announcer : SamLinkRegistry.findAll(this.worldObj, this.getLinkKey(), TileEntityAnnouncer.class)) {
             this.printAnnouncerData(announcer);
         }
     }
@@ -87,7 +87,7 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity implements Sam
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
+        nbt.setString("linkKey", this.getLinkKey());
     }
 
     @Override

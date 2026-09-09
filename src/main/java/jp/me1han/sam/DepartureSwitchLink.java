@@ -10,7 +10,7 @@ import jp.me1han.sam.link.SamLinkRegistry;
 public final class DepartureSwitchLink {
     public static boolean isSwitch(TileEntity tile) { return tile instanceof TileEntityDepartureSwitch; }
     public static String getKey(TileEntity tile) {
-        return isSwitch(tile) ? TileEntityDepartureMelody.normalize(((TileEntityDepartureSwitch) tile).linkKey) : "";
+        return isSwitch(tile) ? ((TileEntityDepartureSwitch) tile).getLinkKey() : "";
     }
     public static TileEntityDepartureMelody findDevice(TileEntity source) {
         String key = getKey(source);

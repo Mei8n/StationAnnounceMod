@@ -10,7 +10,7 @@ import jp.me1han.sam.link.SamLinkedTile;
 import jp.me1han.sam.link.SamLinkRegistry;
 
 public class TileEntityDepartureSwitch extends RegisteredTileEntity implements SamLinkedTile {
-    public String linkKey = "";
+    private String linkKey = "";
     public String modelName = SwitchModelRegistry.DEFAULT_MODEL;
     private float rotationYaw;
     private float offsetX, offsetY, offsetZ;
@@ -104,7 +104,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity implements S
     /** Portable configuration deliberately excludes coordinates and live button state. */
     public NBTTagCompound copySettings() {
         NBTTagCompound nbt = new NBTTagCompound();
-        nbt.setString("linkKey", TileEntityDepartureMelody.normalize(linkKey));
+        nbt.setString("linkKey", getLinkKey());
         nbt.setString("modelName", modelName);
         nbt.setFloat("RotationYaw", rotationYaw);
         nbt.setFloat("offsetX", offsetX);
@@ -130,7 +130,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity implements S
     }
     @Override public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        nbt.setString("linkKey", TileEntityDepartureMelody.normalize(linkKey));
+        nbt.setString("linkKey", getLinkKey());
         nbt.setString("modelName", modelName);
         nbt.setFloat("RotationYaw", rotationYaw);
         nbt.setFloat("offsetX", offsetX);

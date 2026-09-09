@@ -129,7 +129,7 @@ public class NetworkHandler {
                     || m.intervalTicks < 20 || m.intervalTicks > PacketLimits.MAX_TICKS
                     || m.departureDelayTicks < 0 || m.departureDelayTicks > PacketLimits.MAX_TICKS) return;
                 String sounds = TileEntityAwarenessAnnouncer.normalizeSoundList(m.soundList);
-                if (ConfigAccess.normalize(m.linkKey).equals(tile.linkKey) && sounds.equals(tile.soundList)
+                if (ConfigAccess.normalize(m.linkKey).equals(tile.getLinkKey()) && sounds.equals(tile.soundList)
                     && m.intervalTicks == tile.intervalTicks && m.randomOrder == tile.randomOrder
                     && m.allowOverlap == tile.allowOverlap && m.playAfterDeparture == tile.playAfterDeparture
                     && m.departureDelayTicks == tile.departureDelayTicks) return;

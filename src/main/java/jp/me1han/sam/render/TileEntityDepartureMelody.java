@@ -16,7 +16,7 @@ import jp.me1han.sam.link.SamLinkedTile;
 import jp.me1han.sam.link.SamLinkRegistry;
 
 public class TileEntityDepartureMelody extends RegisteredTileEntity implements SamLinkedTile {
-    public String linkKey = "";
+    private String linkKey = "";
     /** Retained solely to migrate previously placed, one-shot devices. */
     public String soundId = "";
     public String scriptName = "";
@@ -46,7 +46,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
         if (activeParent == null || activeParent.isInvalid()
             || !worldObj.blockExists(activeParent.xCoord, activeParent.yCoord, activeParent.zCoord)
             || worldObj.getTileEntity(activeParent.xCoord, activeParent.yCoord, activeParent.zCoord) != activeParent
-            || !LinkKey.equals(linkKey, activeParent.linkKey)) {
+            || !LinkKey.equals(getLinkKey(), activeParent.getLinkKey())) {
             cancelPlayback();
             return;
         }
@@ -83,7 +83,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
         try {
             TileEntityAnnouncer parent = findParent();
             if (parent == null) throw new IllegalStateException("Exactly one loaded parent announcer must match the link key");
-            for (TileEntityDepartureMelody device : SamLinkRegistry.findAll(worldObj, linkKey, TileEntityDepartureMelody.class)) {
+            for (TileEntityDepartureMelody device : SamLinkRegistry.findAll(worldObj, getLinkKey(), TileEntityDepartureMelody.class)) {
                 if (device != this) {
                     throw new IllegalStateException("Only one melody device may use a link key");
                 }
@@ -150,7 +150,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
         long position = jp.me1han.sam.SpeakerRegistry.position(button.xCoord, button.yCoord, button.zCoord);
         boolean changed;
         if (on) {
-            if (!LinkKey.equals(linkKey, button.linkKey)) return;
+            if (!LinkKey.equals(getLinkKey(), button.getLinkKey())) return;
             changed = activeSwitches.put(position, button) != button;
         } else {
             if (activeSwitches.get(position) != button) return;
@@ -182,7 +182,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
             resettingSwitches = true;
             try {
                 for (TileEntityDepartureSwitch button :
-                     SamLinkRegistry.findAll(worldObj, linkKey, TileEntityDepartureSwitch.class)) {
+                     SamLinkRegistry.findAll(worldObj, getLinkKey(), TileEntityDepartureSwitch.class)) {
                     button.resetState(this);
                 }
             } finally {
@@ -236,7 +236,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
     }
 
     public void applyConfig(String key, String legacySound, String script) {
-        if (normalize(key).equals(linkKey) && normalize(legacySound).equals(soundId) && normalize(script).equals(scriptName)) return;
+        if (LinkKey.equals(key, getLinkKey()) && normalize(legacySound).equals(soundId) && normalize(script).equals(scriptName)) return;
         cancelPlayback();
         setLinkKey(key);
         soundId = normalize(legacySound);
@@ -246,7 +246,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
     }
 
     private TileEntityAnnouncer findParent() {
-        String key = normalize(linkKey);
+        String key = normalize(getLinkKey());
         if (worldObj == null || key.isEmpty()) return null;
         java.util.List<TileEntityAnnouncer> parents = SamLinkRegistry.findAll(worldObj, key, TileEntityAnnouncer.class);
         return parents.size() == 1 ? parents.get(0) : null;
@@ -269,7 +269,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
 
     @Override public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        nbt.setString("linkKey", normalize(linkKey));
+        nbt.setString("linkKey", getLinkKey());
         nbt.setString("soundId", normalize(soundId));
         nbt.setString("scriptName", normalize(scriptName));
         // Deliberately do not persist live playback across world/chunk reloads.

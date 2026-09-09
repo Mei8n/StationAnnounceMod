@@ -28,7 +28,7 @@ public class GuiDepartureSwitch extends GuiScreen {
         selected = this.tile.modelName;
     }
     @Override public void initGui() {
-        String keyText = key == null ? tile.linkKey : key.getText();
+        String keyText = key == null ? tile.getLinkKey() : key.getText();
         String searchText = search == null ? "" : search.getText();
         String rotationText = rotationField == null ? currentRotationText() : rotationField.getText();
         String offsetXText = offsetXField == null ? offsetText(tile.getOffsetX()) : offsetXField.getText();

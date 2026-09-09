@@ -2,6 +2,8 @@ package jp.me1han.sam.network;
 
 import java.lang.reflect.*;
 import java.util.*;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
 import com.mojang.authlib.GameProfile;
 import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
@@ -44,7 +46,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityTrainTypeSelector.class, "network-test-selector");
         mapping.invoke(null, TileEntityDebugReceiver.class, "network-test-debug");
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
-        lifecycle(); linkRouting(); wireBounds(); delivery(); departureInterval(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); wireBounds(); delivery(); departureInterval(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -90,6 +92,36 @@ public final class NetworkVerificationTest {
         check(SpeakerRegistry.findByKey(world, "A").isEmpty(), "World unload cleanup");
     }
 
+    private static void nashornBeanProperty() throws Exception {
+        SamLinkRegistry.clear();
+        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        check(engine != null, "Java 8 Nashorn is required");
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer tile = new TileEntityAnnouncer(); tile.setLinkKey("A"); world.add(tile, 1, 0, 0);
+        engine.put("tile", tile);
+        Object result = engine.eval("tile.linkKey = ' B '; tile.linkKey;");
+        check("B".equals(tile.getLinkKey()) && "B".equals(String.valueOf(result)),
+            "Nashorn maps announcer linkKey reads and writes to JavaBeans accessors");
+        check(SamLinkRegistry.findFirst(world, "A", TileEntityAnnouncer.class) == null
+            && SamLinkRegistry.findFirst(world, "B", TileEntityAnnouncer.class) == tile,
+            "Nashorn announcer property write immediately reindexes its logical link");
+
+        TileEntityDepartureMelody melody = new TileEntityDepartureMelody(); melody.setLinkKey("A"); world.add(melody, 2, 0, 0);
+        engine.put("tile", melody);
+        result = engine.eval("tile.linkKey = ' C '; tile.linkKey;");
+        check("C".equals(melody.getLinkKey()) && "C".equals(String.valueOf(result)),
+            "Nashorn maps departure melody linkKey through the same JavaBeans property");
+        check(SamLinkRegistry.findFirst(world, "A", TileEntityDepartureMelody.class) == null
+            && SamLinkRegistry.findFirst(world, "C", TileEntityDepartureMelody.class) == melody,
+            "Nashorn departure property write immediately reindexes its logical link");
+
+        NBTTagCompound saved = new NBTTagCompound(); tile.writeToNBT(saved);
+        TileEntityAnnouncer loaded = new TileEntityAnnouncer(); loaded.readFromNBT(saved);
+        check("B".equals(saved.getString("linkKey")) && "B".equals(loaded.getLinkKey()),
+            "Private JavaBeans property retains the existing linkKey NBT format");
+        SamLinkRegistry.clear(world);
+    }
+
     private static void linkRouting() {
         SamLinkRegistry.clear();
         check(LinkKey.isEmpty(null) && LinkKey.isEmpty("") && LinkKey.isEmpty("   "), "Null and blank link keys are empty");
@@ -101,6 +133,9 @@ public final class NetworkVerificationTest {
         CountingAnnouncer second = new CountingAnnouncer(); second.setLinkKey("A"); world.add(second, 2, 0, 0);
         check(SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).size() == 2, "Validate registers multiple devices per key");
         check(SamLinkRegistry.findFirst(world, " A ", TileEntityAnnouncer.class) == first, "findFirst preserves registration order");
+        check(SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).get(0) == first
+            && SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).get(1) == second,
+            "findAll initially follows stable registration order");
 
         FixtureWorld another = new FixtureWorld();
         CountingAnnouncer isolated = new CountingAnnouncer(); isolated.setLinkKey("A"); another.add(isolated, 1, 0, 0);
@@ -109,18 +144,25 @@ public final class NetworkVerificationTest {
         first.setLinkKey("B");
         check(SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).size() == 1
             && SamLinkRegistry.findFirst(world, "B", TileEntityAnnouncer.class) == first, "A to B reindex is immediate");
-        first.setLinkKey("   ");
-        check(SamLinkRegistry.findFirst(world, "B", TileEntityAnnouncer.class) == null, "Empty key removes registry entry");
         first.setLinkKey("A");
-        check(SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).size() == 2, "Key can be registered again");
+        check(SamLinkRegistry.findFirst(world, "A", TileEntityAnnouncer.class) == first,
+            "A to B to A reindex preserves findFirst priority");
+        List<TileEntityAnnouncer> stable = SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class);
+        check(stable.get(0) == first && stable.get(1) == second,
+            "A to B to A reindex preserves findAll order");
+        first.setLinkKey("   ");
+        check(SamLinkRegistry.findFirst(world, "A", TileEntityAnnouncer.class) == second, "Empty key removes registry membership");
+        first.setLinkKey("A");
+        stable = SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class);
+        check(stable.get(0) == first && stable.get(1) == second, "Empty to A reindex retains stable order");
 
         TileEntityStartAnnouncer start = new TileEntityStartAnnouncer(); start.setLinkKey("A"); world.add(start, 3, 0, 0);
         start.onRedstoneUpdate(true);
-        check(first.starts == 0 && second.starts == 1, "START routes only to the first currently registered announcer");
+        check(first.starts == 1 && second.starts == 0, "START routes only to the stable first announcer");
 
         TileEntityStopAnnouncer stop = new TileEntityStopAnnouncer(); stop.setLinkKey("A"); world.add(stop, 4, 0, 0);
         stop.onRedstoneUpdate(true);
-        check(first.stops == 0 && second.stops == 1, "STOP performs key-level stop once");
+        check(first.stops == 1 && second.stops == 0, "STOP performs key-level stop once");
 
         CountingAwareness awareness1 = new CountingAwareness(); awareness1.setLinkKey("A"); awareness1.playAfterDeparture = true;
         world.add(awareness1, 5, 0, 0);
@@ -138,6 +180,15 @@ public final class NetworkVerificationTest {
         check(metadata.linkKey.equals("A") && metadata.formationId == 42L && metadata.sourceX == 8,
             "Trigger preserves normalized key, position, source type and formation ID");
 
+        FixtureWorld orderWorld = new FixtureWorld();
+        CountingAnnouncer orderFirst = new CountingAnnouncer(); orderFirst.setLinkKey("A"); orderWorld.add(orderFirst, 1, 0, 0);
+        CountingAnnouncer orderSecond = new CountingAnnouncer(); orderSecond.setLinkKey("A"); orderWorld.add(orderSecond, 2, 0, 0);
+        orderFirst.setLinkKey("B"); orderFirst.setLinkKey("A"); orderFirst.invalidate();
+        CountingAnnouncer orderThird = new CountingAnnouncer(); orderThird.setLinkKey("A"); orderWorld.add(orderThird, 3, 0, 0);
+        List<TileEntityAnnouncer> afterReload = SamLinkRegistry.findAll(orderWorld, "A", TileEntityAnnouncer.class);
+        check(afterReload.size() == 2 && afterReload.get(0) == orderSecond && afterReload.get(1) == orderThird,
+            "Formal unregister drops old order and later validate receives a new order");
+
         second.onChunkUnload();
         check(!SamLinkRegistry.findAll(world, "A", TileEntityAnnouncer.class).contains(second), "Chunk unload removes stale target");
         first.invalidate();
@@ -146,7 +197,7 @@ public final class NetworkVerificationTest {
         FixtureWorld clientWorld = new FixtureWorld(); clientWorld.isRemote = true;
         CountingAnnouncer client = new CountingAnnouncer(); client.setLinkKey("A"); clientWorld.add(client, 1, 0, 0);
         check(SamLinkRegistry.findAll(clientWorld, "A", TileEntityAnnouncer.class).isEmpty(), "Client world never creates link registry entries");
-        SamLinkRegistry.clear(world); SamLinkRegistry.clear(another);
+        SamLinkRegistry.clear(world); SamLinkRegistry.clear(another); SamLinkRegistry.clear(orderWorld);
     }
 
     private static void wireBounds() {
@@ -195,7 +246,7 @@ public final class NetworkVerificationTest {
     private static void delivery() throws Exception {
         ServerSessions.clear();
         FixtureWorld world = new FixtureWorld();
-        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.linkKey = "A"; world.add(owner, -10, 0, 0);
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A"); world.add(owner, -10, 0, 0);
         for (int i = 0; i < 10; i++) { Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, i, 0, 0); }
         List<Player> nearby = new ArrayList<>();
         for (int i = 0; i < 3; i++) nearby.add(player(world, i, 0, 0));
@@ -255,7 +306,7 @@ public final class NetworkVerificationTest {
     private static void departureInterval() throws Exception {
         ServerSessions.clear();
         FixtureWorld world = new FixtureWorld();
-        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.linkKey = "A"; world.add(owner, 0, 0, 0);
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A"); world.add(owner, 0, 0, 0);
         TileEntityAwarenessAnnouncer awareness = new TileEntityAwarenessAnnouncer();
         awareness.applyConfig("A", "test:a", 20, false, false, true, 3);
         world.add(awareness, 1, 0, 0);
@@ -328,16 +379,16 @@ public final class NetworkVerificationTest {
         check("Tokyo".equals(announcer.receivedData.get("destination")), "dataMap still reaches linked announcer without TE scan");
         new NetworkHandler.TrainTypeConfigHandler().onMessage(new PacketTrainTypeConfig(2, 0, 0,
             Collections.singletonList(new TrainTypeCondition("invalid", 99)), "B", false), context); serverTick();
-        check(selector.linkKey.equals("A"), "Invalid train condition type rejected");
+        check(selector.getLinkKey().equals("A"), "Invalid train condition type rejected");
         TileEntityStartAnnouncer start = new TileEntityStartAnnouncer(); world.add(start, 3, 0, 0);
         new NetworkHandler.StartAnnouncerConfigHandler().onMessage(new PacketStartAnnouncerConfig(3, 0, 0, "A", true), context);
-        check(start.linkKey.isEmpty(), "Start config is queued"); serverTick(); check(start.isControlCar, "Start config applied");
+        check(start.getLinkKey().isEmpty(), "Start config is queued"); serverTick(); check(start.isControlCar, "Start config applied");
         TileEntityStopAnnouncer stop = new TileEntityStopAnnouncer(); world.add(stop, 4, 0, 0);
         new NetworkHandler.StopAnnouncerConfigHandler().onMessage(new PacketStopAnnouncerConfig(4, 0, 0, "A", true), context);
-        check(stop.linkKey.isEmpty(), "Stop config is queued"); serverTick(); check(stop.isControlCar, "Stop config applied");
+        check(stop.getLinkKey().isEmpty(), "Stop config is queued"); serverTick(); check(stop.isControlCar, "Stop config applied");
         TileEntityDebugReceiver debug = new TileEntityDebugReceiver(); world.add(debug, 5, 0, 0);
         new PacketDebugConfig.Handler().onMessage(new PacketDebugConfig(5, 0, 0, " A "), context);
-        check(debug.linkKey.isEmpty(), "Debug config is queued"); serverTick(); check(debug.linkKey.equals("A"), "Debug config normalized");
+        check(debug.getLinkKey().isEmpty(), "Debug config is queued"); serverTick(); check(debug.getLinkKey().equals("A"), "Debug config normalized");
         TileEntityAwarenessAnnouncer awareness = new TileEntityAwarenessAnnouncer(); world.add(awareness, 6, 0, 0);
         PacketAwarenessConfig awarenessConfig = new PacketAwarenessConfig(6, 0, 0, "A", "test:a;test:b", 40, true, true, true, 10);
         new NetworkHandler.AwarenessConfigHandler().onMessage(awarenessConfig, context);
@@ -527,7 +578,7 @@ public final class NetworkVerificationTest {
 
         ServerSessions.clear(); ServerTaskQueue.INSTANCE.clear();
         FixtureWorld world = new FixtureWorld(); TileEntityAnnouncer owner = new TileEntityAnnouncer();
-        owner.linkKey = "A"; world.add(owner, -10, 0, 0);
+        owner.setLinkKey("A"); world.add(owner, -10, 0, 0);
         for (int i = 0; i < 10; i++) { Speaker s = new Speaker(); s.linkKey = "A"; world.add(s, i, 0, 0); }
         Player player = player(world, 0, 0, 0); RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
         long id = ServerSessions.start(owner, start(0)); out.clear();
