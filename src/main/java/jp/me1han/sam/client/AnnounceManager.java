@@ -473,17 +473,11 @@ public class AnnounceManager {
     }
 
     private String normalizeKey(String key) {
-        if (key == null) {
-            return "";
-        }
-        return key.trim();
+        return jp.me1han.sam.link.LinkKey.normalize(key);
     }
 
     private static String normalizeKeyStatic(String key) {
-        if (key == null) {
-            return "";
-        }
-        return key.trim();
+        return jp.me1han.sam.link.LinkKey.normalize(key);
     }
 
 }

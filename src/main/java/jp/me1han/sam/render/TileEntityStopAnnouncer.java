@@ -5,9 +5,16 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
 import java.util.List;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkedTile;
+import jp.me1han.sam.link.SamLinkRegistry;
+import jp.me1han.sam.trigger.SamTrigger;
+import jp.me1han.sam.trigger.SamTriggerDispatcher;
+import jp.me1han.sam.trigger.SamTriggerSourceType;
+import jp.me1han.sam.trigger.SamTriggerType;
 
-public class TileEntityStopAnnouncer extends RegisteredTileEntity {
-    public String linkKey = "";
+public class TileEntityStopAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
+    private String linkKey = "";
     public boolean isControlCar = false;
     private boolean lastPowered = false;
     private long lastFormationId = -1L;
@@ -41,7 +48,7 @@ public class TileEntityStopAnnouncer extends RegisteredTileEntity {
 
         if (currentFormationId != this.lastFormationId) {
             this.lastFormationId = currentFormationId;
-            this.dispatchStopTrigger();
+            this.dispatchStopTrigger(SamTriggerSourceType.TRAIN, currentFormationId);
         }
     }
 
@@ -65,36 +72,33 @@ public class TileEntityStopAnnouncer extends RegisteredTileEntity {
 
 
         if (powered && !lastPowered) {
-            this.dispatchStopTrigger();
+            this.dispatchStopTrigger(SamTriggerSourceType.REDSTONE, SamTrigger.NO_FORMATION);
         }
         this.lastPowered = powered;
     }
 
-    private void dispatchStopTrigger() {
-        if (this.linkKey == null || this.linkKey.isEmpty()) return;
-        String normalizedKey = this.linkKey.trim();
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
-            if (obj instanceof TileEntityAnnouncer) {
-                TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
-                if (announcer.linkKey != null && !announcer.linkKey.trim().isEmpty() &&
-                    normalizedKey.equals(announcer.linkKey.trim())) {
-                    announcer.forceStop();
-                }
-            }
-        }
+    private void dispatchStopTrigger(SamTriggerSourceType sourceType, long formationId) {
+        SamTriggerDispatcher.dispatch(this.worldObj, SamTrigger.from(this, SamTriggerType.ANNOUNCE_STOP,
+            this.getLinkKey(), sourceType, formationId));
+    }
+
+    @Override public String getLinkKey() { return this.linkKey; }
+    @Override public void setLinkKey(String key) {
+        this.linkKey = LinkKey.normalize(key);
+        SamLinkRegistry.reindex(this);
     }
 
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
+        nbt.setString("linkKey", this.getLinkKey());
         nbt.setBoolean("isControlCar", this.isControlCar);
     }
 
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-        this.linkKey = nbt.getString("linkKey");
+        this.setLinkKey(nbt.getString("linkKey"));
         this.isControlCar = nbt.getBoolean("isControlCar");
     }
 

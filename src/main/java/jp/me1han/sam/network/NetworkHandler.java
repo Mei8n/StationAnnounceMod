@@ -93,7 +93,7 @@ public class NetworkHandler {
                     if (condition == null || !PacketLimits.string(condition.key, PacketLimits.NAME) || condition.type < 0 || condition.type > 3) return;
                 ConfigAccess.change(tile, () -> {
                     tile.conditions = new java.util.ArrayList<>(m.conditions);
-                    tile.linkKey = ConfigAccess.normalize(m.linkKey); tile.isControlCar = m.isControlCar;
+                    tile.setLinkKey(m.linkKey); tile.isControlCar = m.isControlCar;
                 });
             }); return null;
         }
@@ -102,7 +102,7 @@ public class NetworkHandler {
         @Override public IMessage onMessage(PacketStartAnnouncerConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityStartAnnouncer.class, tile -> {
                 if (!ConfigAccess.key(m.linkKey)) return;
-                ConfigAccess.change(tile, () -> { tile.linkKey = ConfigAccess.normalize(m.linkKey); tile.isControlCar = m.isControlCar; });
+                ConfigAccess.change(tile, () -> { tile.setLinkKey(m.linkKey); tile.isControlCar = m.isControlCar; });
             }); return null;
         }
     }
@@ -110,7 +110,7 @@ public class NetworkHandler {
         @Override public IMessage onMessage(PacketStopAnnouncerConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityStopAnnouncer.class, tile -> {
                 if (!ConfigAccess.key(m.linkKey)) return;
-                ConfigAccess.change(tile, () -> { tile.linkKey = ConfigAccess.normalize(m.linkKey); tile.isControlCar = m.isControlCar; });
+                ConfigAccess.change(tile, () -> { tile.setLinkKey(m.linkKey); tile.isControlCar = m.isControlCar; });
             }); return null;
         }
     }
@@ -129,7 +129,7 @@ public class NetworkHandler {
                     || m.intervalTicks < 20 || m.intervalTicks > PacketLimits.MAX_TICKS
                     || m.departureDelayTicks < 0 || m.departureDelayTicks > PacketLimits.MAX_TICKS) return;
                 String sounds = TileEntityAwarenessAnnouncer.normalizeSoundList(m.soundList);
-                if (ConfigAccess.normalize(m.linkKey).equals(tile.linkKey) && sounds.equals(tile.soundList)
+                if (ConfigAccess.normalize(m.linkKey).equals(tile.getLinkKey()) && sounds.equals(tile.soundList)
                     && m.intervalTicks == tile.intervalTicks && m.randomOrder == tile.randomOrder
                     && m.allowOverlap == tile.allowOverlap && m.playAfterDeparture == tile.playAfterDeparture
                     && m.departureDelayTicks == tile.departureDelayTicks) return;

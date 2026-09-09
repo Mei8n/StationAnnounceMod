@@ -11,9 +11,12 @@ import java.util.Map;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkedTile;
+import jp.me1han.sam.link.SamLinkRegistry;
 
-public class TileEntityDepartureMelody extends RegisteredTileEntity {
-    public String linkKey = "";
+public class TileEntityDepartureMelody extends RegisteredTileEntity implements SamLinkedTile {
+    private String linkKey = "";
     /** Retained solely to migrate previously placed, one-shot devices. */
     public String soundId = "";
     public String scriptName = "";
@@ -43,7 +46,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
         if (activeParent == null || activeParent.isInvalid()
             || !worldObj.blockExists(activeParent.xCoord, activeParent.yCoord, activeParent.zCoord)
             || worldObj.getTileEntity(activeParent.xCoord, activeParent.yCoord, activeParent.zCoord) != activeParent
-            || !normalize(linkKey).equals(normalize(activeParent.linkKey))) {
+            || !LinkKey.equals(getLinkKey(), activeParent.getLinkKey())) {
             cancelPlayback();
             return;
         }
@@ -80,9 +83,8 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
         try {
             TileEntityAnnouncer parent = findParent();
             if (parent == null) throw new IllegalStateException("Exactly one loaded parent announcer must match the link key");
-            for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
-                if (obj != this && obj instanceof TileEntityDepartureMelody && !((TileEntity) obj).isInvalid()
-                    && normalize(linkKey).equals(normalize(((TileEntityDepartureMelody) obj).linkKey))) {
+            for (TileEntityDepartureMelody device : SamLinkRegistry.findAll(worldObj, getLinkKey(), TileEntityDepartureMelody.class)) {
+                if (device != this) {
                     throw new IllegalStateException("Only one melody device may use a link key");
                 }
             }
@@ -148,7 +150,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
         long position = jp.me1han.sam.SpeakerRegistry.position(button.xCoord, button.yCoord, button.zCoord);
         boolean changed;
         if (on) {
-            if (!normalize(linkKey).equals(normalize(button.linkKey))) return;
+            if (!LinkKey.equals(getLinkKey(), button.getLinkKey())) return;
             changed = activeSwitches.put(position, button) != button;
         } else {
             if (activeSwitches.get(position) != button) return;
@@ -179,11 +181,9 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
         if (worldObj != null && !worldObj.isRemote) {
             resettingSwitches = true;
             try {
-                for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
-                    if (obj instanceof TileEntityDepartureSwitch
-                        && normalize(linkKey).equals(normalize(((TileEntityDepartureSwitch) obj).linkKey))) {
-                        ((TileEntityDepartureSwitch) obj).resetState(this);
-                    }
+                for (TileEntityDepartureSwitch button :
+                     SamLinkRegistry.findAll(worldObj, getLinkKey(), TileEntityDepartureSwitch.class)) {
+                    button.resetState(this);
                 }
             } finally {
                 activeSwitches.clear();
@@ -220,18 +220,25 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
 
     public static void cancelLinked(World world, String key) {
         String normalized = normalize(key);
+        if (!normalized.isEmpty()) {
+            for (TileEntityDepartureMelody tile : SamLinkRegistry.findAll(world, normalized, TileEntityDepartureMelody.class)) {
+                tile.cancelPlayback();
+            }
+            return;
+        }
+        // Empty is the legacy wildcard used by global cleanup, not a logical link lookup.
         for (Object obj : jp.me1han.sam.LoadedSamTiles.all(world)) {
             if (obj instanceof TileEntityDepartureMelody) {
                 TileEntityDepartureMelody tile = (TileEntityDepartureMelody) obj;
-                if (normalized.isEmpty() || normalized.equals(normalize(tile.linkKey))) tile.cancelPlayback();
+                tile.cancelPlayback();
             }
         }
     }
 
     public void applyConfig(String key, String legacySound, String script) {
-        if (normalize(key).equals(linkKey) && normalize(legacySound).equals(soundId) && normalize(script).equals(scriptName)) return;
+        if (LinkKey.equals(key, getLinkKey()) && normalize(legacySound).equals(soundId) && normalize(script).equals(scriptName)) return;
         cancelPlayback();
-        linkKey = normalize(key);
+        setLinkKey(key);
         soundId = normalize(legacySound);
         scriptName = normalize(script);
         lastError = "";
@@ -239,19 +246,10 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
     }
 
     private TileEntityAnnouncer findParent() {
-        String key = normalize(linkKey);
+        String key = normalize(getLinkKey());
         if (worldObj == null || key.isEmpty()) return null;
-        TileEntityAnnouncer found = null;
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(worldObj)) {
-            if (obj instanceof TileEntityAnnouncer && !((TileEntity) obj).isInvalid()) {
-                TileEntityAnnouncer parent = (TileEntityAnnouncer) obj;
-                if (key.equals(normalize(parent.linkKey))) {
-                    if (found != null) return null;
-                    found = parent;
-                }
-            }
-        }
-        return found;
+        java.util.List<TileEntityAnnouncer> parents = SamLinkRegistry.findAll(worldObj, key, TileEntityAnnouncer.class);
+        return parents.size() == 1 ? parents.get(0) : null;
     }
 
     private void sync() {
@@ -259,13 +257,19 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
         if (worldObj != null && !worldObj.isRemote) worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
     }
 
-    public static String normalize(String value) { return value == null ? "" : value.trim(); }
+    /** Compatibility wrapper retained for existing internal callers. */
+    public static String normalize(String value) { return LinkKey.normalize(value); }
+    @Override public String getLinkKey() { return this.linkKey; }
+    @Override public void setLinkKey(String key) {
+        this.linkKey = LinkKey.normalize(key);
+        SamLinkRegistry.reindex(this);
+    }
     @Override public void invalidate() { cancelPlayback(); super.invalidate(); }
     @Override public void onChunkUnload() { cancelPlayback(); super.onChunkUnload(); }
 
     @Override public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        nbt.setString("linkKey", normalize(linkKey));
+        nbt.setString("linkKey", getLinkKey());
         nbt.setString("soundId", normalize(soundId));
         nbt.setString("scriptName", normalize(scriptName));
         // Deliberately do not persist live playback across world/chunk reloads.
@@ -273,7 +277,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity {
 
     @Override public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-        linkKey = nbt.getString("linkKey");
+        setLinkKey(nbt.getString("linkKey"));
         soundId = nbt.getString("soundId");
         scriptName = nbt.hasKey("scriptName") ? nbt.getString("scriptName") : "";
         syncedOn = nbt.getBoolean("departureOn");

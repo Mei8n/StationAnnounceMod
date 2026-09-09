@@ -10,9 +10,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkedTile;
+import jp.me1han.sam.link.SamLinkRegistry;
 
-public class TileEntityTrainTypeSelector extends RegisteredTileEntity {
-    public String linkKey = "";
+public class TileEntityTrainTypeSelector extends RegisteredTileEntity implements SamLinkedTile {
+    private String linkKey = "";
     public boolean isControlCar = false;
     public List<TrainTypeCondition> conditions = new ArrayList<TrainTypeCondition>();
     public Map<String, String> extractedData = new HashMap<String, String>();
@@ -76,19 +79,19 @@ public class TileEntityTrainTypeSelector extends RegisteredTileEntity {
     }
 
     public void dispatchData(Map<String, String> dataMap) {
-        if (this.worldObj.isRemote || this.linkKey == null || this.linkKey.isEmpty()) return;
+        if (this.worldObj.isRemote || LinkKey.isEmpty(this.getLinkKey())) return;
 
-        String normalizedKey = this.linkKey.trim();
         String sourcePos = String.format("%d, %d, %d", xCoord, yCoord, zCoord);
 
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
-            if (obj instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
-                jp.me1han.sam.render.TileEntityAnnouncer receiver = (jp.me1han.sam.render.TileEntityAnnouncer) obj;
-                if (receiver.linkKey != null && normalizedKey.equals(receiver.linkKey.trim())) {
-                    receiver.onDataReceived(dataMap, sourcePos);
-                }
-            }
+        for (TileEntityAnnouncer receiver : SamLinkRegistry.findAll(this.worldObj, this.getLinkKey(), TileEntityAnnouncer.class)) {
+            receiver.onDataReceived(dataMap, sourcePos);
         }
+    }
+
+    @Override public String getLinkKey() { return this.linkKey; }
+    @Override public void setLinkKey(String key) {
+        this.linkKey = LinkKey.normalize(key);
+        SamLinkRegistry.reindex(this);
     }
 
     public int getPowerOutput() {
@@ -103,7 +106,7 @@ public class TileEntityTrainTypeSelector extends RegisteredTileEntity {
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
+        nbt.setString("linkKey", this.getLinkKey());
         nbt.setBoolean("isControlCar", this.isControlCar);
 
         NBTTagList list = new NBTTagList();
@@ -119,7 +122,7 @@ public class TileEntityTrainTypeSelector extends RegisteredTileEntity {
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-        this.linkKey = nbt.getString("linkKey");
+        this.setLinkKey(nbt.getString("linkKey"));
         this.isControlCar = nbt.getBoolean("isControlCar");
 
         if (nbt.hasKey("conditions", 9)) {

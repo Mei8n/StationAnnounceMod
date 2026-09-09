@@ -40,7 +40,7 @@ public class PacketDepartureSwitchConfig implements IMessage {
                     || !jp.me1han.sam.render.TileEntityDepartureSwitch.validOffset(m.offsetY)
                     || !jp.me1han.sam.render.TileEntityDepartureSwitch.validOffset(m.offsetZ)) return;
                 int yaw = (int) jp.me1han.sam.switchmodel.SwitchYaw.normalize(m.rotationYaw);
-                if (ConfigAccess.normalize(m.linkKey).equals(tile.linkKey) && m.modelName.equals(tile.modelName)
+                if (ConfigAccess.normalize(m.linkKey).equals(tile.getLinkKey()) && m.modelName.equals(tile.modelName)
                     && yaw == tile.getRotationYaw() && m.offsetX == tile.getOffsetX()
                     && m.offsetY == tile.getOffsetY() && m.offsetZ == tile.getOffsetZ()) return;
                 tile.applyConfig(m.linkKey, m.modelName, yaw, m.offsetX, m.offsetY, m.offsetZ);

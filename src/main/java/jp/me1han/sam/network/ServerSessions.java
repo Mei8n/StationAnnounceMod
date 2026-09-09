@@ -206,7 +206,8 @@ public final class ServerSessions {
     @SubscribeEvent public void unload(WorldEvent.Unload event) {
         if (event.world.isRemote) return;
         for (Session session : new ArrayList<>(SESSIONS.values())) if (session.world == event.world) stop(session);
-        SpeakerRegistry.clear(event.world); LoadedSamTiles.clear(event.world);
+        SpeakerRegistry.clear(event.world); jp.me1han.sam.link.SamLinkRegistry.clear(event.world);
+        LoadedSamTiles.clear(event.world);
     }
     public static void clear() { SESSIONS.clear(); BY_PLAYER.clear(); serverTick = 0; }
 

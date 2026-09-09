@@ -7,9 +7,12 @@ import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentText;
 import java.util.Map;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkedTile;
+import jp.me1han.sam.link.SamLinkRegistry;
 
-public class TileEntityDebugReceiver extends RegisteredTileEntity {
-    public String linkKey = "";
+public class TileEntityDebugReceiver extends RegisteredTileEntity implements SamLinkedTile {
+    private String linkKey = "";
     private long lastReadTime = 0;
     private boolean lastPowered = false;
     private long lastCacheTime = 0;
@@ -17,7 +20,7 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity {
 
     @Override
     public void updateEntity() {
-        if (this.worldObj.isRemote || this.linkKey == null || this.linkKey.isEmpty()) return;
+        if (this.worldObj.isRemote || LinkKey.isEmpty(this.getLinkKey())) return;
 
         // 100フレーム毎にスキャン（毎10フレームから大幅削減）
         if (this.worldObj.getTotalWorldTime() - this.lastCacheTime > CACHE_DURATION) {
@@ -27,16 +30,10 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity {
     }
 
     private void scanForUpdates() {
-        String normalizedKey = this.linkKey.trim();
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
-            if (obj instanceof TileEntityAnnouncer) {
-                TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
-                if (announcer.linkKey != null && normalizedKey.equals(announcer.linkKey.trim())) {
-                    if (announcer.lastDataReceivedTime > this.lastReadTime) {
-                        this.lastReadTime = announcer.lastDataReceivedTime;
-                        this.printAnnouncerData(announcer);
-                    }
-                }
+        for (TileEntityAnnouncer announcer : SamLinkRegistry.findAll(this.worldObj, this.getLinkKey(), TileEntityAnnouncer.class)) {
+            if (announcer.lastDataReceivedTime > this.lastReadTime) {
+                this.lastReadTime = announcer.lastDataReceivedTime;
+                this.printAnnouncerData(announcer);
             }
         }
     }
@@ -47,8 +44,7 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity {
             return;
         }
 
-        String normalizedKey = this.linkKey == null ? "" : this.linkKey.trim();
-        if (normalizedKey.isEmpty()) {
+        if (LinkKey.isEmpty(this.getLinkKey())) {
             this.lastPowered = powered;
             return;
         }
@@ -60,16 +56,16 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity {
     }
 
     private void forcePrintData() {
-        String normalizedKey = this.linkKey == null ? "" : this.linkKey.trim();
-        if (normalizedKey.isEmpty()) return;
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
-            if (obj instanceof TileEntityAnnouncer) {
-                TileEntityAnnouncer announcer = (TileEntityAnnouncer) obj;
-                if (announcer.linkKey != null && normalizedKey.equals(announcer.linkKey.trim())) {
-                    this.printAnnouncerData(announcer);
-                }
-            }
+        if (LinkKey.isEmpty(this.getLinkKey())) return;
+        for (TileEntityAnnouncer announcer : SamLinkRegistry.findAll(this.worldObj, this.getLinkKey(), TileEntityAnnouncer.class)) {
+            this.printAnnouncerData(announcer);
         }
+    }
+
+    @Override public String getLinkKey() { return this.linkKey; }
+    @Override public void setLinkKey(String key) {
+        this.linkKey = LinkKey.normalize(key);
+        SamLinkRegistry.reindex(this);
     }
 
     private void printAnnouncerData(TileEntityAnnouncer announcer) {
@@ -91,13 +87,13 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity {
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
+        nbt.setString("linkKey", this.getLinkKey());
     }
 
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-        this.linkKey = nbt.getString("linkKey");
+        this.setLinkKey(nbt.getString("linkKey"));
     }
 
     @Override

@@ -45,7 +45,7 @@ public class GuiSpeaker extends GuiScreen {
                 int range = Integer.parseInt(rangeField.getText().trim());
                 // 小数点にカンマが使われても保存できるようにする
                 float vol = Float.parseFloat(volumeField.getText().trim().replace(',', '.'));
-                String normalizedKey = linkKeyField.getText() == null ? "" : linkKeyField.getText().trim();
+                String normalizedKey = jp.me1han.sam.link.LinkKey.normalize(linkKeyField.getText());
 
                 if (!jp.me1han.sam.network.PacketLimits.speaker(range, vol)) return;
                 NetworkHandler.INSTANCE.sendToServer(new PacketSpeakerConfig(tile.xCoord, tile.yCoord, tile.zCoord, normalizedKey, range, vol));

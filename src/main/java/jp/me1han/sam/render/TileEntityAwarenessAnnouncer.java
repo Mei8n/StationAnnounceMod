@@ -6,9 +6,12 @@ import net.minecraft.tileentity.TileEntity;
 
 import java.util.ArrayList;
 import java.util.List;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkedTile;
+import jp.me1han.sam.link.SamLinkRegistry;
 
-public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
-    public String linkKey = "";
+public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
+    private String linkKey = "";
     public String soundList = "";
     public int intervalTicks = 1200;
     public boolean randomOrder = false;
@@ -48,7 +51,7 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
 
     public void applyConfig(String linkKey, String soundList, int intervalTicks, boolean randomOrder,
                             boolean allowOverlap, boolean playAfterDeparture, int departureDelayTicks) {
-        this.linkKey = linkKey == null ? "" : linkKey.trim();
+        this.setLinkKey(linkKey);
         this.soundList = normalizeSoundList(soundList);
         this.intervalTicks = Math.max(20, intervalTicks);
         this.randomOrder = randomOrder;
@@ -68,7 +71,13 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
     }
 
     public String getNormalizedLinkKey() {
-        return this.linkKey == null ? "" : this.linkKey.trim();
+        return LinkKey.normalize(this.getLinkKey());
+    }
+
+    @Override public String getLinkKey() { return this.linkKey; }
+    @Override public void setLinkKey(String key) {
+        this.linkKey = LinkKey.normalize(key);
+        SamLinkRegistry.reindex(this);
     }
 
     private boolean playNextSound() {
@@ -101,16 +110,7 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
             return null;
         }
 
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
-            if (obj instanceof TileEntityAnnouncer) {
-                TileEntityAnnouncer parent = (TileEntityAnnouncer) obj;
-                String parentKey = parent.linkKey == null ? "" : parent.linkKey.trim();
-                if (key.equals(parentKey)) {
-                    return parent;
-                }
-            }
-        }
-        return null;
+        return SamLinkRegistry.findFirst(this.worldObj, key, TileEntityAnnouncer.class);
     }
 
     public List<String> getSounds() {
@@ -158,7 +158,7 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        nbt.setString("linkKey", this.linkKey == null ? "" : this.linkKey);
+        nbt.setString("linkKey", this.getLinkKey());
         nbt.setString("soundList", this.soundList == null ? "" : this.soundList);
         nbt.setInteger("intervalTicks", this.intervalTicks);
         nbt.setBoolean("randomOrder", this.randomOrder);
@@ -173,7 +173,7 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity {
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-        this.linkKey = nbt.getString("linkKey");
+        this.setLinkKey(nbt.getString("linkKey"));
         this.soundList = nbt.getString("soundList");
         this.intervalTicks = nbt.hasKey("intervalTicks") ? Math.max(20, nbt.getInteger("intervalTicks")) : 1200;
         this.randomOrder = nbt.getBoolean("randomOrder");

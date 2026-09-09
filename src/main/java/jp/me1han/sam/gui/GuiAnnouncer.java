@@ -28,7 +28,7 @@ public class GuiAnnouncer extends GuiScriptConfig {
         int top = (this.height - 155) / 2;
         this.linkKeyField = new GuiTextField(fontRendererObj, left + 10, top + 20, 220, 16);
         this.linkKeyField.setMaxStringLength(32);
-        this.linkKeyField.setText(tile.linkKey == null ? "" : tile.linkKey);
+        this.linkKeyField.setText(tile.getLinkKey());
         this.chkPlayLocal = new GuiCheckBox(1, left + 10, top + 45,
             I18n.format("gui.sam.announcer.play_local"), tile.playLocalSound);
         this.buttonList.add(chkPlayLocal);
@@ -46,7 +46,7 @@ public class GuiAnnouncer extends GuiScriptConfig {
             tile.xCoord, tile.yCoord, tile.zCoord, scriptName,
             linkKeyField.getText(), chkPlayLocal.isChecked()));
         this.tile.setScriptName(scriptName);
-        this.tile.linkKey = this.linkKeyField.getText();
+        this.tile.setLinkKey(this.linkKeyField.getText());
         this.tile.playLocalSound = this.chkPlayLocal.isChecked();
         this.mc.thePlayer.closeScreen();
     }

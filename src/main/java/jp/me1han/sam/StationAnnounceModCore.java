@@ -120,6 +120,7 @@ public class StationAnnounceModCore {
         jp.me1han.sam.network.ServerTaskQueue.INSTANCE.clear();
         jp.me1han.sam.network.ServerSessions.clear();
         SpeakerRegistry.clear();
+        jp.me1han.sam.link.SamLinkRegistry.clear();
         LoadedSamTiles.clear();
     }
 }

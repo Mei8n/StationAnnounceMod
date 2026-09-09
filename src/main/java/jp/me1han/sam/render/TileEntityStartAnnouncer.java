@@ -5,10 +5,17 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
 import java.util.List;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkedTile;
+import jp.me1han.sam.link.SamLinkRegistry;
+import jp.me1han.sam.trigger.SamTrigger;
+import jp.me1han.sam.trigger.SamTriggerDispatcher;
+import jp.me1han.sam.trigger.SamTriggerSourceType;
+import jp.me1han.sam.trigger.SamTriggerType;
 
 
-public class TileEntityStartAnnouncer extends RegisteredTileEntity {
-    public String linkKey = "";
+public class TileEntityStartAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
+    private String linkKey = "";
     public boolean isControlCar = false;
     private boolean lastPowered = false;
     private long lastFormationId = -1L;
@@ -45,7 +52,7 @@ public class TileEntityStartAnnouncer extends RegisteredTileEntity {
         // ATSAssistModと同様に編成単位でトリガーする
         if (currentFormationId != this.lastFormationId) {
             this.lastFormationId = currentFormationId;
-            this.dispatchTrigger();
+            this.dispatchTrigger(SamTriggerSourceType.TRAIN, currentFormationId);
         }
     }
 
@@ -69,44 +76,33 @@ public class TileEntityStartAnnouncer extends RegisteredTileEntity {
 
 
         if (powered && !lastPowered) {
-            this.dispatchTrigger();
+            this.dispatchTrigger(SamTriggerSourceType.REDSTONE, SamTrigger.NO_FORMATION);
         }
         this.lastPowered = powered;
     }
 
-    private void dispatchTrigger() {
-        if (this.linkKey == null || this.linkKey.trim().isEmpty()) {
-            return;
-        }
+    private void dispatchTrigger(SamTriggerSourceType sourceType, long formationId) {
+        SamTriggerDispatcher.dispatch(this.worldObj, SamTrigger.from(this, SamTriggerType.ANNOUNCE_START,
+            this.getLinkKey(), sourceType, formationId));
+    }
 
-        String normalizedKey = this.linkKey.trim();
-
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
-            if (obj instanceof jp.me1han.sam.render.TileEntityAnnouncer) {
-                jp.me1han.sam.render.TileEntityAnnouncer announcer = (jp.me1han.sam.render.TileEntityAnnouncer) obj;
-
-                if (announcer.linkKey != null && !announcer.linkKey.trim().isEmpty() &&
-                    normalizedKey.equals(announcer.linkKey.trim())) {
-                    // デバッグレシーバーが存在する場合のみチャットに出力
-                    announcer.startAnnounce();
-                    return;
-                }
-            }
-        }
-
+    @Override public String getLinkKey() { return this.linkKey; }
+    @Override public void setLinkKey(String key) {
+        this.linkKey = LinkKey.normalize(key);
+        SamLinkRegistry.reindex(this);
     }
 
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        if (this.linkKey != null) nbt.setString("linkKey", this.linkKey);
+        nbt.setString("linkKey", this.getLinkKey());
         nbt.setBoolean("isControlCar", this.isControlCar); // ★追加
     }
 
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
-        this.linkKey = nbt.getString("linkKey");
+        this.setLinkKey(nbt.getString("linkKey"));
         this.isControlCar = nbt.getBoolean("isControlCar"); // ★追加
     }
 

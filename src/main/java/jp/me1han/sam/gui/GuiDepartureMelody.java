@@ -26,7 +26,7 @@ public class GuiDepartureMelody extends GuiScriptConfig {
 
         this.linkKeyField = new GuiTextField(this.fontRendererObj, left, top + 20, 220, 20);
         this.linkKeyField.setMaxStringLength(64);
-        this.linkKeyField.setText(this.tile.linkKey == null ? "" : this.tile.linkKey);
+        this.linkKeyField.setText(this.tile.getLinkKey());
         this.soundIdField = new GuiTextField(this.fontRendererObj, left, top + 60, 220, 20);
         this.soundIdField.setMaxStringLength(256);
         this.soundIdField.setText(this.tile.scriptName == null ? "" : this.tile.scriptName);
@@ -36,7 +36,7 @@ public class GuiDepartureMelody extends GuiScriptConfig {
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
-            String linkKey = this.linkKeyField.getText() == null ? "" : this.linkKeyField.getText().trim();
+            String linkKey = jp.me1han.sam.link.LinkKey.normalize(this.linkKeyField.getText());
             String soundId = this.soundIdField.getText() == null ? "" : this.soundIdField.getText().trim();
             NetworkHandler.INSTANCE.sendToServer(new PacketDepartureMelodyConfig(
                 this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, this.tile.soundId, soundId));

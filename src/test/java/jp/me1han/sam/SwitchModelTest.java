@@ -132,10 +132,10 @@ public final class SwitchModelTest {
         engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam.toggle().tachikawa(true)); }");
         AnnouncePackLoader.scriptEngines.put("test.js", engine);
         FixtureWorld world = new FixtureWorld();
-        Parent parent = new Parent(); parent.linkKey = "test";
-        Melody melody = new Melody(); melody.linkKey = "test"; melody.scriptName = "test.js";
-        Button a = new Button(); a.linkKey = "test"; a.modelName = "melodysw_alternate_sample";
-        Button b = new Button(); b.linkKey = "test"; b.modelName = "melodysw_alternate_sample";
+        Parent parent = new Parent(); parent.setLinkKey("test");
+        Melody melody = new Melody(); melody.setLinkKey("test"); melody.scriptName = "test.js";
+        Button a = new Button(); a.setLinkKey("test"); a.modelName = "melodysw_alternate_sample";
+        Button b = new Button(); b.setLinkKey("test"); b.modelName = "melodysw_alternate_sample";
         world.add(parent, 0); world.add(melody, 1); world.add(a, 2); world.add(b, 3);
         check(melody.click(a), "A click succeeds");
         check(a.isLatched() && !b.isActivated() && melody.isOn() && parent.starts == 1
@@ -176,7 +176,7 @@ public final class SwitchModelTest {
         NBTTagCompound portable = a.copySettings();
         check(!portable.hasKey("x") && !portable.hasKey("Activated"), "Portable metadata excludes position and live state");
         Button copy = new Button(); world.add(copy, 8); copy.readSettings(portable);
-        check(copy.xCoord == 8 && copy.linkKey.equals("test") && copy.modelName.equals("melodysw_alternate_sample") && copy.getRotationYaw() == 137
+        check(copy.xCoord == 8 && copy.getLinkKey().equals("test") && copy.modelName.equals("melodysw_alternate_sample") && copy.getRotationYaw() == 137
             && copy.getOffsetX() == 0.25F && copy.getOffsetY() == -0.5F && copy.getOffsetZ() == 1.25F
             && !copy.isActivated(), "Copy preserves settings and offsets at a new position");
         NBTTagCompound saved = (NBTTagCompound) portable.copy();
@@ -190,7 +190,7 @@ public final class SwitchModelTest {
         NBTTagCompound itemTag = new NBTTagCompound(); itemTag.setTag("BlockEntityTag", portable); stack.setTagCompound(itemTag);
         Button placed = new Button(); world.add(placed, 9);
         block.onBlockPlacedBy(world, 9, 0, 0, new net.minecraft.entity.passive.EntityPig(world), stack);
-        check(placed.xCoord == 9 && placed.modelName.equals("melodysw_alternate_sample") && placed.linkKey.equals("test") && placed.getRotationYaw() == 180
+        check(placed.xCoord == 9 && placed.modelName.equals("melodysw_alternate_sample") && placed.getLinkKey().equals("test") && placed.getRotationYaw() == 180
             && placed.getOffsetX() == 0.25F && placed.getOffsetY() == -0.5F && placed.getOffsetZ() == 1.25F
             && !portable.hasKey("x"), "Block placement restores metadata without mutating copied item data");
         placed.setOffset(10000, -10000, 5000);
@@ -232,10 +232,10 @@ public final class SwitchModelTest {
         AnnouncePackLoader.scriptEngines.put("event-sources.js", engine);
 
         FixtureWorld redstoneWorld = new FixtureWorld();
-        Parent redstoneParent = new Parent(); redstoneParent.linkKey = "redstone";
-        Melody redstoneMelody = new Melody(); redstoneMelody.linkKey = redstoneParent.linkKey;
+        Parent redstoneParent = new Parent(); redstoneParent.setLinkKey("redstone");
+        Melody redstoneMelody = new Melody(); redstoneMelody.setLinkKey(redstoneParent.getLinkKey());
         redstoneMelody.scriptName = "event-sources.js";
-        Button redstoneButton = new Button(); redstoneButton.linkKey = redstoneParent.linkKey;
+        Button redstoneButton = new Button(); redstoneButton.setLinkKey(redstoneParent.getLinkKey());
         redstoneWorld.add(redstoneParent, 0); redstoneWorld.add(redstoneMelody, 1); redstoneWorld.add(redstoneButton, 2);
         redstoneMelody.click(redstoneButton);
         check(redstoneMelody.getActiveSwitchCount() == 1 && redstoneMelody.isOn()
@@ -255,10 +255,10 @@ public final class SwitchModelTest {
         redstoneMelody.cancelPlayback();
 
         FixtureWorld unloadWorld = new FixtureWorld();
-        Parent unloadParent = new Parent(); unloadParent.linkKey = "unload";
-        Melody unloadMelody = new Melody(); unloadMelody.linkKey = unloadParent.linkKey;
+        Parent unloadParent = new Parent(); unloadParent.setLinkKey("unload");
+        Melody unloadMelody = new Melody(); unloadMelody.setLinkKey(unloadParent.getLinkKey());
         unloadMelody.scriptName = "event-sources.js";
-        Button unloaded = new Button(); unloaded.linkKey = unloadParent.linkKey;
+        Button unloaded = new Button(); unloaded.setLinkKey(unloadParent.getLinkKey());
         unloadWorld.add(unloadParent, 0); unloadWorld.add(unloadMelody, 1); unloadWorld.add(unloaded, 2);
         unloadMelody.click(unloaded);
         unloaded.onChunkUnload();
@@ -270,10 +270,10 @@ public final class SwitchModelTest {
         unloadMelody.cancelPlayback();
 
         FixtureWorld removalWorld = new FixtureWorld();
-        Parent removalParent = new Parent(); removalParent.linkKey = "removal";
-        Melody removalMelody = new Melody(); removalMelody.linkKey = removalParent.linkKey;
+        Parent removalParent = new Parent(); removalParent.setLinkKey("removal");
+        Melody removalMelody = new Melody(); removalMelody.setLinkKey(removalParent.getLinkKey());
         removalMelody.scriptName = "event-sources.js";
-        Button removed = new Button(); removed.linkKey = removalParent.linkKey;
+        Button removed = new Button(); removed.setLinkKey(removalParent.getLinkKey());
         removalWorld.add(removalParent, 0); removalWorld.add(removalMelody, 1); removalWorld.add(removed, 2);
         removalMelody.click(removed);
         removed.invalidate();
@@ -283,12 +283,12 @@ public final class SwitchModelTest {
         removalMelody.cancelPlayback();
 
         FixtureWorld linkWorld = new FixtureWorld();
-        Parent linkParent = new Parent(); linkParent.linkKey = "old-link";
-        Melody linkMelody = new Melody(); linkMelody.linkKey = linkParent.linkKey;
+        Parent linkParent = new Parent(); linkParent.setLinkKey("old-link");
+        Melody linkMelody = new Melody(); linkMelody.setLinkKey(linkParent.getLinkKey());
         linkMelody.scriptName = "event-sources.js";
-        Button relinked = new Button(); relinked.linkKey = linkParent.linkKey;
-        Parent newLinkParent = new Parent(); newLinkParent.linkKey = "new-link";
-        Melody newLinkMelody = new Melody(); newLinkMelody.linkKey = newLinkParent.linkKey;
+        Button relinked = new Button(); relinked.setLinkKey(linkParent.getLinkKey());
+        Parent newLinkParent = new Parent(); newLinkParent.setLinkKey("new-link");
+        Melody newLinkMelody = new Melody(); newLinkMelody.setLinkKey(newLinkParent.getLinkKey());
         newLinkMelody.scriptName = "event-sources.js";
         linkWorld.add(linkParent, 0); linkWorld.add(linkMelody, 1); linkWorld.add(relinked, 2);
         linkWorld.add(newLinkParent, 3); linkWorld.add(newLinkMelody, 4);
@@ -304,13 +304,13 @@ public final class SwitchModelTest {
         linkMelody.cancelPlayback();
 
         FixtureWorld identityWorld = new FixtureWorld();
-        Parent identityParent = new Parent(); identityParent.linkKey = "identity";
-        Melody identityMelody = new Melody(); identityMelody.linkKey = identityParent.linkKey;
+        Parent identityParent = new Parent(); identityParent.setLinkKey("identity");
+        Melody identityMelody = new Melody(); identityMelody.setLinkKey(identityParent.getLinkKey());
         identityMelody.scriptName = "event-sources.js";
-        Button oldButton = new Button(); oldButton.linkKey = identityParent.linkKey;
+        Button oldButton = new Button(); oldButton.setLinkKey(identityParent.getLinkKey());
         identityWorld.add(identityParent, 0); identityWorld.add(identityMelody, 1); identityWorld.add(oldButton, 2);
         identityMelody.click(oldButton);
-        Button replacement = new Button(); replacement.linkKey = identityParent.linkKey;
+        Button replacement = new Button(); replacement.setLinkKey(identityParent.getLinkKey());
         identityWorld.add(replacement, 2);
         identityMelody.click(replacement);
         oldButton.invalidate();
@@ -323,13 +323,13 @@ public final class SwitchModelTest {
         identityMelody.cancelPlayback();
 
         FixtureWorld duplicateWorld = new FixtureWorld();
-        Parent duplicateParent = new Parent(); duplicateParent.linkKey = "duplicate";
-        Melody originalMelody = new Melody(); originalMelody.linkKey = duplicateParent.linkKey;
+        Parent duplicateParent = new Parent(); duplicateParent.setLinkKey("duplicate");
+        Melody originalMelody = new Melody(); originalMelody.setLinkKey(duplicateParent.getLinkKey());
         originalMelody.scriptName = "event-sources.js";
-        Button owned = new Button(); owned.linkKey = duplicateParent.linkKey;
+        Button owned = new Button(); owned.setLinkKey(duplicateParent.getLinkKey());
         duplicateWorld.add(duplicateParent, 0); duplicateWorld.add(originalMelody, 1); duplicateWorld.add(owned, 2);
         originalMelody.click(owned);
-        Melody duplicateMelody = new Melody(); duplicateMelody.linkKey = duplicateParent.linkKey;
+        Melody duplicateMelody = new Melody(); duplicateMelody.setLinkKey(duplicateParent.getLinkKey());
         duplicateMelody.scriptName = "event-sources.js"; duplicateWorld.add(duplicateMelody, 3);
         check(DepartureSwitchLink.findDevice(owned) == null && owned.controlOwner() == originalMelody,
             "Switch retains its original owner when a duplicate melody appears");
@@ -340,13 +340,13 @@ public final class SwitchModelTest {
         originalMelody.cancelPlayback(); duplicateMelody.cancelPlayback();
 
         FixtureWorld duplicateUnloadWorld = new FixtureWorld();
-        Parent duplicateUnloadParent = new Parent(); duplicateUnloadParent.linkKey = "duplicate-unload";
-        Melody unloadOwner = new Melody(); unloadOwner.linkKey = duplicateUnloadParent.linkKey;
+        Parent duplicateUnloadParent = new Parent(); duplicateUnloadParent.setLinkKey("duplicate-unload");
+        Melody unloadOwner = new Melody(); unloadOwner.setLinkKey(duplicateUnloadParent.getLinkKey());
         unloadOwner.scriptName = "event-sources.js";
-        Button duplicateUnloaded = new Button(); duplicateUnloaded.linkKey = duplicateUnloadParent.linkKey;
+        Button duplicateUnloaded = new Button(); duplicateUnloaded.setLinkKey(duplicateUnloadParent.getLinkKey());
         duplicateUnloadWorld.add(duplicateUnloadParent, 0); duplicateUnloadWorld.add(unloadOwner, 1);
         duplicateUnloadWorld.add(duplicateUnloaded, 2); unloadOwner.click(duplicateUnloaded);
-        Melody unloadDuplicate = new Melody(); unloadDuplicate.linkKey = duplicateUnloadParent.linkKey;
+        Melody unloadDuplicate = new Melody(); unloadDuplicate.setLinkKey(duplicateUnloadParent.getLinkKey());
         unloadDuplicate.scriptName = "event-sources.js"; duplicateUnloadWorld.add(unloadDuplicate, 3);
         duplicateUnloaded.onChunkUnload();
         check(unloadOwner.getActiveSwitchCount() == 0 && unloadOwner.releases == 1
@@ -357,10 +357,10 @@ public final class SwitchModelTest {
         unloadOwner.cancelPlayback(); unloadDuplicate.cancelPlayback();
 
         FixtureWorld tailWorld = new FixtureWorld();
-        Parent tailParent = new Parent(); tailParent.linkKey = "tail";
-        Melody tailMelody = new Melody(); tailMelody.linkKey = tailParent.linkKey;
+        Parent tailParent = new Parent(); tailParent.setLinkKey("tail");
+        Melody tailMelody = new Melody(); tailMelody.setLinkKey(tailParent.getLinkKey());
         tailMelody.scriptName = "event-sources.js";
-        Button tailButton = new Button(); tailButton.linkKey = tailParent.linkKey;
+        Button tailButton = new Button(); tailButton.setLinkKey(tailParent.getLinkKey());
         tailWorld.add(tailParent, 0); tailWorld.add(tailMelody, 1); tailWorld.add(tailButton, 2);
         tailMelody.click(tailButton);
         tailMelody.click(tailButton);
@@ -373,10 +373,10 @@ public final class SwitchModelTest {
         tailMelody.cancelPlayback();
 
         FixtureWorld pulseWorld = new FixtureWorld();
-        Parent pulseParent = new Parent(); pulseParent.linkKey = "pulse";
-        Melody pulseMelody = new Melody(); pulseMelody.linkKey = pulseParent.linkKey;
+        Parent pulseParent = new Parent(); pulseParent.setLinkKey("pulse");
+        Melody pulseMelody = new Melody(); pulseMelody.setLinkKey(pulseParent.getLinkKey());
         pulseMelody.scriptName = "event-sources.js";
-        Button pulse = new Button(); pulse.linkKey = pulseParent.linkKey;
+        Button pulse = new Button(); pulse.setLinkKey(pulseParent.getLinkKey());
         pulse.modelName = "melodysw_momentary_sample";
         pulseWorld.add(pulseParent, 0); pulseWorld.add(pulseMelody, 1); pulseWorld.add(pulse, 2);
         pulseMelody.click(pulse);
@@ -427,9 +427,9 @@ public final class SwitchModelTest {
                 + (alternateJs ? "toggle" : "push") + "().interval(0.5)); }");
             AnnouncePackLoader.scriptEngines.put("matrix.js", engine);
             FixtureWorld world = new FixtureWorld();
-            Parent parent = new Parent(); parent.linkKey = "matrix";
-            Melody melody = new Melody(); melody.linkKey = parent.linkKey; melody.scriptName = "matrix.js";
-            Button button = new Button(); button.linkKey = parent.linkKey;
+            Parent parent = new Parent(); parent.setLinkKey("matrix");
+            Melody melody = new Melody(); melody.setLinkKey(parent.getLinkKey()); melody.scriptName = "matrix.js";
+            Button button = new Button(); button.setLinkKey(parent.getLinkKey());
             button.modelName = alternateSwitch ? "melodysw_alternate_sample" : "melodysw_momentary_sample";
             world.add(parent, 0); world.add(melody, 1); world.add(button, 2);
             check(melody.click(button) && parent.starts == 1 && button.isActivated(), "Matrix first press");
@@ -444,7 +444,7 @@ public final class SwitchModelTest {
                 check(button.isControlOn() && melody.isOn(), "Pulse return preserves logical ON");
                 advance(world, melody, button, 40);
                 check(melody.isOn() && parent.finishes == 0, "ON loops past chorus end");
-                Button other = new Button(); other.linkKey = parent.linkKey;
+                Button other = new Button(); other.setLinkKey(parent.getLinkKey());
                 other.modelName = alternateSwitch ? "melodysw_momentary_sample" : "melodysw_alternate_sample"; world.add(other, 3);
                 melody.click(other); melody.click(button);
                 check(!button.isControlOn() && other.isControlOn() && melody.isOn() && parent.starts == 1, "Mixed models retain independent ON");
@@ -535,9 +535,9 @@ public final class SwitchModelTest {
         engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam.toggle().interval(0).tachikawa(true)); }");
         AnnouncePackLoader.scriptEngines.put("completion.js", engine);
         FixtureWorld world = new FixtureWorld();
-        Parent parent = new Parent(); parent.linkKey = "completion";
-        Melody melody = new Melody(); melody.linkKey = parent.linkKey; melody.scriptName = "completion.js";
-        Button button = new Button(); button.linkKey = parent.linkKey;
+        Parent parent = new Parent(); parent.setLinkKey("completion");
+        Melody melody = new Melody(); melody.setLinkKey(parent.getLinkKey()); melody.scriptName = "completion.js";
+        Button button = new Button(); button.setLinkKey(parent.getLinkKey());
         world.add(parent, 0); world.add(melody, 1); world.add(button, 2);
         melody.click(button);
         for (world.time = 1; world.time < 5; world.time++) melody.updateEntity();
@@ -557,8 +557,8 @@ public final class SwitchModelTest {
 
     private static void verifyLegacyDuration() {
         FixtureWorld world = new FixtureWorld();
-        Parent parent = new Parent(); parent.linkKey = "legacy";
-        Melody melody = new Melody(); melody.linkKey = parent.linkKey; melody.soundId = "test:m";
+        Parent parent = new Parent(); parent.setLinkKey("legacy");
+        Melody melody = new Melody(); melody.setLinkKey(parent.getLinkKey()); melody.soundId = "test:m";
         world.add(parent, 0); world.add(melody, 1);
         check(melody.click(null), "Legacy soundId uses registered JSON duration");
         for (world.time = 1; world.time <= 20; world.time++) melody.updateEntity();
@@ -603,8 +603,8 @@ public final class SwitchModelTest {
 
     private static void verifyBlockClick() throws Exception {
         FixtureWorld world = new FixtureWorld();
-        Parent parent = new Parent(); parent.linkKey = "click-test";
-        Melody melody = new Melody(); melody.linkKey = parent.linkKey; melody.soundId = "test:m";
+        Parent parent = new Parent(); parent.setLinkKey("click-test");
+        Melody melody = new Melody(); melody.setLinkKey(parent.getLinkKey()); melody.soundId = "test:m";
         Button button = new Button();
         world.add(parent, 0); world.add(melody, 1); world.add(button, 2);
         // Only the overridden interaction methods are needed; avoid EntityPlayer's

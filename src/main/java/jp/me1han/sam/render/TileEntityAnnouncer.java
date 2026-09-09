@@ -12,11 +12,18 @@ import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkedTile;
+import jp.me1han.sam.link.SamLinkRegistry;
+import jp.me1han.sam.trigger.SamTrigger;
+import jp.me1han.sam.trigger.SamTriggerDispatcher;
+import jp.me1han.sam.trigger.SamTriggerSourceType;
+import jp.me1han.sam.trigger.SamTriggerType;
 
-public class TileEntityAnnouncer extends RegisteredTileEntity {
+public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
     private boolean lastPowered = false;
     private String scriptName = "";
-    public String linkKey = "";
+    private String linkKey = "";
 
     public boolean playLocalSound = false;
 
@@ -44,7 +51,7 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
         this.lastDataReceivedTime = System.currentTimeMillis();
         this.markDirty();
 
-        if (data != null) sendStart(new PacketAnnounce(data, linkKey, playLocalSound, xCoord, yCoord, zCoord));
+        if (data != null) sendStart(new PacketAnnounce(data, getLinkKey(), playLocalSound, xCoord, yCoord, zCoord));
     }
 
     public void startDirectSound(String soundId, int priority, boolean allowOverlap) {
@@ -54,30 +61,14 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
 
         String normalizedSound = soundId.trim();
         AnnounceData data = new AnnounceData("", Collections.singletonList(normalizedSound), "");
-        PacketAnnounce packet = new PacketAnnounce(data, linkKey, playLocalSound, xCoord, yCoord, zCoord);
+        PacketAnnounce packet = new PacketAnnounce(data, getLinkKey(), playLocalSound, xCoord, yCoord, zCoord);
         packet.priority = priority; packet.allowOverlap = allowOverlap;
         sendStart(packet);
     }
 
     public void notifyDepartureMelodyFinished() {
-        if (this.worldObj == null || this.worldObj.isRemote || this.linkKey == null || this.linkKey.trim().isEmpty()) {
-            return;
-        }
-
-        String normalizedKey = this.linkKey.trim();
-        boolean scheduled = false;
-        for (Object obj : jp.me1han.sam.LoadedSamTiles.all(this.worldObj)) {
-            if (obj instanceof TileEntityAwarenessAnnouncer) {
-                TileEntityAwarenessAnnouncer awareness = (TileEntityAwarenessAnnouncer) obj;
-                if (awareness.playAfterDeparture && normalizedKey.equals(awareness.getNormalizedLinkKey())) {
-                    awareness.scheduleAfterDeparture();
-                    scheduled = true;
-                }
-            }
-        }
-        if (scheduled) {
-            jp.me1han.sam.network.ServerSessions.stopPriority(this, PacketAnnounce.PRIORITY_AWARENESS);
-        }
+        SamTriggerDispatcher.dispatch(this.worldObj, SamTrigger.from(this, SamTriggerType.DEPARTURE_FINISHED,
+            this.getLinkKey(), SamTriggerSourceType.INTERNAL, SamTrigger.NO_FORMATION));
     }
 
     private long departureSessionId;
@@ -85,7 +76,7 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
     public void startDeparture(jp.me1han.sam.api.DepartureProgram program) {
         if (worldObj == null || worldObj.isRemote) return;
         jp.me1han.sam.network.PacketDepartureStart packet = new jp.me1han.sam.network.PacketDepartureStart();
-        packet.linkKey = SpeakerRegistry.normalize(linkKey);
+        packet.linkKey = SpeakerRegistry.normalize(getLinkKey());
         packet.playLocalSound = playLocalSound;
         packet.x = xCoord; packet.y = yCoord; packet.z = zCoord;
         packet.departure = program;
@@ -107,8 +98,8 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
 
     public void forceStop() {
         if (this.worldObj.isRemote) return;
-        TileEntityDepartureMelody.cancelLinked(this.worldObj, this.linkKey);
-        jp.me1han.sam.network.ServerSessions.stopKey(worldObj, linkKey);
+        TileEntityDepartureMelody.cancelLinked(this.worldObj, this.getLinkKey());
+        jp.me1han.sam.network.ServerSessions.stopKey(worldObj, getLinkKey());
     }
 
     public void onDataReceived(Map<String, String> data, String sourcePos) {
@@ -123,13 +114,17 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
         this.scriptName = name;
     }
 
+    @Override public String getLinkKey() { return this.linkKey; }
+    @Override public void setLinkKey(String key) {
+        this.linkKey = LinkKey.normalize(key);
+        SamLinkRegistry.reindex(this);
+    }
+
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
         if (this.scriptName != null) nbt.setString("scriptName", this.scriptName);
-        if (this.linkKey != null) {
-            nbt.setString("linkKey", this.linkKey);
-        }
+        nbt.setString("linkKey", this.getLinkKey());
         nbt.setBoolean("playLocalSound", this.playLocalSound);
     }
 
@@ -137,7 +132,7 @@ public class TileEntityAnnouncer extends RegisteredTileEntity {
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
         this.scriptName = nbt.getString("scriptName");
-        this.linkKey = nbt.getString("linkKey");
+        this.setLinkKey(nbt.getString("linkKey"));
         this.playLocalSound = nbt.getBoolean("playLocalSound");
     }
 

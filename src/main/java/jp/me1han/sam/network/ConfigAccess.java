@@ -30,7 +30,7 @@ public final class ConfigAccess {
         });
     }
     public static boolean key(String key) { return PacketLimits.string(key, PacketLimits.LINK_KEY); }
-    public static String normalize(String value) { return value == null ? "" : value.trim(); }
+    public static String normalize(String value) { return jp.me1han.sam.link.LinkKey.normalize(value); }
     /** Simple field-only changes: unchanged data emits no dirty/update event. */
     public static void change(TileEntity tile, Runnable change) {
         NBTTagCompound before = new NBTTagCompound(); tile.writeToNBT(before);

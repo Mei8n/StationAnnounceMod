@@ -5,9 +5,12 @@ import jp.me1han.sam.switchmodel.SwitchModelDefinition;
 import jp.me1han.sam.switchmodel.SwitchModelRegistry;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import jp.me1han.sam.link.LinkKey;
+import jp.me1han.sam.link.SamLinkedTile;
+import jp.me1han.sam.link.SamLinkRegistry;
 
-public class TileEntityDepartureSwitch extends RegisteredTileEntity {
-    public String linkKey = "";
+public class TileEntityDepartureSwitch extends RegisteredTileEntity implements SamLinkedTile {
+    private String linkKey = "";
     public String modelName = SwitchModelRegistry.DEFAULT_MODEL;
     private float rotationYaw;
     private float offsetX, offsetY, offsetZ;
@@ -85,7 +88,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     }
     public void applyConfig(String key, String model, int yaw, float x, float y, float z) {
         resetState();
-        linkKey = TileEntityDepartureMelody.normalize(key);
+        setLinkKey(key);
         modelName = model;
         setRotationYaw(jp.me1han.sam.switchmodel.SwitchYaw.normalize(yaw));
         setOffset(x, y, z);
@@ -101,7 +104,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
     /** Portable configuration deliberately excludes coordinates and live button state. */
     public NBTTagCompound copySettings() {
         NBTTagCompound nbt = new NBTTagCompound();
-        nbt.setString("linkKey", TileEntityDepartureMelody.normalize(linkKey));
+        nbt.setString("linkKey", getLinkKey());
         nbt.setString("modelName", modelName);
         nbt.setFloat("RotationYaw", rotationYaw);
         nbt.setFloat("offsetX", offsetX);
@@ -110,7 +113,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
         return nbt;
     }
     public void readSettings(NBTTagCompound nbt) {
-        linkKey = TileEntityDepartureMelody.normalize(nbt.getString("linkKey"));
+        setLinkKey(nbt.getString("linkKey"));
         modelName = nbt.hasKey("modelName") ? nbt.getString("modelName") : SwitchModelRegistry.DEFAULT_MODEL;
         setRotationYaw(nbt.getFloat("RotationYaw"));
         float x = nbt.getFloat("offsetX"), y = nbt.getFloat("offsetY"), z = nbt.getFloat("offsetZ");
@@ -120,9 +123,14 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity {
         markDirty();
         if (worldObj != null && !worldObj.isRemote) worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
     }
+    @Override public String getLinkKey() { return this.linkKey; }
+    @Override public void setLinkKey(String key) {
+        this.linkKey = LinkKey.normalize(key);
+        SamLinkRegistry.reindex(this);
+    }
     @Override public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
-        nbt.setString("linkKey", TileEntityDepartureMelody.normalize(linkKey));
+        nbt.setString("linkKey", getLinkKey());
         nbt.setString("modelName", modelName);
         nbt.setFloat("RotationYaw", rotationYaw);
         nbt.setFloat("offsetX", offsetX);

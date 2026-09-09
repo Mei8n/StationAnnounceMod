@@ -50,9 +50,9 @@ public class PacketConfig implements IMessage {
         @Override public IMessage onMessage(PacketConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityAnnouncer.class, tile -> {
                 if (!ConfigAccess.key(m.linkKey) || !PacketLimits.string(m.scriptName, PacketLimits.NAME)) return;
-                if (!ConfigAccess.normalize(m.linkKey).equals(ConfigAccess.normalize(tile.linkKey))) ServerSessions.stopOwner(tile);
+                if (!ConfigAccess.normalize(m.linkKey).equals(tile.getLinkKey())) ServerSessions.stopOwner(tile);
                 ConfigAccess.change(tile, () -> {
-                    tile.setScriptName(m.scriptName); tile.linkKey = ConfigAccess.normalize(m.linkKey);
+                    tile.setScriptName(m.scriptName); tile.setLinkKey(m.linkKey);
                     tile.playLocalSound = m.playLocalSound;
                 });
             }); return null;
