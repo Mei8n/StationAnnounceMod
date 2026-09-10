@@ -2,9 +2,7 @@ package jp.me1han.sam.render;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.AxisAlignedBB;
-import java.util.List;
 import jp.me1han.sam.compat.TrainCompatRegistry;
-import jp.me1han.sam.compat.TrainSnapshot;
 import jp.me1han.sam.link.LinkKey;
 import jp.me1han.sam.link.SamLinkedTile;
 import jp.me1han.sam.link.SamLinkRegistry;
@@ -29,14 +27,8 @@ public class TileEntityStopAnnouncer extends RegisteredTileEntity implements Sam
         int r = 2;
         AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
 
-        List<TrainSnapshot> list = TrainCompatRegistry.get().findTrains(this.worldObj, aabb);
-
-        long currentFormationId = -1L;
-        for (TrainSnapshot train : list) {
-            if (this.isControlCar && !train.isControlCar()) continue;
-            currentFormationId = train.getFormationId();
-            break;
-        }
+        long currentFormationId = TrainCompatRegistry.get()
+            .findFirstFormationId(this.worldObj, aabb, this.isControlCar);
 
         if (currentFormationId == -1L) {
             this.lastFormationId = -1L;

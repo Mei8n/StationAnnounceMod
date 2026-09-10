@@ -42,18 +42,16 @@ public class TileEntityTrainTypeSelector extends RegisteredTileEntity implements
 
         int r = 2;
         AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
-        List<TrainSnapshot> list = TrainCompatRegistry.get().findTrains(this.worldObj, aabb);
+        TrainSnapshot train = TrainCompatRegistry.get()
+            .findFirstTrain(this.worldObj, aabb, this.isControlCar);
 
-        if (list.isEmpty()) {
+        if (train == null) {
             this.lastTrainId = -1;
             return;
         }
 
-        TrainSnapshot train = list.get(0);
         if (train.getEntityId() == this.lastTrainId) return;
         this.lastTrainId = train.getEntityId();
-
-        if (this.isControlCar && !train.isControlCar()) return;
 
         for (TrainTypeCondition cond : conditions) {
             String val = train.extractData(cond.key, cond.type);

@@ -1,6 +1,5 @@
 package jp.me1han.sam.compat;
 
-import java.util.List;
 import net.minecraft.entity.Entity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
@@ -16,7 +15,17 @@ public interface TrainCompat {
 
     boolean isAvailable();
 
-    List<TrainSnapshot> findTrains(World world, AxisAlignedBB bounds);
+    /**
+     * Returns the first matching train, or {@code null}. Only the selected
+     * entity may be wrapped.
+     */
+    TrainSnapshot findFirstTrain(World world, AxisAlignedBB bounds, boolean controlCarOnly);
+
+    /**
+     * Returns the first matching train's formation id without creating a
+     * snapshot, or {@code -1} when no train matches.
+     */
+    long findFirstFormationId(World world, AxisAlignedBB bounds, boolean controlCarOnly);
 
     TrainSnapshot wrap(Entity entity);
 
