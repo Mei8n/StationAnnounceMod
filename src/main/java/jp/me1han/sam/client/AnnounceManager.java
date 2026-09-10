@@ -85,11 +85,12 @@ public class AnnounceManager {
 
     private static class AnnouncePart {
         final String sound;
-        final int intervalTicks;
-        AnnouncePart(String sound, int intervalTicks) {
+        final int durationTicks;
+        AnnouncePart(String sound, int durationTicks) {
             this.sound = sound;
-            this.intervalTicks = intervalTicks;
+            this.durationTicks = durationTicks;
         }
+        boolean isInterval() { return sound == null || sound.isEmpty(); }
     }
 
     public void receive(jp.me1han.sam.network.PacketSpeakerFallback packet) {
@@ -117,10 +118,12 @@ public class AnnounceManager {
         boolean releasedThisTick;
         final ConcurrentLinkedQueue<AnnouncePart> queue = new ConcurrentLinkedQueue<>();
         final String startMelo;
+        final int startMeloTicks;
         final List<String> bodySounds;
-        final List<Integer> bodyIntervalTicks;
+        final List<Integer> bodyPartTicks;
         int repeatsRemaining;
         String loopSound;
+        int loopTicks;
         boolean playLocalSound;
         int x, y, z;
         int waitTicks = 0;
@@ -152,10 +155,11 @@ public class AnnounceManager {
             this.departure = msg instanceof jp.me1han.sam.network.PacketDepartureStart
                 ? ((jp.me1han.sam.network.PacketDepartureStart)msg).departure : null;
             this.startMelo = msg.startMelo;
+            this.startMeloTicks = msg.startMeloTicks;
             this.bodySounds = msg.bodySounds == null
                 ? java.util.Collections.<String>emptyList() : new ArrayList<>(msg.bodySounds);
-            this.bodyIntervalTicks = msg.bodyIntervalTicks == null
-                ? java.util.Collections.<Integer>emptyList() : new ArrayList<>(msg.bodyIntervalTicks);
+            this.bodyPartTicks = msg.bodyPartTicks == null
+                ? java.util.Collections.<Integer>emptyList() : new ArrayList<>(msg.bodyPartTicks);
             this.repeatsRemaining = departure == null
                 ? jp.me1han.sam.api.AnnounceData.normalizeRepeatCount(msg.repeatCount) : 0;
             this.playLocalSound = msg.playLocalSound;
@@ -165,17 +169,17 @@ public class AnnounceManager {
 
             enqueueNextRepeat();
             this.loopSound = (msg.arrMelo != null && !msg.arrMelo.isEmpty()) ? msg.arrMelo : null;
+            this.loopTicks = msg.arrMeloTicks;
         }
 
         boolean enqueueNextRepeat() {
             while (repeatsRemaining > 0) {
                 repeatsRemaining--;
-                if (startMelo != null && !startMelo.isEmpty()) queue.add(new AnnouncePart(startMelo, 0));
+                if (startMelo != null && !startMelo.isEmpty()) queue.add(new AnnouncePart(startMelo, startMeloTicks));
                 for (int i = 0; i < bodySounds.size(); i++) {
                     String sound = bodySounds.get(i);
-                    int interval = i < bodyIntervalTicks.size() ? bodyIntervalTicks.get(i) : 0;
-                    if (interval > 0 || (sound != null && !sound.isEmpty()))
-                        queue.add(new AnnouncePart(sound, interval));
+                    int duration = bodyPartTicks.get(i);
+                    queue.add(new AnnouncePart(sound, duration));
                 }
                 if (!queue.isEmpty()) return true;
             }
@@ -206,6 +210,14 @@ public class AnnounceManager {
     private void startAnnounce(PacketAnnounce msg) {
         if (msg == null || msg.linkKey == null) {
             return;
+        }
+        if (!(msg instanceof jp.me1han.sam.network.PacketDepartureStart)) {
+            try { msg.validateTiming(); }
+            catch (IllegalArgumentException invalid) {
+                StationAnnounceModCore.logger.error("[SAM] Rejected START without valid canonical timing: " + invalid.getMessage());
+                finished(msg.sessionId);
+                return;
+            }
         }
 
         String key = normalizeKey(msg.linkKey);
@@ -304,19 +316,19 @@ public class AnnounceManager {
             if (nextPart == null && session.enqueueNextRepeat()) nextPart = session.queue.poll();
 
             if (nextPart != null) {
-                if (nextPart.intervalTicks > 0) {
+                if (nextPart.isInterval()) {
                     for (ISound sound : session.activeSounds) stopSound(sound);
                     session.activeSounds.clear();
                     session.deferred.clear();
                     // This tick is already the first silent tick.
-                    session.waitTicks = nextPart.intervalTicks - 1;
+                    session.waitTicks = nextPart.durationTicks - 1;
                 } else {
-                    playInSession(session, nextPart.sound);
-                    session.waitTicks = getSoundTicks(nextPart.sound);
+                    playInSession(session, nextPart.sound, nextPart.durationTicks);
+                    session.waitTicks = nextPart.durationTicks;
                 }
             } else if (session.loopSound != null) {
-                playInSession(session, session.loopSound);
-                session.waitTicks = getSoundTicks(session.loopSound);
+                playInSession(session, session.loopSound, session.loopTicks);
+                session.waitTicks = session.loopTicks;
             } else {
                 session.stop();
                 finished(session.sessionId);
@@ -332,20 +344,12 @@ public class AnnounceManager {
             new jp.me1han.sam.api.DepartureSequence.Output() {
                 public void play(jp.me1han.sam.api.DepartureSequence.Channel channel, String sound) {
                     session.playbackChannel = channel;
-                    try { playInSession(session, sound); }
+                    try { playDepartureInSession(session, sound); }
                     finally { session.playbackChannel = null; }
                 }
                 public void stop(jp.me1han.sam.api.DepartureSequence.Channel channel) { session.stopChannel(channel); }
                 public void finished() { session.isPlaying = false; }
             });
-    }
-
-    private int getSoundTicks(String soundId) {
-        if (soundId == null || soundId.isEmpty()) {
-            return 20;
-        }
-        Integer ticks = AnnouncePackLoader.soundTicks.get(soundId);
-        return (ticks != null) ? ticks : 20;
     }
 
     private boolean isBlockedByHigherPriority(AnnounceSession session) {
@@ -362,7 +366,13 @@ public class AnnounceManager {
         return false;
     }
 
-    private void playInSession(AnnounceSession session, String soundId) {
+    private void playDepartureInSession(AnnounceSession session, String soundId) {
+        // Only Departure uses this overload; its sequence clock is already server-resolved.
+        Integer ticks = AnnouncePackLoader.soundTicks.get(soundId);
+        playInSession(session, soundId, ticks != null ? ticks : 20);
+    }
+
+    private void playInSession(AnnounceSession session, String soundId, int durationTicks) {
         if (session == null || soundId == null || soundId.isEmpty()) {
             return;
         }
@@ -383,7 +393,7 @@ public class AnnounceManager {
 
             for (long target : session.targets) {
                 if (!playTarget(session, res, target, world)) {
-                    session.deferred.add(new DeferredSound(target, clientTick + getSoundTicks(soundId),
+                    session.deferred.add(new DeferredSound(target, clientTick + durationTicks,
                         res, session.playbackChannel));
                 }
             }

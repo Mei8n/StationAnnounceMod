@@ -5,7 +5,9 @@ import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
@@ -388,18 +390,25 @@ public final class DeparturePlaybackTest {
             buf.clear();
             PacketAnnounce ordinary = new PacketAnnounce(new AnnounceData("test:start", Collections.singletonList("test:body"), "test:loop", 2),
                 "platform-1", true, 1, 2, 3);
+            Map<String, Integer> ordinaryLengths = new HashMap<>();
+            ordinaryLengths.put("test:start", 7); ordinaryLengths.put("test:body", 11); ordinaryLengths.put("test:loop", 13);
+            ordinary.resolveTiming(ordinaryLengths);
             ordinary.toBytes(buf);
             PacketAnnounce ordinaryRead = new PacketAnnounce(); ordinaryRead.fromBytes(buf);
             check(ordinaryRead.bodySounds.equals(ordinary.bodySounds) && ordinaryRead.repeatCount == 2
+                && ordinaryRead.startMeloTicks == 7 && ordinaryRead.bodyPartTicks.equals(Collections.singletonList(11))
+                && ordinaryRead.arrMeloTicks == 13
                 && buf.readableBytes() == 0, "Ordinary sequence and repeat count round trip");
             buf.clear();
             PacketAnnounce withInterval = new PacketAnnounce(new AnnounceData(null,
                 Arrays.asList("test:body", "", "test:body"), Arrays.asList(0, 5, 0), null, 2),
                 "platform-1", true, 1, 2, 3);
+            withInterval.resolveTiming(ordinaryLengths);
             withInterval.toBytes(buf);
             PacketAnnounce intervalRead = new PacketAnnounce(); intervalRead.fromBytes(buf);
             check(intervalRead.bodySounds.equals(withInterval.bodySounds)
                 && intervalRead.bodyIntervalTicks.equals(Arrays.asList(0, 5, 0))
+                && intervalRead.bodyPartTicks.equals(Arrays.asList(11, 5, 11))
                 && intervalRead.repeatCount == 2 && buf.readableBytes() == 0,
                 "Ordinary interval positions and repeat count round trip");
             buf.clear();

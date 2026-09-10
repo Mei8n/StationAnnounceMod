@@ -8,6 +8,8 @@ import java.util.*;
 
 /** Ordinary/awareness START only. Speaker settings belong to TE description packets. */
 public class PacketAnnounce implements IMessage {
+    static final int TIMING_MAGIC = 0x53414D54; // "SAMT"
+    public static final int MAX_DURATION_TICKS = 72000;
     public static final int PRIORITY_AWARENESS = 0, PRIORITY_ANNOUNCE = 10, PRIORITY_DEPARTURE_MELODY = 20;
     public long sessionId;
     public String linkKey = "";
@@ -18,6 +20,9 @@ public class PacketAnnounce implements IMessage {
     public String startMelo = "", arrMelo = "";
     public List<String> bodySounds = new ArrayList<>();
     public List<Integer> bodyIntervalTicks = new ArrayList<>();
+    /** Server-authoritative durations. bodyPartTicks has the same indexes as bodySounds. */
+    public int startMeloTicks, arrMeloTicks;
+    public List<Integer> bodyPartTicks = new ArrayList<>();
     public int repeatCount = 1;
 
     public PacketAnnounce() {}
@@ -28,6 +33,87 @@ public class PacketAnnounce implements IMessage {
         bodyIntervalTicks = data.bodyIntervalTicks; arrMelo = data.arrMelo;
         repeatCount = data.repeatCount;
     }
+
+    /** Resolve ordinary/awareness timing once, on the logical server, before START delivery. */
+    public void resolveTiming(Map<String, Integer> lengths) {
+        if (bodySounds == null) bodySounds = new ArrayList<>();
+        else bodySounds = new ArrayList<>(bodySounds);
+        if (bodySounds.size() > PacketLimits.BODY_SOUNDS)
+            throw new IllegalArgumentException("Too many announcement body sounds (maximum " + PacketLimits.BODY_SOUNDS + ")");
+        if (bodyIntervalTicks != null && !bodyIntervalTicks.isEmpty()
+            && bodyIntervalTicks.size() != bodySounds.size())
+            throw new IllegalArgumentException("Announcement body interval count must match body sounds");
+        if (repeatCount < 1 || repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)
+            throw new IllegalArgumentException("Invalid announcement repeat count");
+        startMelo = clean(startMelo);
+        arrMelo = clean(arrMelo);
+        startMeloTicks = startMelo.isEmpty() ? 0 : duration(startMelo, lengths);
+        arrMeloTicks = arrMelo.isEmpty() ? 0 : duration(arrMelo, lengths);
+        List<Integer> resolved = new ArrayList<>(bodySounds.size());
+        List<Integer> intervals = new ArrayList<>(bodySounds.size());
+        for (int i = 0; i < bodySounds.size(); i++) {
+            String sound = clean(bodySounds.get(i));
+            bodySounds.set(i, sound);
+            Integer intervalValue = bodyIntervalTicks != null && i < bodyIntervalTicks.size()
+                ? bodyIntervalTicks.get(i) : Integer.valueOf(0);
+            if (intervalValue == null)
+                throw new IllegalArgumentException("Invalid announcement body interval at index " + i);
+            int interval = intervalValue;
+            if (interval < 0 || interval > MAX_DURATION_TICKS
+                || (sound.isEmpty() ? interval < 1 : interval != 0))
+                throw new IllegalArgumentException("Invalid announcement body interval at index " + i);
+            intervals.add(interval);
+            resolved.add(interval > 0 ? interval : duration(sound, lengths));
+        }
+        bodyIntervalTicks = intervals;
+        bodyPartTicks = resolved;
+        validateTiming();
+    }
+
+    /** Validate canonical timing without consulting any local duration table. */
+    public void validateTiming() {
+        int bodySize = bodySounds == null ? 0 : bodySounds.size();
+        if (bodySize > PacketLimits.BODY_SOUNDS || bodyPartTicks == null || bodyPartTicks.size() != bodySize)
+            throw new IllegalArgumentException("Announcement body sounds and durations must match");
+        validateOptionalSound(startMelo, startMeloTicks, "start melody");
+        validateOptionalSound(arrMelo, arrMeloTicks, "arrival melody");
+        if (repeatCount < 1 || repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)
+            throw new IllegalArgumentException("Invalid announcement repeat count");
+        for (int i = 0; i < bodySize; i++) {
+            String sound = clean(bodySounds.get(i));
+            Integer tickValue = bodyPartTicks.get(i);
+            if (tickValue == null)
+                throw new IllegalArgumentException("Invalid announcement body duration at index " + i);
+            int ticks = tickValue;
+            if (ticks < 1 || ticks > MAX_DURATION_TICKS)
+                throw new IllegalArgumentException("Invalid announcement body duration at index " + i);
+            Integer intervalValue = bodyIntervalTicks != null && i < bodyIntervalTicks.size()
+                ? bodyIntervalTicks.get(i) : Integer.valueOf(0);
+            if (intervalValue == null)
+                throw new IllegalArgumentException("Invalid announcement body interval at index " + i);
+            int interval = intervalValue;
+            if (sound.isEmpty()) {
+                if (interval != ticks) throw new IllegalArgumentException("Announcement interval duration mismatch at index " + i);
+            } else if (interval != 0) {
+                throw new IllegalArgumentException("Sound entry cannot also be an interval at index " + i);
+            }
+        }
+    }
+
+    private static void validateOptionalSound(String sound, int ticks, String label) {
+        boolean empty = clean(sound).isEmpty();
+        if ((empty && ticks != 0) || (!empty && (ticks < 1 || ticks > MAX_DURATION_TICKS)))
+            throw new IllegalArgumentException("Invalid announcement " + label + " duration");
+    }
+
+    private static int duration(String id, Map<String, Integer> lengths) {
+        Integer value = lengths == null ? null : lengths.get(id);
+        if (value == null || value < 1 || value > MAX_DURATION_TICKS)
+            throw new IllegalArgumentException("Missing or invalid duration in sam_length.json: " + id);
+        return value;
+    }
+
+    private static String clean(String value) { return value == null ? "" : value.trim(); }
     protected void readHeader(ByteBuf buf) {
         sessionId = buf.readLong(); linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         priority = buf.readInt(); allowOverlap = buf.readBoolean(); playLocalSound = buf.readBoolean();
@@ -52,56 +138,39 @@ public class PacketAnnounce implements IMessage {
         int size = PacketLimits.readCount(buf, PacketLimits.BODY_SOUNDS);
         bodySounds = new ArrayList<>();
         for (int i = 0; i < size; i++) bodySounds.add(PacketLimits.readString(buf, PacketLimits.NAME));
-        bodyIntervalTicks = new ArrayList<>(Collections.nCopies(size, 0));
-        // Keep the legacy payload prefix readable: packets without the appended field mean one play.
-        repeatCount = 1;
-        if (buf.isReadable()) {
-            if (buf.readableBytes() < 4) throw new io.netty.handler.codec.DecoderException("SAM repeat count");
-            repeatCount = buf.readInt();
-            if (repeatCount < 1 || repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)
-                throw new io.netty.handler.codec.DecoderException("SAM repeat count");
-            if (buf.isReadable()) {
-                int intervals = PacketLimits.readCount(buf, PacketLimits.BODY_SOUNDS);
-                if (intervals != size || buf.readableBytes() != intervals * 4)
-                    throw new io.netty.handler.codec.DecoderException("SAM body intervals");
-                bodyIntervalTicks.clear();
-                for (int i = 0; i < intervals; i++) {
-                    int ticks = buf.readInt();
-                    if (ticks < 0 || ticks > 72000 || (ticks > 0) == !bodySounds.get(i).isEmpty())
-                        throw new io.netty.handler.codec.DecoderException("SAM body interval");
-                    bodyIntervalTicks.add(ticks);
-                }
-            }
+        if (buf.readableBytes() < 20 || buf.readInt() != TIMING_MAGIC)
+            throw new io.netty.handler.codec.DecoderException("SAM canonical announcement timing is missing");
+        repeatCount = buf.readInt();
+        startMeloTicks = buf.readInt();
+        arrMeloTicks = buf.readInt();
+        int durations = PacketLimits.readCount(buf, PacketLimits.BODY_SOUNDS);
+        if (durations != size || buf.readableBytes() != durations * 4)
+            throw new io.netty.handler.codec.DecoderException("SAM body durations");
+        bodyPartTicks = new ArrayList<>(durations);
+        bodyIntervalTicks = new ArrayList<>(durations);
+        for (int i = 0; i < durations; i++) {
+            int ticks = buf.readInt();
+            bodyPartTicks.add(ticks);
+            bodyIntervalTicks.add(bodySounds.get(i).isEmpty() ? ticks : 0);
+        }
+        try { validateTiming(); }
+        catch (IllegalArgumentException invalid) {
+            throw new io.netty.handler.codec.DecoderException(invalid.getMessage(), invalid);
         }
     }
     @Override public void toBytes(ByteBuf buf) {
+        validateTiming();
         PacketLimits.checkCount(bodySounds == null ? 0 : bodySounds.size(), PacketLimits.BODY_SOUNDS);
-        if (repeatCount < 1 || repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)
-            throw new IllegalArgumentException("SAM repeat count must be 1 to " + PacketLimits.MAX_ANNOUNCE_REPEATS);
-        boolean hasIntervals = false;
-        if (bodyIntervalTicks != null && !bodyIntervalTicks.isEmpty()) {
-            for (int ticks : bodyIntervalTicks) {
-                if (ticks < 0 || ticks > 72000) throw new IllegalArgumentException("Invalid SAM body interval");
-                hasIntervals |= ticks > 0;
-            }
-            if (hasIntervals) {
-                if (bodyIntervalTicks.size() != bodySounds.size())
-                    throw new IllegalArgumentException("SAM body interval count must match body sounds");
-                for (int i = 0; i < bodyIntervalTicks.size(); i++)
-                    if ((bodyIntervalTicks.get(i) > 0) == !bodySounds.get(i).isEmpty())
-                        throw new IllegalArgumentException("Invalid SAM body interval");
-            }
-        }
         writeHeader(buf);
         ByteBufUtils.writeUTF8String(buf, startMelo == null ? "" : startMelo);
         ByteBufUtils.writeUTF8String(buf, arrMelo == null ? "" : arrMelo);
         buf.writeInt(bodySounds == null ? 0 : bodySounds.size());
         if (bodySounds != null) for (String sound : bodySounds) ByteBufUtils.writeUTF8String(buf, sound == null ? "" : sound);
-        // Keep repeat-one packets without intervals byte-compatible with the original format.
-        if (repeatCount != 1 || hasIntervals) buf.writeInt(repeatCount);
-        if (hasIntervals) {
-            buf.writeInt(bodyIntervalTicks.size());
-            for (int ticks : bodyIntervalTicks) buf.writeInt(ticks);
-        }
+        buf.writeInt(TIMING_MAGIC);
+        buf.writeInt(repeatCount);
+        buf.writeInt(startMeloTicks);
+        buf.writeInt(arrMeloTicks);
+        buf.writeInt(bodyPartTicks.size());
+        for (int ticks : bodyPartTicks) buf.writeInt(ticks);
     }
 }

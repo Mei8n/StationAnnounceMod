@@ -59,20 +59,15 @@ public final class ServerSessions {
     public static long start(TileEntityAnnouncer owner, PacketAnnounce packet) {
         World world = owner.getWorldObj();
         if (world == null || world.isRemote) return 0;
-        if (!(packet instanceof PacketDepartureStart) && packet.bodySounds != null
-            && packet.bodySounds.size() > PacketLimits.BODY_SOUNDS) {
-            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Announcement rejected: bodySounds exceeds " + PacketLimits.BODY_SOUNDS);
-            return 0;
-        }
-        if (!(packet instanceof PacketDepartureStart) && hasInterval(packet.bodyIntervalTicks)
-            && (packet.bodySounds == null || packet.bodyIntervalTicks.size() != packet.bodySounds.size())) {
-            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Announcement rejected: body interval count mismatch");
-            return 0;
-        }
-        if (!(packet instanceof PacketDepartureStart)
-            && (packet.repeatCount < 1 || packet.repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)) {
-            jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Announcement rejected: invalid repeatCount");
-            return 0;
+        if (!(packet instanceof PacketDepartureStart)) {
+            try {
+                // Resolve once from the logical server's pack, before recipient-specific copies.
+                packet.resolveTiming(jp.me1han.sam.AnnouncePackLoader.soundTicks);
+            } catch (IllegalArgumentException invalid) {
+                jp.me1han.sam.StationAnnounceModCore.logger.warn(
+                    "[SAM] Announcement rejected: " + invalid.getMessage());
+                return 0;
+            }
         }
         packet.linkKey = SpeakerRegistry.normalize(packet.linkKey);
         packet.sessionId = ++nextId;
@@ -112,10 +107,6 @@ public final class ServerSessions {
         }
         return session.id;
     }
-    private static boolean hasInterval(List<Integer> intervals) {
-        if (intervals != null) for (int ticks : intervals) if (ticks > 0) return true;
-        return false;
-    }
     private static PacketAnnounce copy(PacketAnnounce source, long[] targets) {
         PacketAnnounce result;
         if (source instanceof PacketDepartureStart) {
@@ -129,6 +120,8 @@ public final class ServerSessions {
         result.x = source.x; result.y = source.y; result.z = source.z; result.targets = targets;
         result.startMelo = source.startMelo; result.arrMelo = source.arrMelo; result.bodySounds = source.bodySounds;
         result.bodyIntervalTicks = source.bodyIntervalTicks;
+        result.startMeloTicks = source.startMeloTicks; result.arrMeloTicks = source.arrMeloTicks;
+        result.bodyPartTicks = source.bodyPartTicks;
         result.repeatCount = source.repeatCount;
         return result;
     }

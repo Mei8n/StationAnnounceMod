@@ -49,7 +49,9 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityTrainTypeSelector.class, "network-test-selector");
         mapping.invoke(null, TileEntityDebugReceiver.class, "network-test-debug");
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
-        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); departureInterval(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
+        AnnouncePackLoader.soundTicks.put("test:body", 20);
+        AnnouncePackLoader.soundTicks.put("test:a", 20);
+        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -339,6 +341,7 @@ public final class NetworkVerificationTest {
 
     private static PacketAnnounce start(long id) {
         PacketAnnounce packet = new PacketAnnounce(new AnnounceData("", Collections.singletonList("test:body"), ""), "A", false, 0, 0, 0);
+        packet.resolveTiming(Collections.singletonMap("test:body", 20));
         packet.sessionId = id; return packet;
     }
     private static PacketDepartureStart departure(long id) {
@@ -360,13 +363,20 @@ public final class NetworkVerificationTest {
         for (int i = 0; i < 10; i++) player(world, 10000+i, 0, 0);
         RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
         PacketAnnounce routed = start(0); routed.repeatCount = 2;
+        routed.startMelo = "test:a"; routed.arrMelo = "test:a";
+        routed.bodySounds = Arrays.asList("test:body", "test:body", "test:body");
+        routed.bodyIntervalTicks = Arrays.asList(0, 0, 0);
         long id = ServerSessions.start(owner, routed);
-        check(out.messages.size() == 3, "Ten speakers/three near/ten far: exactly three STARTs");
+        check(out.messages.size() == 3, "Three body parts still produce exactly one START per recipient");
         Set<EntityPlayerMP> unique = new HashSet<>(out.players);
         check(unique.size() == 3 && unique.containsAll(nearby), "Overlapping recipients deduplicated");
         for (IMessage packet : out.messages) {
             check(((PacketAnnounce)packet).targets.length == 10, "Only compact target IDs in START");
             check(((PacketAnnounce)packet).repeatCount == 2, "Per-recipient START copy preserves repeat count");
+            check(((PacketAnnounce)packet).bodyPartTicks.equals(Arrays.asList(20, 20, 20)),
+                "Per-recipient START copy preserves server-authoritative timing");
+            check(((PacketAnnounce)packet).startMeloTicks == 20 && ((PacketAnnounce)packet).arrMeloTicks == 20,
+                "Per-recipient START copy preserves melody timing");
         }
         out.clear();
         PacketMissingSpeakers missing = new PacketMissingSpeakers(id, new long[] {SpeakerRegistry.position(0, 0, 0), SpeakerRegistry.position(999, 0, 0)});
@@ -408,6 +418,67 @@ public final class NetworkVerificationTest {
         ServerSessions.start(owner, local);
         check(out.around == 1 && out.radius == ServerSessions.LOCAL_RANGE + ServerSessions.RANGE_MARGIN, "Local-only uses bounded TargetPoint");
         ServerSessions.clear();
+    }
+
+    private static void canonicalOrdinaryTiming() {
+        Map<String, Integer> saved = new HashMap<>(AnnouncePackLoader.soundTicks);
+        try {
+            AnnouncePackLoader.soundTicks.clear();
+            AnnouncePackLoader.soundTicks.put("test:start", 2);
+            AnnouncePackLoader.soundTicks.put("test:one", 3);
+            AnnouncePackLoader.soundTicks.put("test:two", 4);
+            AnnouncePackLoader.soundTicks.put("test:arr", 5);
+            FixtureWorld serverWorld = new FixtureWorld();
+            TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A");
+            serverWorld.add(owner, 0, 0, 0);
+            PacketAnnounce resolved = new PacketAnnounce(new AnnounceData("test:start",
+                Arrays.asList("test:one", "", "test:two"), Arrays.asList(0, 6, 0), "test:arr", 3),
+                "A", true, 0, 0, 0);
+            check(ServerSessions.start(owner, resolved) != 0
+                && resolved.startMeloTicks == 2 && resolved.arrMeloTicks == 5
+                && resolved.bodyPartTicks.equals(Arrays.asList(3, 6, 4)),
+                "Server resolves start, body, interval and arrival durations once before START");
+
+            PacketAnnounce missing = new PacketAnnounce(new AnnounceData("", Collections.singletonList("test:missing"), ""),
+                "A", false, 0, 0, 0);
+            check(ServerSessions.start(owner, missing) == 0, "Missing ordinary duration rejects START on the server");
+            AnnouncePackLoader.soundTicks.put("test:invalid", 0);
+            PacketAnnounce invalid = new PacketAnnounce(new AnnounceData("", Collections.singletonList("test:invalid"), ""),
+                "A", false, 0, 0, 0);
+            check(ServerSessions.start(owner, invalid) == 0, "Zero ordinary duration rejects START on the server");
+            AnnouncePackLoader.soundTicks.put("test:invalid", PacketAnnounce.MAX_DURATION_TICKS + 1);
+            check(ServerSessions.start(owner, invalid) == 0, "Oversized ordinary duration rejects START on the server");
+
+            PacketAnnounce timeline = new PacketAnnounce(new AnnounceData("test:start",
+                Arrays.asList("test:one", "", "test:two"), Arrays.asList(0, 2, 0), null, 2),
+                "A", true, 0, 0, 0);
+            timeline.sessionId = 810;
+            timeline.resolveTiming(AnnouncePackLoader.soundTicks);
+            FixtureWorld clientWorld = new FixtureWorld(); clientWorld.isRemote = true;
+            TestClient client = new TestClient(); client.world = clientWorld;
+            AnnouncePackLoader.soundTicks.clear(); // Prove ordinary playback has no client-local fallback.
+            client.receive(timeline);
+            for (int i = 0; i < 29; i++) client.tick();
+            check(client.playedAtTicks.equals(Arrays.asList(1, 4, 10, 15, 18, 24))
+                && soundNames(client).equals(Arrays.asList("test:start", "test:one", "test:two",
+                    "test:start", "test:one", "test:two")),
+                "Client uses packet timing for boundaries and repeats with an empty local duration table");
+
+            PacketAnnounce loop = new PacketAnnounce(new AnnounceData("", Collections.<String>emptyList(), "test:arr"),
+                "A", true, 0, 0, 0);
+            loop.sessionId = 811;
+            loop.resolveTiming(Collections.singletonMap("test:arr", 3));
+            TestClient loopClient = new TestClient(); loopClient.world = clientWorld;
+            AnnouncePackLoader.soundTicks.put("test:arr", 55);
+            loopClient.receive(loop);
+            for (int i = 0; i < 5; i++) loopClient.tick();
+            check(loopClient.playedAtTicks.equals(Arrays.asList(1, 5)),
+                "Arrival loop cadence uses server-authoritative duration despite a different client value");
+        } finally {
+            AnnouncePackLoader.soundTicks.clear();
+            AnnouncePackLoader.soundTicks.putAll(saved);
+            ServerSessions.clear();
+        }
     }
 
     private static void departureInterval() throws Exception {
@@ -557,6 +628,8 @@ public final class NetworkVerificationTest {
         int acknowledgements = client.ended.size();
         PacketAnnounce normal = start(500); normal.playLocalSound = true;
         normal.bodySounds = Arrays.asList("test:body", "test:body");
+        normal.bodyIntervalTicks = Arrays.asList(0, 0);
+        normal.resolveTiming(Collections.singletonMap("test:body", 20));
         client.receive(normal); client.tick();
         for (int i = 0; i < 45; i++) client.tick();
         check(client.ended.size() == acknowledgements+1 && client.ended.contains(500L), "One completion acknowledgement per session, not per sound");
@@ -602,9 +675,11 @@ public final class NetworkVerificationTest {
             "Empty body repeats startMelo before arrMelo");
 
         TestClient interval = new TestClient(); interval.world = world;
-        interval.receive(new PacketAnnounce(new AnnounceData(null,
+        PacketAnnounce intervalPacket = new PacketAnnounce(new AnnounceData(null,
             Arrays.asList("test:one", "", "test:two"), Arrays.asList(0, 3, 0), null, 1),
-            "A", true, 0, 0, 0));
+            "A", true, 0, 0, 0);
+        intervalPacket.resolveTiming(AnnouncePackLoader.soundTicks);
+        interval.receive(intervalPacket);
         for (int i = 0; i < 5; i++) interval.tick();
         check(soundNames(interval).equals(Collections.singletonList("test:one")),
             "Ordinary body interval delays the following part");
@@ -616,6 +691,7 @@ public final class NetworkVerificationTest {
     private static TestClient playOrdinary(FixtureWorld world, AnnounceData data, long id, int ticks) {
         TestClient client = new TestClient(); client.world = world;
         PacketAnnounce packet = new PacketAnnounce(data, "A", true, 0, 0, 0); packet.sessionId = id;
+        packet.resolveTiming(AnnouncePackLoader.soundTicks);
         client.receive(packet);
         for (int i = 0; i < ticks; i++) client.tick();
         return client;
@@ -648,6 +724,8 @@ public final class NetworkVerificationTest {
             expectInvalid(() -> new PacketSpeakerFallback().fromBytes(buf));
             PacketAnnounce bounded = start(1); bounded.targets = new long[PacketLimits.SESSION_TARGETS];
             bounded.bodySounds = Collections.nCopies(PacketLimits.BODY_SOUNDS, "test:body");
+            bounded.bodyIntervalTicks = Collections.nCopies(PacketLimits.BODY_SOUNDS, 0);
+            bounded.bodyPartTicks = Collections.nCopies(PacketLimits.BODY_SOUNDS, 20);
             bounded.repeatCount = PacketLimits.MAX_ANNOUNCE_REPEATS;
             buf.clear(); bounded.toBytes(buf); PacketAnnounce decoded = new PacketAnnounce(); decoded.fromBytes(buf);
             check(decoded.targets.length == PacketLimits.SESSION_TARGETS && decoded.bodySounds.size() == PacketLimits.BODY_SOUNDS
@@ -662,17 +740,32 @@ public final class NetworkVerificationTest {
                 buf.clear(); bounded.writeHeader(buf);
                 cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
                 cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
-                buf.writeInt(0).writeInt(repeat);
+                buf.writeInt(0).writeInt(PacketAnnounce.TIMING_MAGIC).writeInt(repeat)
+                    .writeInt(0).writeInt(0).writeInt(0);
                 expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
             }
             buf.clear(); bounded.writeHeader(buf);
             cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
             cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
             buf.writeInt(0);
-            PacketAnnounce legacyDecoded = new PacketAnnounce(); legacyDecoded.fromBytes(buf);
-            check(legacyDecoded.repeatCount == 1, "Legacy START payload defaults repeat count to one");
-            buf.writeByte(1);
-            expectInvalid(() -> new PacketAnnounce().fromBytes(buf.readerIndex(0)));
+            expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
+
+            buf.clear(); bounded.writeHeader(buf);
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+            buf.writeInt(1);
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "test:body");
+            buf.writeInt(PacketAnnounce.TIMING_MAGIC).writeInt(1).writeInt(0).writeInt(0).writeInt(0);
+            expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
+
+            buf.clear(); bounded.writeHeader(buf);
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "");
+            buf.writeInt(1);
+            cpw.mods.fml.common.network.ByteBufUtils.writeUTF8String(buf, "test:body");
+            buf.writeInt(PacketAnnounce.TIMING_MAGIC).writeInt(1).writeInt(0).writeInt(0).writeInt(1)
+                .writeInt(PacketAnnounce.MAX_DURATION_TICKS + 1);
+            expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
             buf.clear(); bounded.targets = new long[0]; bounded.writeHeader(buf);
             buf.setInt(buf.writerIndex()-4, PacketLimits.SESSION_TARGETS+1);
             expectInvalid(() -> new PacketAnnounce().fromBytes(buf));
@@ -757,6 +850,8 @@ public final class NetworkVerificationTest {
             TestClient client = new TestClient(); client.world = world;
             PacketAnnounce packet = start(900); packet.targets = new long[] {SpeakerRegistry.position(0, 0, 0)};
             packet.bodySounds = Arrays.asList("test:body", "test:body", "test:body");
+            packet.bodyIntervalTicks = Arrays.asList(0, 0, 0);
+            packet.resolveTiming(Collections.singletonMap("test:body", 20));
             Speaker formal = new Speaker(); world.add(formal, 0, 0, 0);
             check(!formal.isClientConfigSynced() && formal.linkKey.isEmpty()
                 && formal.range == 16 && formal.volume == 1.0F, "New client Speaker TE is not configuration-synchronized");
@@ -907,16 +1002,17 @@ public final class NetworkVerificationTest {
         void clear() { messages.clear(); players.clear(); }
     }
     private static class TestClient extends AnnounceManager {
-        World world; int worldReads;
+        World world; int worldReads, ticks;
         final List<ISound> played = new ArrayList<>(); final Set<ISound> live = new HashSet<>(); final Set<Long> ended = new HashSet<>();
+        final List<Integer> playedAtTicks = new ArrayList<>();
         @Override protected World currentWorld() { worldReads++; return world; }
-        @Override protected void playSound(ISound sound) { played.add(sound); live.add(sound); }
+        @Override protected void playSound(ISound sound) { played.add(sound); playedAtTicks.add(ticks); live.add(sound); }
         @Override protected void stopSound(ISound sound) { live.remove(sound); }
         @Override protected boolean inSpeakerRange(TileEntitySpeaker speaker) { return true; }
         @Override protected boolean inRange(int x, int y, int z, int range) { return true; }
         @Override protected void requestMissing(PacketMissingSpeakers packet) { missing.add(packet); }
         final List<PacketMissingSpeakers> missing = new ArrayList<>();
         @Override protected void finished(long id) { check(ended.add(id), "No duplicate completion acknowledgement"); }
-        void tick() { onClientTick(new TickEvent.ClientTickEvent(TickEvent.Phase.START)); }
+        void tick() { ticks++; onClientTick(new TickEvent.ClientTickEvent(TickEvent.Phase.START)); }
     }
 }
