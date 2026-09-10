@@ -7,6 +7,7 @@ import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.registry.GameRegistry;
 import jp.me1han.sam.block.*;
+import jp.me1han.sam.compat.TrainCompatRegistry;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.SAMGuiHandler;
 import jp.me1han.sam.render.*;
@@ -57,6 +58,7 @@ public class StationAnnounceModCore {
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
+        TrainCompatRegistry.initialize();
         java.io.File mcDir = event.getModConfigurationDirectory().getParentFile();
         samPacksDir = new java.io.File(mcDir, "mods" + java.io.File.separator + "SAMpacks");
 

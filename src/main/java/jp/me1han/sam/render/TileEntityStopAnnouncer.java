@@ -1,10 +1,8 @@
 package jp.me1han.sam.render;
 
-import cpw.mods.fml.common.Loader;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
-import java.util.List;
+import jp.me1han.sam.compat.TrainCompatRegistry;
 import jp.me1han.sam.link.LinkKey;
 import jp.me1han.sam.link.SamLinkedTile;
 import jp.me1han.sam.link.SamLinkRegistry;
@@ -22,24 +20,15 @@ public class TileEntityStopAnnouncer extends RegisteredTileEntity implements Sam
     @Override
     public void updateEntity() {
         if (this.worldObj.isRemote) return;
-        if (Loader.isModLoaded("RTM")) {
-            this.scanTrain();
-        }
+        this.scanTrain();
     }
 
-    @SuppressWarnings("unchecked")
     private void scanTrain() {
         int r = 2;
         AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
 
-        List<jp.ngt.rtm.entity.train.EntityTrainBase> list = (List<jp.ngt.rtm.entity.train.EntityTrainBase>) this.worldObj.getEntitiesWithinAABB(jp.ngt.rtm.entity.train.EntityTrainBase.class, aabb);
-
-        long currentFormationId = -1L;
-        for (jp.ngt.rtm.entity.train.EntityTrainBase train : list) {
-            if (this.isControlCar && !this.isControlCar(train)) continue;
-            currentFormationId = this.resolveFormationId(train);
-            break;
-        }
+        long currentFormationId = TrainCompatRegistry.get()
+            .findFirstFormationId(this.worldObj, aabb, this.isControlCar);
 
         if (currentFormationId == -1L) {
             this.lastFormationId = -1L;
@@ -50,21 +39,6 @@ public class TileEntityStopAnnouncer extends RegisteredTileEntity implements Sam
             this.lastFormationId = currentFormationId;
             this.dispatchStopTrigger(SamTriggerSourceType.TRAIN, currentFormationId);
         }
-    }
-
-    private boolean isControlCar(jp.ngt.rtm.entity.train.EntityTrainBase train) {
-        return train.isControlCar();
-    }
-
-    private long resolveFormationId(jp.ngt.rtm.entity.train.EntityTrainBase train) {
-        try {
-            if (train.getFormation() != null) {
-                return train.getFormation().id;
-            }
-        } catch (Exception e) {
-            // Fallback to entity id when formation info is unavailable.
-        }
-        return train.getEntityId();
     }
 
     public void onRedstoneUpdate(boolean powered) {

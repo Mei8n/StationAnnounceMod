@@ -236,3 +236,26 @@ tasks.register('verifyNetwork', JavaExec) {
     mainClass = 'jp.me1han.sam.network.NetworkVerificationTest'
 }
 check.dependsOn verifyNetwork
+
+tasks.register('verifyOptionalRtmBoundary') {
+    group = 'verification'
+    description = 'Reject compile-time links from SAM classes to optional RTM classes.'
+    dependsOn compileJava
+
+    doLast {
+        def forbiddenInternalName = 'jp/ngt/rtm/'
+        def linkedClasses = fileTree("$buildDir/classes/java/main") {
+            include '**/*.class'
+        }.findAll { classFile ->
+            new String(classFile.bytes, 'ISO-8859-1').contains(forbiddenInternalName)
+        }
+
+        if (!linkedClasses.isEmpty()) {
+            def names = linkedClasses.collect {
+                file("$buildDir/classes/java/main").toPath().relativize(it.toPath()).toString()
+            }.join(', ')
+            throw new GradleException("Optional RTM classes are linked at compile time: $names")
+        }
+    }
+}
+check.dependsOn verifyOptionalRtmBoundary
