@@ -127,7 +127,7 @@ public final class SwitchModelTest {
 
     private static void verifySwitches() throws Exception {
         SwitchModelRegistry.reset();
-        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        ScriptEngine engine = SamScriptEngineFactory.requireEngine();
         engine.put("sam", new SAMScriptAPI());
         engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam.toggle().tachikawa(true)); }");
         AnnouncePackLoader.scriptEngines.put("test.js", engine);
@@ -226,7 +226,7 @@ public final class SwitchModelTest {
     }
 
     private static void verifyEventDrivenControlSources() throws Exception {
-        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        ScriptEngine engine = SamScriptEngineFactory.requireEngine();
         engine.put("sam", new SAMScriptAPI());
         engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam.toggle().interval(0)); }");
         AnnouncePackLoader.scriptEngines.put("event-sources.js", engine);
@@ -421,7 +421,7 @@ public final class SwitchModelTest {
 
     private static void verifyModeMatrix() throws Exception {
         for (boolean alternateJs : new boolean[]{false, true}) for (boolean alternateSwitch : new boolean[]{false, true}) {
-            ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+            ScriptEngine engine = SamScriptEngineFactory.requireEngine();
             engine.put("sam", new SAMScriptAPI());
             engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam."
                 + (alternateJs ? "toggle" : "push") + "().interval(0.5)); }");
@@ -530,7 +530,7 @@ public final class SwitchModelTest {
     }
 
     private static void verifyTachikawaCompletion() throws Exception {
-        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        ScriptEngine engine = SamScriptEngineFactory.requireEngine();
         engine.put("sam", new SAMScriptAPI());
         engine.eval("function samMain(tile) { return sam.build('test:m', ['test:d'], sam.toggle().interval(0).tachikawa(true)); }");
         AnnouncePackLoader.scriptEngines.put("completion.js", engine);

@@ -17,6 +17,7 @@ Minecraftで駅放送を流せるようにするModです。\
 
 - Minecraft 1.7.10
 - Minecraft Forge 10.13.4.1614
+- Java 8（Minecraft実行環境および開発・ビルドの基準JDK。JDK内蔵Nashornを使用）
 
 ### インストール手順
 

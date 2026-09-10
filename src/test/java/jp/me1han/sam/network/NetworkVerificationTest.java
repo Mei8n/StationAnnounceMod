@@ -3,7 +3,6 @@ package jp.me1han.sam.network;
 import java.lang.reflect.*;
 import java.util.*;
 import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
 import com.mojang.authlib.GameProfile;
 import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
@@ -203,8 +202,7 @@ public final class NetworkVerificationTest {
 
     private static void nashornBeanProperty() throws Exception {
         SamLinkRegistry.clear();
-        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
-        check(engine != null, "Java 8 Nashorn is required");
+        ScriptEngine engine = SamScriptEngineFactory.requireEngine();
         FixtureWorld world = new FixtureWorld();
         TileEntityAnnouncer tile = new TileEntityAnnouncer(); tile.setLinkKey("A"); world.add(tile, 1, 0, 0);
         engine.put("tile", tile);

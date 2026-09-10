@@ -63,6 +63,7 @@ public final class DeparturePlaybackTest {
     }
 
     public static void main(String[] args) throws Exception {
+        verifyJavaScriptRuntime();
         Timeline momentary = new Timeline(program(false).interval(0));
         momentary.ticks(19);
         momentary.expect("0:test:melody");
@@ -137,8 +138,30 @@ public final class DeparturePlaybackTest {
         System.out.println("Departure playback: " + checks + " checks passed");
     }
 
+    private static void verifyJavaScriptRuntime() throws Exception {
+        ScriptEngine managerEngine = new ScriptEngineManager().getEngineByName("nashorn");
+        check(managerEngine != null, SamScriptEngineFactory.unavailableMessage());
+
+        ScriptEngine engine = SamScriptEngineFactory.requireEngine();
+        engine.put("sam", new SAMScriptAPI());
+        engine.eval("function getDisplayName() { return 'runtime-check'; }"
+            + " function samMain(tile) {"
+            + " if (String(tile.getLinkKey()) !== 'runtime') throw 'TileEntity interop failed';"
+            + " return sam.build(null, ['test:body'], null); }");
+        Invocable invocable = (Invocable)engine;
+        check("runtime-check".equals(invocable.invokeFunction("getDisplayName")),
+            "Shared Nashorn provider invokes getDisplayName()");
+        jp.me1han.sam.render.TileEntityAnnouncer tile =
+            new jp.me1han.sam.render.TileEntityAnnouncer();
+        tile.setLinkKey("runtime");
+        Object value = invocable.invokeFunction("samMain", tile);
+        check(value instanceof AnnounceData
+            && ((AnnounceData)value).bodySounds.equals(Collections.singletonList("test:body")),
+            "Nashorn samMain(), sam.build(...) and TileEntity Java interop remain available");
+    }
+
     private static void verifyParts() throws Exception {
-        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        ScriptEngine engine = SamScriptEngineFactory.requireEngine();
         engine.put("sam", new SAMScriptAPI());
         engine.eval("function samMain(tile) { var sounds = []; sounds.push('test:door');"
             + " sounds.push(sam.interval(0.25)); sounds.push('test:melody');"
@@ -310,8 +333,7 @@ public final class DeparturePlaybackTest {
 
     private static void verifyScripts() throws Exception {
         for (String mode : new String[]{"push", "toggle", "tachikawa"}) {
-            ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
-            check(engine != null, "Java 8 Nashorn is required");
+            ScriptEngine engine = SamScriptEngineFactory.requireEngine();
             engine.put("sam", new SAMScriptAPI());
             engine.eval("function samMain(tile) { var sounds = ['test:door']; return sam.build('test:melody', sounds, sam."
                 + (mode.equals("push") ? "push()" : "toggle()")
@@ -328,7 +350,7 @@ public final class DeparturePlaybackTest {
         java.util.Set<String> programMethods = new java.util.HashSet<>();
         for (java.lang.reflect.Method method : DepartureProgram.class.getMethods()) programMethods.add(method.getName());
         check(!programMethods.contains("melody") && !programMethods.contains("doorClose"), "Old chained audio methods are unavailable");
-        ScriptEngine oldHandler = new ScriptEngineManager().getEngineByName("nashorn");
+        ScriptEngine oldHandler = SamScriptEngineFactory.requireEngine();
         oldHandler.put("sam", new SAMScriptAPI());
         oldHandler.eval("function configureDeparture(tile) { return null; }");
         AnnouncePackLoader.scriptEngines.put("old-handler.js", oldHandler);
