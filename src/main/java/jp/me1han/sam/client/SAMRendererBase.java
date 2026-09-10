@@ -1,6 +1,6 @@
 package jp.me1han.sam.client;
 
-import cpw.mods.fml.common.Loader;
+import jp.me1han.sam.compat.TrainCompatRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
@@ -10,18 +10,15 @@ import org.lwjgl.opengl.GL11;
 
 public abstract class SAMRendererBase extends TileEntitySpecialRenderer {
 
-    protected boolean isPlayerHoldingRTM_Crowbar() {
-        if (!Loader.isModLoaded("RTM")) return false;
+    protected boolean isPlayerHoldingInspectionTool() {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.thePlayer == null) return false;
         ItemStack heldItem = mc.thePlayer.getHeldItem();
-        if (heldItem == null) return false;
-
-        return heldItem.getItem().getClass().getName().contains("ItemCrowbar");
+        return TrainCompatRegistry.get().isInspectionTool(heldItem);
     }
 
     protected void renderCustomBeam(TileEntity te, double x, double y, double z, float partialTicks) {
-        if (!isPlayerHoldingRTM_Crowbar()) return;
+        if (!isPlayerHoldingInspectionTool()) return;
 
         Tessellator tessellator = Tessellator.instance;
         GL11.glPushMatrix();

@@ -1,9 +1,9 @@
 package jp.me1han.sam.block;
 
-import cpw.mods.fml.common.Loader;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 import jp.me1han.sam.StationAnnounceModCore;
+import jp.me1han.sam.compat.TrainCompatRegistry;
 import jp.me1han.sam.render.TileEntityTrainTypeSelector;
 import net.minecraft.block.Block;
 import net.minecraft.block.ITileEntityProvider;
@@ -32,7 +32,7 @@ public class BlockTrainTypeSelector extends Block implements ITileEntityProvider
     @Override
     @SideOnly(Side.CLIENT)
     public void getSubBlocks(Item item, CreativeTabs tab, List list) {
-        if (Loader.isModLoaded("RTM")) {
+        if (TrainCompatRegistry.get().isAvailable()) {
             list.add(new net.minecraft.item.ItemStack(item));
         }
     }

@@ -70,7 +70,7 @@ public class RendererSpeaker extends SAMRendererBase {
         ItemStack held = mc.thePlayer.getHeldItem();
         if (held == null) return false;
 
-        if (isPlayerHoldingRTM_Crowbar()) return true;
+        if (isPlayerHoldingInspectionTool()) return true;
 
         Item speakerItem = Item.getItemFromBlock(StationAnnounceModCore.blockSpeaker);
         return held.getItem() == speakerItem;

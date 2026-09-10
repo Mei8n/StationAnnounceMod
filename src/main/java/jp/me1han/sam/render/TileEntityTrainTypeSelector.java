@@ -1,7 +1,8 @@
 package jp.me1han.sam.render;
 
-import cpw.mods.fml.common.Loader;
 import jp.me1han.sam.api.TrainTypeCondition;
+import jp.me1han.sam.compat.TrainCompatRegistry;
+import jp.me1han.sam.compat.TrainSnapshot;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
@@ -33,9 +34,7 @@ public class TileEntityTrainTypeSelector extends RegisteredTileEntity implements
             }
         }
 
-        if (Loader.isModLoaded("RTM")) {
-            this.scanAndExtractTrain();
-        }
+        this.scanAndExtractTrain();
     }
 
     private void scanAndExtractTrain() {
@@ -43,30 +42,21 @@ public class TileEntityTrainTypeSelector extends RegisteredTileEntity implements
 
         int r = 2;
         AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
-        List list = this.worldObj.getEntitiesWithinAABB(jp.ngt.rtm.entity.train.EntityTrainBase.class, aabb);
+        List<TrainSnapshot> list = TrainCompatRegistry.get().findTrains(this.worldObj, aabb);
 
         if (list.isEmpty()) {
             this.lastTrainId = -1;
             return;
         }
 
-        jp.ngt.rtm.entity.train.EntityTrainBase train = (jp.ngt.rtm.entity.train.EntityTrainBase) list.get(0);
+        TrainSnapshot train = list.get(0);
         if (train.getEntityId() == this.lastTrainId) return;
         this.lastTrainId = train.getEntityId();
 
-        if (this.isControlCar) {
-            boolean isControl = false;
-            try {
-                java.lang.reflect.Method m = train.getClass().getMethod("isControlCar");
-                Object res = m.invoke(train);
-                if (res != null) isControl = (Boolean) res;
-            } catch (Exception e) {}
-
-            if (!isControl) return;
-        }
+        if (this.isControlCar && !train.isControlCar()) return;
 
         for (TrainTypeCondition cond : conditions) {
-            String val = jp.me1han.sam.api.TrainDataExtractor.extractData(train, cond.key, cond.type);
+            String val = train.extractData(cond.key, cond.type);
             if (val != null && !val.isEmpty()) {
                 extractedData.put(cond.key, val);
             }
