@@ -57,11 +57,11 @@ public class AnnounceManager {
                 session.stop();
                 activeSessions.remove(key);
             } else {
-                // START and OFF can arrive in one client tick; initialize before applying OFF.
+                // Preserve an early OFF, but do not initialize playback until the
+                // authoritative initial routing snapshot is complete.
+                session.departureReleased = true;
                 initializeDeparture(session);
-                boolean wasOn = session.sequence.isOn();
-                session.sequence.release();
-                if (wasOn) session.releasedThisTick = true;
+                releaseDeparture(session);
             }
         });
     }
@@ -130,6 +130,7 @@ public class AnnounceManager {
         long audibleTick = Long.MIN_VALUE;
         boolean audibleThisTick;
         boolean priorityArbitrated;
+        boolean departureReleased;
 
         final class RouteAssembly {
             final long revision;
@@ -176,6 +177,10 @@ public class AnnounceManager {
             routeAssembly = null;
             audibleTick = Long.MIN_VALUE;
             if (!priorityArbitrated) arbitrateInitialPriority(this);
+        }
+
+        boolean routingReady() {
+            return routeRevision > 0 && priorityArbitrated;
         }
 
         AnnounceSession(PacketAnnounce msg) {
@@ -265,7 +270,7 @@ public class AnnounceManager {
 
         for (AnnounceSession existing : activeSessions.values()) {
             if (existing == candidate || !candidate.linkKey.equals(existing.linkKey)
-                || !isCurrentlyAudible(existing)) continue;
+                || !existing.routingReady() || !isCurrentlyAudible(existing)) continue;
             if (existing.priority > candidate.priority && !candidate.allowOverlap
                 && candidate.priority != PacketAnnounce.PRIORITY_AWARENESS) {
                 activeSessions.remove(candidate.sessionId, candidate);
@@ -277,7 +282,7 @@ public class AnnounceManager {
         for (Map.Entry<Long, AnnounceSession> entry : activeSessions.entrySet()) {
             AnnounceSession existing = entry.getValue();
             if (existing == candidate || !candidate.linkKey.equals(existing.linkKey)
-                || !isCurrentlyAudible(existing)) continue;
+                || !existing.routingReady() || !isCurrentlyAudible(existing)) continue;
             boolean interruptLower = existing.priority < candidate.priority && !existing.allowOverlap
                 && (existing.priority != PacketAnnounce.PRIORITY_AWARENESS || existing.hasStartedPlayback);
             if (existing.priority == candidate.priority || interruptLower) {
@@ -324,6 +329,10 @@ public class AnnounceManager {
                 continue;
             }
 
+            if (!session.routingReady()) {
+                continue;
+            }
+
             if (isBlockedByHigherPriority(session)) {
                 continue;
             }
@@ -367,7 +376,7 @@ public class AnnounceManager {
     }
 
     private void initializeDeparture(final AnnounceSession session) {
-        if (session.sequence != null) return;
+        if (session.sequence != null || !session.routingReady()) return;
         session.sequenceChangedThisTick = true;
         session.sequence = new jp.me1han.sam.api.DepartureSequence(session.departure,
             new jp.me1han.sam.api.DepartureSequence.Output() {
@@ -379,6 +388,14 @@ public class AnnounceManager {
                 public void stop(jp.me1han.sam.api.DepartureSequence.Channel channel) { session.stopChannel(channel); }
                 public void finished() { session.isPlaying = false; }
             });
+        releaseDeparture(session);
+    }
+
+    private void releaseDeparture(AnnounceSession session) {
+        if (session.sequence == null || !session.departureReleased) return;
+        boolean wasOn = session.sequence.isOn();
+        session.sequence.release();
+        if (wasOn) session.releasedThisTick = true;
     }
 
     private boolean isBlockedByHigherPriority(AnnounceSession session) {
@@ -388,7 +405,8 @@ public class AnnounceManager {
         if (!isCurrentlyAudible(session)) return false;
 
         for (AnnounceSession other : activeSessions.values()) {
-            if (other != session && other.isPlaying && session.linkKey.equals(other.linkKey)
+            if (other != session && other.isPlaying && other.routingReady()
+                && session.linkKey.equals(other.linkKey)
                 && other.priority > session.priority && isCurrentlyAudible(other)) {
                 return true;
             }
@@ -490,7 +508,8 @@ public class AnnounceManager {
     private boolean isPlaybackSuppressed(AnnounceSession session) {
         if (session.allowOverlap) return false;
         for (AnnounceSession other : activeSessions.values()) {
-            if (other == session || !other.isPlaying || !session.linkKey.equals(other.linkKey)
+            if (other == session || !other.isPlaying || !other.routingReady()
+                || !session.linkKey.equals(other.linkKey)
                 || !isCurrentlyAudible(other)) continue;
             if (other.priority > session.priority
                 || (other.priority == session.priority && other.sessionId > session.sessionId)) return true;
