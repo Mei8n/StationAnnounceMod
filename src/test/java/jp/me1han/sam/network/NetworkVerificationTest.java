@@ -52,7 +52,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -1235,6 +1235,106 @@ public final class NetworkVerificationTest {
     }
     private static void endTick() { ServerSessions.INSTANCE.onServerTick(new TickEvent.ServerTickEvent(TickEvent.Phase.END)); }
 
+    private static void serverTaskQueueFairness() throws Exception {
+        ServerTaskQueue queue = ServerTaskQueue.INSTANCE;
+        queue.clear();
+        FixtureWorld world = new FixtureWorld();
+        Player playerA = player(world, 0, 0, 0);
+        Player playerB = player(world, 1, 0, 0);
+        List<Integer> playerAOrder = new ArrayList<>();
+        List<String> executionOrder = new ArrayList<>();
+        int acceptedA = 0;
+        for (int i = 0; i < ServerTaskQueue.MAX_PENDING_PER_SENDER + 10; i++) {
+            final int sequence = i;
+            if (queue.enqueue(playerA, () -> {
+                playerAOrder.add(sequence);
+                executionOrder.add("A");
+            })) acceptedA++;
+        }
+        check(acceptedA == ServerTaskQueue.MAX_PENDING_PER_SENDER
+                && queue.pendingCount(playerA) == ServerTaskQueue.MAX_PENDING_PER_SENDER,
+            "One sender cannot exceed its bounded pending queue");
+        check(queue.enqueue(playerB, () -> executionOrder.add("B")) && queue.pendingCount(playerB) == 1,
+            "A full sender queue does not reject another sender");
+        serverTick();
+        check(executionOrder.size() == ServerTaskQueue.MAX_PER_SENDER_PER_TICK + 1
+                && "B".equals(executionOrder.get(1)) && queue.pendingCount(playerA) > 0,
+            "Round robin runs another sender before draining the flood sender");
+        check(playerAOrder.size() == ServerTaskQueue.MAX_PER_SENDER_PER_TICK,
+            "One sender cannot consume the global per-tick budget");
+        boolean fifo = true;
+        for (int i = 0; i < playerAOrder.size(); i++) fifo &= playerAOrder.get(i) == i;
+        check(fifo, "A sender retains FIFO order");
+
+        queue.clear();
+        Player[] players = new Player[8];
+        int[] perPlayerRuns = new int[players.length];
+        List<Integer> fairOrder = new ArrayList<>();
+        boolean withinLimitsAccepted = true;
+        for (int sender = 0; sender < players.length; sender++) {
+            players[sender] = player(world, sender + 2, 0, 0);
+            final int senderIndex = sender;
+            for (int task = 0; task < ServerTaskQueue.MAX_PENDING_PER_SENDER; task++)
+                withinLimitsAccepted &= queue.enqueue(players[sender], () -> {
+                    perPlayerRuns[senderIndex]++;
+                    fairOrder.add(senderIndex);
+                });
+        }
+        check(withinLimitsAccepted, "Tasks within each sender limit are accepted");
+        serverTick();
+        check(fairOrder.size() == ServerTaskQueue.MAX_PER_TICK,
+            "Global MAX_PER_TICK remains an execution ceiling");
+        for (int sender = 0; sender < players.length; sender++) {
+            check(fairOrder.get(sender) == sender,
+                "The first scheduling round visits every active sender");
+            check(perPlayerRuns[sender] == ServerTaskQueue.MAX_PER_SENDER_PER_TICK,
+                "Busy senders receive equal per-tick service");
+        }
+
+        queue.clear();
+        int globallyAccepted = 0;
+        for (int sender = 0; sender < ServerTaskQueue.MAX_PENDING / ServerTaskQueue.MAX_PENDING_PER_SENDER + 1; sender++) {
+            Player current = player(world, sender + 20, 0, 0);
+            for (int task = 0; task < ServerTaskQueue.MAX_PENDING_PER_SENDER; task++)
+                if (queue.enqueue(current, () -> {})) globallyAccepted++;
+        }
+        check(globallyAccepted == ServerTaskQueue.MAX_PENDING && queue.pendingCount() == ServerTaskQueue.MAX_PENDING,
+            "Global pending memory remains bounded across many senders");
+
+        queue.clear();
+        final boolean[] survivedFailure = {false, false};
+        queue.enqueue(playerA, () -> { throw new RuntimeException("expected queue test failure"); });
+        queue.enqueue(playerB, () -> survivedFailure[0] = true);
+        queue.enqueue(playerA, () -> survivedFailure[1] = true);
+        serverTick();
+        check(survivedFailure[0] && survivedFailure[1],
+            "A failing task does not prevent either sender's following work");
+
+        queue.clear();
+        survivedFailure[0] = false;
+        queue.enqueue(playerA, () -> { throw new AssertionError("logged-out task ran"); });
+        queue.enqueue(playerB, () -> survivedFailure[0] = true);
+        queue.logout(new PlayerEvent.PlayerLoggedOutEvent(playerA));
+        check(queue.pendingCount(playerA) == 0 && queue.pendingCount(playerB) == 1 && queue.pendingCount() == 1,
+            "Logout discards only that player's pending tasks");
+        serverTick();
+        check(survivedFailure[0], "Logout cleanup does not discard another player's task");
+
+        queue.enqueue(playerA, () -> {});
+        queue.changedDimension(new PlayerEvent.PlayerChangedDimensionEvent(playerA, 0, 1));
+        check(queue.pendingCount(playerA) == 0, "Dimension change discards stale client tasks");
+        queue.enqueue(playerA, () -> {});
+        queue.respawn(new PlayerEvent.PlayerRespawnEvent(playerA));
+        check(queue.pendingCount(playerA) == 0, "Respawn discards stale client tasks");
+
+        queue.enqueue(playerA, () -> {});
+        queue.enqueue(playerB, () -> {});
+        queue.clear();
+        check(queue.pendingCount() == 0 && queue.activeSenderCount() == 0,
+            "clear resets all queues, counts and scheduler state");
+        serverTick();
+    }
+
     private static void limitsAndExpiry() throws Exception {
         cpw.mods.fml.common.Mod mod = StationAnnounceModCore.class.getAnnotation(cpw.mods.fml.common.Mod.class);
         check("0.2.2-beta".equals(StationAnnounceModCore.VERSION), "Expected network-incompatible SAM version");
@@ -1334,11 +1434,15 @@ public final class NetworkVerificationTest {
 
         ServerSessions.clear(); id = ServerSessions.start(owner, start(0));
         final int[] ran = {0};
-        for (int i = 0; i < ServerTaskQueue.MAX_PENDING+50; i++) ServerTaskQueue.INSTANCE.enqueue(() -> ran[0]++);
+        for (int i = 0; i < ServerTaskQueue.MAX_PENDING_PER_SENDER+50; i++)
+            ServerTaskQueue.INSTANCE.enqueue(player, () -> ran[0]++);
         new NetworkHandler.FinishedHandler().onMessage(new PacketSessionFinished(id), context(player));
-        serverTick(); check(ran[0] == ServerTaskQueue.MAX_PER_TICK && sessions() == 1, "Overflow drops ACK and bounds work per tick");
+        serverTick();
+        check(ran[0] == ServerTaskQueue.MAX_PER_SENDER_PER_TICK && sessions() == 1,
+            "Per-sender overflow drops that sender's ACK and bounds work per tick");
         for (int i = 0; i < 5; i++) serverTick();
-        check(ran[0] == ServerTaskQueue.MAX_PENDING && sessions() == 1, "Overflow tasks are not retained indefinitely");
+        check(ran[0] == ServerTaskQueue.MAX_PENDING_PER_SENDER && sessions() == 1,
+            "Per-sender overflow tasks are not retained indefinitely");
         ServerSessions.expireSessions(ServerSessions.SESSION_TTL_TICKS);
         check(sessions() == 0, "TTL guarantees cleanup after queue-dropped ACK");
 
@@ -1352,7 +1456,7 @@ public final class NetworkVerificationTest {
         check(sessions() == 0 && SpeakerRegistry.findByKey(world, "A").isEmpty(), "World unload clears sessions and speakers");
         PacketAnnounce local = start(0); local.playLocalSound = true;
         ServerSessions.start(owner, local); ServerSessions.stopAll(); check(sessions() == 0, "Global stop clears sessions");
-        ServerSessions.start(owner, local); ServerTaskQueue.INSTANCE.enqueue(() -> ran[0]++);
+        ServerSessions.start(owner, local); ServerTaskQueue.INSTANCE.enqueue(player, () -> ran[0]++);
         new StationAnnounceModCore().serverStopped(null); int before = ran[0]; serverTick();
         check(sessions() == 0 && ran[0] == before, "Server stop clears sessions and pending tasks");
 
