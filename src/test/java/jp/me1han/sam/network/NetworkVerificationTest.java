@@ -412,6 +412,35 @@ public final class NetworkVerificationTest {
             buf.clear(); awareness.toBytes(buf);
             PacketAwarenessConfig awarenessRead = new PacketAwarenessConfig(); awarenessRead.fromBytes(buf);
             check(awarenessRead.soundList.equals(maxSounds), "Awareness sound and tick boundaries round trip");
+
+            String wireSoundId = String.join("", Collections.nCopies(21, "\u754c"));
+            List<String> wireSounds = new ArrayList<>(Collections.nCopies(PacketLimits.SOUNDS, wireSoundId));
+            String maxWireSoundList = String.join(",", wireSounds);
+            check(maxWireSoundList.length() <= PacketLimits.SOUND_LIST
+                    && maxWireSoundList.getBytes(java.nio.charset.StandardCharsets.UTF_8).length == PacketLimits.MAX_UTF8_WIRE_BYTES,
+                "Awareness sound list fixture reaches the exact Forge UTF-8 wire boundary");
+            PacketAwarenessConfig wireBoundary = new PacketAwarenessConfig(1, 2, 3, "key", maxWireSoundList,
+                20, false, false, false, 0);
+            check(PacketLimits.sounds(maxWireSoundList) && wireBoundary.isValidPayload(),
+                "Awareness accepts a 16383-byte sound list");
+            buf.clear(); wireBoundary.toBytes(buf);
+            PacketAwarenessConfig wireBoundaryRead = new PacketAwarenessConfig(); wireBoundaryRead.fromBytes(buf);
+            check(maxWireSoundList.equals(wireBoundaryRead.soundList) && buf.readableBytes() == 0,
+                "Awareness 16383-byte sound list round trips");
+
+            wireSounds.set(0, wireSoundId + "x");
+            String overWireSoundList = String.join(",", wireSounds);
+            check(wireSounds.size() == PacketLimits.SOUNDS && wireSounds.get(0).length() <= PacketLimits.NAME
+                    && overWireSoundList.length() <= PacketLimits.SOUND_LIST
+                    && overWireSoundList.getBytes(java.nio.charset.StandardCharsets.UTF_8).length == PacketLimits.MAX_UTF8_WIRE_BYTES + 1,
+                "Awareness over-limit fixture exceeds only the Forge UTF-8 wire boundary");
+            PacketAwarenessConfig overWireBoundary = new PacketAwarenessConfig(1, 2, 3, "key", overWireSoundList,
+                20, false, false, false, 0);
+            check(!PacketLimits.sounds(overWireSoundList) && !overWireBoundary.isValidPayload(),
+                "Awareness rejects a 16384-byte sound list in shared payload validation");
+            buf.clear(); expectEncodeInvalid(() -> overWireBoundary.toBytes(buf));
+            check(buf.writerIndex() == 0, "Awareness rejects an oversized wire string before encoding starts");
+
             buf.clear(); expectEncodeInvalid(() -> new PacketAwarenessConfig(1, 2, 3, "key",
                 maxSounds + ",extra", 20, false, false, false, 0).toBytes(buf));
             buf.clear(); expectEncodeInvalid(() -> new PacketAwarenessConfig(1, 2, 3, "key", "s",
@@ -437,6 +466,12 @@ public final class NetworkVerificationTest {
             PacketLimits.writeString(buf, "model", PacketLimits.MODEL);
             buf.writeInt(0).writeFloat(Float.POSITIVE_INFINITY).writeFloat(0).writeFloat(0);
             expectInvalid(() -> new PacketDepartureSwitchConfig().fromBytes(buf));
+            String modelLimit = String.join("", Collections.nCopies(PacketLimits.MODEL, "m"));
+            PacketDepartureSwitchItemConfig maxModel = new PacketDepartureSwitchItemConfig(8, modelLimit);
+            buf.clear(); maxModel.toBytes(buf);
+            PacketDepartureSwitchItemConfig maxModelRead = new PacketDepartureSwitchItemConfig(); maxModelRead.fromBytes(buf);
+            check(modelLimit.equals(maxModelRead.modelName), "Model boundary remains unchanged");
+            buf.clear(); expectEncodeInvalid(() -> new PacketDepartureSwitchItemConfig(8, modelLimit + "m").toBytes(buf));
             buf.clear(); expectEncodeInvalid(() -> new PacketDepartureSwitchItemConfig(9, "model").toBytes(buf));
 
             PacketAnnounce announce = start(901);
