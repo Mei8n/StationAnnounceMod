@@ -247,13 +247,14 @@ public class AnnounceManager {
         if (msg == null || msg.linkKey == null) {
             return;
         }
-        if (!(msg instanceof jp.me1han.sam.network.PacketDepartureStart)) {
-            try { msg.validateTiming(); }
-            catch (IllegalArgumentException invalid) {
-                StationAnnounceModCore.logger.error("[SAM] Rejected START without valid canonical timing: " + invalid.getMessage());
-                finished(msg.sessionId);
-                return;
-            }
+        try {
+            if (msg instanceof jp.me1han.sam.network.PacketDepartureStart)
+                ((jp.me1han.sam.network.PacketDepartureStart) msg).validateDeparturePayload();
+            else msg.validatePayload();
+        } catch (IllegalArgumentException invalid) {
+            StationAnnounceModCore.logger.error("[SAM] Rejected invalid START payload: " + invalid.getMessage());
+            finished(msg.sessionId);
+            return;
         }
 
         long sessionKey = msg.sessionId;

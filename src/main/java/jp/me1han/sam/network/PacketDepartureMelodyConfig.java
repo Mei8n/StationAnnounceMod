@@ -1,6 +1,5 @@
 package jp.me1han.sam.network;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
 
@@ -29,15 +28,23 @@ public class PacketDepartureMelodyConfig implements IMessage {
         this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         this.soundId = PacketLimits.readString(buf, PacketLimits.NAME);
         this.scriptName = PacketLimits.readString(buf, PacketLimits.NAME);
+        PacketLimits.requireDecoded(isValidPayload(), "Invalid departure melody config payload");
+    }
+
+    public boolean isValidPayload() {
+        return ConfigAccess.key(PacketLimits.normalize(linkKey))
+            && PacketLimits.string(PacketLimits.normalize(soundId), PacketLimits.NAME)
+            && PacketLimits.string(PacketLimits.normalize(scriptName), PacketLimits.NAME);
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
+        PacketLimits.require(isValidPayload(), "Invalid departure melody config payload");
         buf.writeInt(this.x);
         buf.writeInt(this.y);
         buf.writeInt(this.z);
-        ByteBufUtils.writeUTF8String(buf, this.linkKey == null ? "" : this.linkKey);
-        ByteBufUtils.writeUTF8String(buf, this.soundId == null ? "" : this.soundId);
-        ByteBufUtils.writeUTF8String(buf, this.scriptName == null ? "" : this.scriptName);
+        PacketLimits.writeString(buf, this.linkKey, PacketLimits.LINK_KEY);
+        PacketLimits.writeString(buf, this.soundId, PacketLimits.NAME);
+        PacketLimits.writeString(buf, this.scriptName, PacketLimits.NAME);
     }
 }

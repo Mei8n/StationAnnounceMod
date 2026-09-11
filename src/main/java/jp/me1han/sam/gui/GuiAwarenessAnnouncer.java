@@ -4,6 +4,7 @@ import cpw.mods.fml.client.config.GuiCheckBox;
 import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketAwarenessConfig;
+import jp.me1han.sam.network.PacketLimits;
 import jp.me1han.sam.render.TileEntityAwarenessAnnouncer;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -34,11 +35,11 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
         int top = this.height / 2 - 120;
 
         this.linkKeyField = new GuiTextField(this.fontRendererObj, left, top + 20, 240, 20);
-        this.linkKeyField.setMaxStringLength(64);
+        this.linkKeyField.setMaxStringLength(PacketLimits.LINK_KEY);
         this.linkKeyField.setText(this.tile.getLinkKey());
 
         this.soundListField = new GuiTextField(this.fontRendererObj, left, top + 60, 240, 20);
-        this.soundListField.setMaxStringLength(2048);
+        this.soundListField.setMaxStringLength(PacketLimits.SOUND_LIST);
         this.soundListField.setText(this.tile.soundList == null ? "" : this.tile.soundList);
 
         this.intervalField = new GuiTextField(this.fontRendererObj, left, top + 100, 110, 20);
@@ -68,11 +69,13 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
             String linkKey = jp.me1han.sam.link.LinkKey.normalize(this.linkKeyField.getText());
             String soundList = this.soundListField.getText() == null ? "" : this.soundListField.getText().trim();
 
-            NetworkHandler.INSTANCE.sendToServer(new PacketAwarenessConfig(
+            PacketAwarenessConfig packet = new PacketAwarenessConfig(
                 this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, soundList, intervalTicks,
                 this.randomOrderCheck.isChecked(), this.allowOverlapCheck.isChecked(),
                 this.playAfterDepartureCheck.isChecked(), departureDelayTicks
-            ));
+            );
+            if (!packet.isValidPayload()) return;
+            NetworkHandler.INSTANCE.sendToServer(packet);
             this.tile.applyConfig(linkKey, soundList, intervalTicks, this.randomOrderCheck.isChecked(),
                 this.allowOverlapCheck.isChecked(), this.playAfterDepartureCheck.isChecked(), departureDelayTicks);
             this.mc.thePlayer.closeScreen();

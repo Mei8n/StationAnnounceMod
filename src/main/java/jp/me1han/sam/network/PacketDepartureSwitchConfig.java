@@ -1,6 +1,5 @@
 package jp.me1han.sam.network;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
@@ -25,20 +24,25 @@ public class PacketDepartureSwitchConfig implements IMessage {
         x = buf.readInt(); y = buf.readInt(); z = buf.readInt(); linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         modelName = PacketLimits.readString(buf, PacketLimits.MODEL); rotationYaw = buf.readInt();
         offsetX = buf.readFloat(); offsetY = buf.readFloat(); offsetZ = buf.readFloat();
+        PacketLimits.requireDecoded(isValidPayload(), "Invalid departure switch config payload");
+    }
+    public boolean isValidPayload() {
+        return ConfigAccess.key(PacketLimits.normalize(linkKey))
+            && PacketLimits.string(PacketLimits.normalize(modelName), PacketLimits.MODEL)
+            && jp.me1han.sam.render.TileEntityDepartureSwitch.validOffset(offsetX)
+            && jp.me1han.sam.render.TileEntityDepartureSwitch.validOffset(offsetY)
+            && jp.me1han.sam.render.TileEntityDepartureSwitch.validOffset(offsetZ);
     }
     @Override public void toBytes(ByteBuf buf) {
-        buf.writeInt(x); buf.writeInt(y); buf.writeInt(z); ByteBufUtils.writeUTF8String(buf, linkKey);
-        ByteBufUtils.writeUTF8String(buf, modelName); buf.writeInt(rotationYaw);
+        PacketLimits.require(isValidPayload(), "Invalid departure switch config payload");
+        buf.writeInt(x); buf.writeInt(y); buf.writeInt(z); PacketLimits.writeString(buf, linkKey, PacketLimits.LINK_KEY);
+        PacketLimits.writeString(buf, modelName, PacketLimits.MODEL); buf.writeInt(rotationYaw);
         buf.writeFloat(offsetX); buf.writeFloat(offsetY); buf.writeFloat(offsetZ);
     }
     public static class Handler implements IMessageHandler<PacketDepartureSwitchConfig, IMessage> {
         @Override public IMessage onMessage(PacketDepartureSwitchConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, jp.me1han.sam.render.TileEntityDepartureSwitch.class, tile -> {
-                if (!ConfigAccess.key(m.linkKey) || !PacketLimits.string(m.modelName, PacketLimits.MODEL)
-                    || jp.me1han.sam.switchmodel.SwitchModelRegistry.get(m.modelName) == null
-                    || !jp.me1han.sam.render.TileEntityDepartureSwitch.validOffset(m.offsetX)
-                    || !jp.me1han.sam.render.TileEntityDepartureSwitch.validOffset(m.offsetY)
-                    || !jp.me1han.sam.render.TileEntityDepartureSwitch.validOffset(m.offsetZ)) return;
+                if (!m.isValidPayload() || jp.me1han.sam.switchmodel.SwitchModelRegistry.get(m.modelName) == null) return;
                 int yaw = (int) jp.me1han.sam.switchmodel.SwitchYaw.normalize(m.rotationYaw);
                 if (ConfigAccess.normalize(m.linkKey).equals(tile.getLinkKey()) && m.modelName.equals(tile.modelName)
                     && yaw == tile.getRotationYaw() && m.offsetX == tile.getOffsetX()

@@ -1,6 +1,7 @@
 package jp.me1han.sam.api;
 
 import java.util.Map;
+import jp.me1han.sam.network.PacketLimits;
 
 /** Script-defined controls; audio durations are resolved exclusively from sam_length.json. */
 public final class DepartureProgram {
@@ -30,12 +31,18 @@ public final class DepartureProgram {
         copy.finishChorus = finishChorus;
         copy.melody = clean(melody);
         if (copy.melody.isEmpty()) throw new IllegalArgumentException("A departure melody is required");
+        if (!PacketLimits.string(copy.melody, PacketLimits.NAME))
+            throw new IllegalArgumentException("Departure melody ID exceeds " + PacketLimits.NAME + " characters");
         copy.melodyTicks = duration(copy.melody, lengths);
         copy.doorCloseSounds.addAll(doorCloseSounds);
         copy.doorCloseIntervalTicks.addAll(doorCloseIntervalTicks);
-        if (copy.doorCloseSounds.size() > 256) throw new IllegalArgumentException("Too many door-close sounds (maximum 256)");
+        if (copy.doorCloseSounds.size() > PacketLimits.BODY_SOUNDS)
+            throw new IllegalArgumentException("Too many door-close sounds (maximum " + PacketLimits.BODY_SOUNDS + ")");
         for (int i = 0; i < copy.doorCloseSounds.size(); i++) {
-            String sound = copy.doorCloseSounds.get(i);
+            String sound = clean(copy.doorCloseSounds.get(i));
+            copy.doorCloseSounds.set(i, sound);
+            if (!PacketLimits.string(sound, PacketLimits.NAME))
+                throw new IllegalArgumentException("Door-close sound ID exceeds " + PacketLimits.NAME + " characters");
             int interval = i < doorCloseIntervalTicks.size() ? doorCloseIntervalTicks.get(i) : 0;
             if (sound.isEmpty() && interval == 0 && i < doorCloseDurations.size()) interval = doorCloseDurations.get(i);
             int length = interval > 0 ? interval : duration(sound, lengths);

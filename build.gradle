@@ -157,6 +157,8 @@ jar {
     from(rootDir) {
         include 'README.md'
         include 'howtoDepartureMelody.md'
+        include 'howtoAddAnnounce.md'
+        include 'SCRIPT_RUNTIME.md'
         include 'LICENSE'
     }
 

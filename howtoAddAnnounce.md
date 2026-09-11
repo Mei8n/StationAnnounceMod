@@ -2,7 +2,7 @@
 
 放送パック作成ガイドです。音声ファイルをJSONで登録し、JavaScript（JS）で再生順を指定します。
 
-導入・ブロックの操作は[README](README.md)、発車メロディ用JSとスイッチモデルは[発車メロディの設定](howtoDepartureMelody.md)を参照してください。
+導入・ブロックの操作は[README](README.md)、発車メロディ用JSとスイッチモデルは[発車メロディの設定](howtoDepartureMelody.md)、実行環境とsupported APIの境界は[JavaScript runtime仕様](SCRIPT_RUNTIME.md)を参照してください。
 
 ## パックの構成
 
@@ -146,6 +146,8 @@ sounds.push("sound_sample:platform_1");
 var value = tile.receivedData.get("キー名");
 ```
 
+`tile`は実TileEntityではなくread-only contextです。`tile.getLinkKey()`とJavaBeans形式の`tile.linkKey`でもリンクキーを取得できます。`receivedData`は`samMain`呼び出し時点のsnapshotで、変更しても実TileEntityには反映されません。
+
 値は文字列として受け取ります。未受信のキーは`null`になるため、数値で比較する場合は未受信時の処理と数値変換を入れます。
 
 以下は種別IDが100以上なら通過、100未満なら停車として放送パーツを選ぶ例です。`trainType`というキー名と判定値100は例なので、車両側の仕様に合わせて変更してください。例に登場する各音声IDは、パックへの登録が必要です。
@@ -177,6 +179,8 @@ function samMain(tile) {
 受信したデータは通常放送のJSを実行した後にクリアされます。列車選別装置がデータを渡してから放送開始ブロックが動作するように配置してください。同じ放送内での繰り返しには、`sam.build(...)`の第4引数を使えます。
 
 このデータ取得例は通常放送用です。発車用JSに渡される`tile`には`receivedData`がありません。
+
+`samMain`は論理server処理で同期実行されます。無限loop、sleep、重い計算はserver処理を止めるため記述しないでください。hard timeoutはありません。Java 8内蔵Nashornを使用し、`Java.type`、`Packages`、`load`などのhost accessはsupported APIではなく、runtimeでも無効化されます。詳しくは[JavaScript runtime仕様](SCRIPT_RUNTIME.md)を参照してください。
 
 ## 発車用JSとの使い分け
 

@@ -1,6 +1,5 @@
 package jp.me1han.sam.network;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
 
@@ -43,15 +42,24 @@ public class PacketAwarenessConfig implements IMessage {
         this.allowOverlap = buf.readBoolean();
         this.playAfterDeparture = buf.readBoolean();
         this.departureDelayTicks = buf.readInt();
+        PacketLimits.requireDecoded(isValidPayload(), "Invalid Awareness config payload");
+    }
+
+    public boolean isValidPayload() {
+        return ConfigAccess.key(PacketLimits.normalize(linkKey))
+            && PacketLimits.sounds(PacketLimits.normalize(soundList))
+            && PacketLimits.ticks(intervalTicks, 20)
+            && PacketLimits.ticks(departureDelayTicks, 0);
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
+        PacketLimits.require(isValidPayload(), "Invalid Awareness config payload");
         buf.writeInt(this.x);
         buf.writeInt(this.y);
         buf.writeInt(this.z);
-        ByteBufUtils.writeUTF8String(buf, this.linkKey == null ? "" : this.linkKey);
-        ByteBufUtils.writeUTF8String(buf, this.soundList == null ? "" : this.soundList);
+        PacketLimits.writeString(buf, this.linkKey, PacketLimits.LINK_KEY);
+        PacketLimits.writeString(buf, this.soundList, PacketLimits.SOUND_LIST);
         buf.writeInt(this.intervalTicks);
         buf.writeBoolean(this.randomOrder);
         buf.writeBoolean(this.allowOverlap);

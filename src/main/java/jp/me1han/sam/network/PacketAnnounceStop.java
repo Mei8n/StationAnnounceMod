@@ -6,6 +6,9 @@ public class PacketAnnounceStop implements IMessage {
     public long sessionId;
     public PacketAnnounceStop() {}
     public PacketAnnounceStop(long id) { sessionId = id; }
-    @Override public void fromBytes(ByteBuf buf) { sessionId = buf.readLong(); }
-    @Override public void toBytes(ByteBuf buf) { buf.writeLong(sessionId); }
+    private void validatePayload() { PacketLimits.require(sessionId >= 0, "Invalid stop session ID"); }
+    @Override public void fromBytes(ByteBuf buf) {
+        sessionId = buf.readLong(); PacketLimits.requireDecoded(sessionId >= 0, "Invalid stop session ID");
+    }
+    @Override public void toBytes(ByteBuf buf) { validatePayload(); buf.writeLong(sessionId); }
 }

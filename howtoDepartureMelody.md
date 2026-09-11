@@ -2,7 +2,7 @@
 
 発車放送・スイッチ設定ガイドです。メロディと戸閉放送の内容はJS、スイッチの外観やクリック音はモデルJSONで指定します。
 
-導入と基本の設置手順は[README](README.md)、音声ファイルとJSONの登録は[放送パックの作成](howtoAddAnnounce.md)を参照してください。
+導入と基本の設置手順は[README](README.md)、音声ファイルとJSONの登録は[放送パックの作成](howtoAddAnnounce.md)、実行環境とsupported APIの境界は[JavaScript runtime仕様](SCRIPT_RUNTIME.md)を参照してください。
 
 ## 発車用JSを作る
 
@@ -30,6 +30,8 @@ function samMain(tile) {
 ```
 
 この例ではON中にメロディをループし、OFFにするとメロディを止めます。0.5秒後に番線案内を始め、0.25秒の間を挟んで戸閉案内を順番に再生します。
+
+発車用の`tile`は実TileEntityではなくread-only contextです。`tile.getLinkKey()`と`tile.linkKey`でリンクキーを取得できますが、通常放送用の`receivedData`はありません。`samMain`は論理server処理で同期実行され、hard timeoutはないため、無限loop、sleep、重い計算を記述しないでください。Java 8内蔵Nashornを使用し、`Java.type`、`Packages`、`load`などのhost accessは無効です。詳しくは[JavaScript runtime仕様](SCRIPT_RUNTIME.md)を参照してください。
 
 `sound_sample:*`は例です。使用するパックの音声IDへ置き換えてください。
 

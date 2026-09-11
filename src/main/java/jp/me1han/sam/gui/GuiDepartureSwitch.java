@@ -39,9 +39,9 @@ public class GuiDepartureSwitch extends GuiScreen {
         left = 12; listWidth = width / 2 - 20; right = width / 2 + 8; rightWidth = width - right - 12;
         top = 64; bottom = height - 38;
         search = new GuiTextField(fontRendererObj, left, 36, listWidth, 20);
-        search.setMaxStringLength(128); search.setText(searchText);
+        search.setMaxStringLength(PacketLimits.MODEL); search.setText(searchText);
         key = new GuiTextField(fontRendererObj, right, 36, rightWidth, 20);
-        key.setMaxStringLength(64); key.setText(keyText);
+        key.setMaxStringLength(PacketLimits.LINK_KEY); key.setText(keyText);
         buttonList.add(new GuiButton(0, width - 112, height - 28, 100, 20, I18n.format("gui.done")));
         buttonList.add(new GuiButton(1, width - 220, height - 28, 100, 20, I18n.format("gui.cancel")));
         int labelWidth = fontRendererObj.getStringWidth(I18n.format("gui.sam.switch.rotation") + ": ");
@@ -96,8 +96,10 @@ public class GuiDepartureSwitch extends GuiScreen {
                 resetOffsetFields();
                 return;
             }
-            NetworkHandler.INSTANCE.sendToServer(new PacketDepartureSwitchConfig(tile.xCoord, tile.yCoord, tile.zCoord,
-                jp.me1han.sam.link.LinkKey.normalize(key.getText()), selected, yaw, offsetX, offsetY, offsetZ));
+            PacketDepartureSwitchConfig packet = new PacketDepartureSwitchConfig(tile.xCoord, tile.yCoord, tile.zCoord,
+                jp.me1han.sam.link.LinkKey.normalize(key.getText()), selected, yaw, offsetX, offsetY, offsetZ);
+            if (!packet.isValidPayload()) return;
+            NetworkHandler.INSTANCE.sendToServer(packet);
             mc.thePlayer.closeScreen();
         } else if (button.id == 1) mc.thePlayer.closeScreen();
         else if (button.id == 3) { pressedPreview = !pressedPreview; button.displayString = previewText(); }

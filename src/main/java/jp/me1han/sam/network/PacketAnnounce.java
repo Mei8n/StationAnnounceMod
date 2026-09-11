@@ -1,6 +1,5 @@
 package jp.me1han.sam.network;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
 import jp.me1han.sam.api.AnnounceData;
@@ -77,10 +76,15 @@ public class PacketAnnounce implements IMessage {
             throw new IllegalArgumentException("Announcement body sounds and durations must match");
         validateOptionalSound(startMelo, startMeloTicks, "start melody");
         validateOptionalSound(arrMelo, arrMeloTicks, "arrival melody");
+        PacketLimits.require(PacketLimits.string(PacketLimits.normalize(startMelo), PacketLimits.NAME)
+            && PacketLimits.string(PacketLimits.normalize(arrMelo), PacketLimits.NAME),
+            "Invalid announcement melody ID");
         if (repeatCount < 1 || repeatCount > PacketLimits.MAX_ANNOUNCE_REPEATS)
             throw new IllegalArgumentException("Invalid announcement repeat count");
         for (int i = 0; i < bodySize; i++) {
             String sound = clean(bodySounds.get(i));
+            PacketLimits.require(PacketLimits.string(PacketLimits.normalize(bodySounds.get(i)), PacketLimits.NAME),
+                "Invalid announcement body sound at index " + i);
             Integer tickValue = bodyPartTicks.get(i);
             if (tickValue == null)
                 throw new IllegalArgumentException("Invalid announcement body duration at index " + i);
@@ -114,6 +118,18 @@ public class PacketAnnounce implements IMessage {
     }
 
     private static String clean(String value) { return value == null ? "" : value.trim(); }
+    protected void validateHeaderPayload() {
+        PacketLimits.require(sessionId > 0, "Invalid announcement session ID");
+        PacketLimits.require(PacketLimits.string(PacketLimits.normalize(linkKey), PacketLimits.LINK_KEY),
+            "Invalid announcement link key");
+        PacketLimits.checkCount(targets == null ? -1 : targets.length, PacketLimits.SESSION_TARGETS);
+        PacketLimits.require(priority == PRIORITY_AWARENESS || priority == PRIORITY_ANNOUNCE
+            || priority == PRIORITY_DEPARTURE_MELODY, "Invalid announcement priority");
+    }
+    public void validatePayload() {
+        validateHeaderPayload();
+        validateTiming();
+    }
     protected void readHeader(ByteBuf buf) {
         sessionId = buf.readLong(); linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         priority = buf.readInt(); allowOverlap = buf.readBoolean(); playLocalSound = buf.readBoolean();
@@ -124,11 +140,11 @@ public class PacketAnnounce implements IMessage {
         for (int i = 0; i < size; i++) targets[i] = buf.readLong();
     }
     protected void writeHeader(ByteBuf buf) {
-        PacketLimits.checkCount(targets.length, PacketLimits.SESSION_TARGETS);
-        buf.writeLong(sessionId); ByteBufUtils.writeUTF8String(buf, linkKey);
+        validateHeaderPayload();
+        buf.writeLong(sessionId); PacketLimits.writeString(buf, linkKey, PacketLimits.LINK_KEY);
         buf.writeInt(priority); buf.writeBoolean(allowOverlap); buf.writeBoolean(playLocalSound);
         buf.writeInt(x); buf.writeInt(y); buf.writeInt(z);
-        buf.writeInt(targets.length);
+        PacketLimits.writeCount(buf, targets.length, PacketLimits.SESSION_TARGETS);
         for (long target : targets) buf.writeLong(target);
     }
     @Override public void fromBytes(ByteBuf buf) {
@@ -153,24 +169,23 @@ public class PacketAnnounce implements IMessage {
             bodyPartTicks.add(ticks);
             bodyIntervalTicks.add(bodySounds.get(i).isEmpty() ? ticks : 0);
         }
-        try { validateTiming(); }
+        try { validatePayload(); }
         catch (IllegalArgumentException invalid) {
             throw new io.netty.handler.codec.DecoderException(invalid.getMessage(), invalid);
         }
     }
     @Override public void toBytes(ByteBuf buf) {
-        validateTiming();
-        PacketLimits.checkCount(bodySounds == null ? 0 : bodySounds.size(), PacketLimits.BODY_SOUNDS);
+        validatePayload();
         writeHeader(buf);
-        ByteBufUtils.writeUTF8String(buf, startMelo == null ? "" : startMelo);
-        ByteBufUtils.writeUTF8String(buf, arrMelo == null ? "" : arrMelo);
-        buf.writeInt(bodySounds == null ? 0 : bodySounds.size());
-        if (bodySounds != null) for (String sound : bodySounds) ByteBufUtils.writeUTF8String(buf, sound == null ? "" : sound);
+        PacketLimits.writeString(buf, startMelo, PacketLimits.NAME);
+        PacketLimits.writeString(buf, arrMelo, PacketLimits.NAME);
+        PacketLimits.writeCount(buf, bodySounds.size(), PacketLimits.BODY_SOUNDS);
+        for (String sound : bodySounds) PacketLimits.writeString(buf, sound, PacketLimits.NAME);
         buf.writeInt(TIMING_MAGIC);
         buf.writeInt(repeatCount);
         buf.writeInt(startMeloTicks);
         buf.writeInt(arrMeloTicks);
-        buf.writeInt(bodyPartTicks.size());
+        PacketLimits.writeCount(buf, bodyPartTicks.size(), PacketLimits.BODY_SOUNDS);
         for (int ticks : bodyPartTicks) buf.writeInt(ticks);
     }
 }

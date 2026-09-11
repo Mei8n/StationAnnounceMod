@@ -3,6 +3,7 @@ package jp.me1han.sam.gui;
 import jp.me1han.sam.container.ContainerAnnouncer;
 import jp.me1han.sam.network.PacketConfig;
 import jp.me1han.sam.network.NetworkHandler;
+import jp.me1han.sam.network.PacketLimits;
 import jp.me1han.sam.render.TileEntityAnnouncer;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiTextField;
@@ -27,13 +28,13 @@ public class GuiAnnouncer extends GuiScriptConfig {
         int left = (this.width - 240) / 2;
         int top = (this.height - 155) / 2;
         this.linkKeyField = new GuiTextField(fontRendererObj, left + 10, top + 20, 220, 16);
-        this.linkKeyField.setMaxStringLength(32);
+        this.linkKeyField.setMaxStringLength(PacketLimits.LINK_KEY);
         this.linkKeyField.setText(tile.getLinkKey());
         this.chkPlayLocal = new GuiCheckBox(1, left + 10, top + 45,
             I18n.format("gui.sam.announcer.play_local"), tile.playLocalSound);
         this.buttonList.add(chkPlayLocal);
         this.scriptNameField = new GuiTextField(fontRendererObj, left + 10, top + 80, 220, 16);
-        this.scriptNameField.setMaxStringLength(256);
+        this.scriptNameField.setMaxStringLength(PacketLimits.NAME);
         this.scriptNameField.setText(tile.getScriptName() == null ? "" : tile.getScriptName());
         this.buttonList.add(new GuiButton(0, left + 10, top + 125, 220, 20, I18n.format("gui.done")));
     }
@@ -42,9 +43,11 @@ public class GuiAnnouncer extends GuiScriptConfig {
     protected void actionPerformed(GuiButton button) {
         if (button.id != 0) return;
         String scriptName = scriptNameField.getText().trim();
-        NetworkHandler.INSTANCE.sendToServer(new PacketConfig(
+        PacketConfig packet = new PacketConfig(
             tile.xCoord, tile.yCoord, tile.zCoord, scriptName,
-            linkKeyField.getText(), chkPlayLocal.isChecked()));
+            linkKeyField.getText(), chkPlayLocal.isChecked());
+        if (!packet.isValidPayload()) return;
+        NetworkHandler.INSTANCE.sendToServer(packet);
         this.tile.setScriptName(scriptName);
         this.tile.setLinkKey(this.linkKeyField.getText());
         this.tile.playLocalSound = this.chkPlayLocal.isChecked();

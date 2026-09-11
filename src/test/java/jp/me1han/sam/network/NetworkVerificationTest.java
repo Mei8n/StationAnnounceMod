@@ -52,7 +52,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -208,26 +208,26 @@ public final class NetworkVerificationTest {
         ScriptEngine engine = SamScriptEngineFactory.requireEngine();
         FixtureWorld world = new FixtureWorld();
         TileEntityAnnouncer tile = new TileEntityAnnouncer(); tile.setLinkKey("A"); world.add(tile, 1, 0, 0);
-        engine.put("tile", tile);
-        Object result = engine.eval("tile.linkKey = ' B '; tile.linkKey;");
-        check("B".equals(tile.getLinkKey()) && "B".equals(String.valueOf(result)),
-            "Nashorn maps announcer linkKey reads and writes to JavaBeans accessors");
-        check(SamLinkRegistry.findFirst(world, "A", TileEntityAnnouncer.class) == null
-            && SamLinkRegistry.findFirst(world, "B", TileEntityAnnouncer.class) == tile,
-            "Nashorn announcer property write immediately reindexes its logical link");
+        tile.receivedData.put("name", "snapshot");
+        engine.put("tile", jp.me1han.sam.script.AnnounceScriptContext.snapshot(tile));
+        Object result = engine.eval("String(tile.linkKey) + ':' + String(tile.getLinkKey()) + ':'"
+            + " + String(tile.receivedData.get('name'));");
+        check("A:A:snapshot".equals(String.valueOf(result)),
+            "Nashorn maps documented context getters to JavaBeans properties");
+        engine.eval("try { tile.linkKey = 'B'; tile.receivedData.put('name', 'changed'); } catch (expected) {}");
+        check("A".equals(tile.getLinkKey()) && "snapshot".equals(tile.receivedData.get("name"))
+            && SamLinkRegistry.findFirst(world, "A", TileEntityAnnouncer.class) == tile,
+            "Script context writes cannot mutate or reindex the real announcer");
 
         TileEntityDepartureMelody melody = new TileEntityDepartureMelody(); melody.setLinkKey("A"); world.add(melody, 2, 0, 0);
-        engine.put("tile", melody);
-        result = engine.eval("tile.linkKey = ' C '; tile.linkKey;");
-        check("C".equals(melody.getLinkKey()) && "C".equals(String.valueOf(result)),
-            "Nashorn maps departure melody linkKey through the same JavaBeans property");
-        check(SamLinkRegistry.findFirst(world, "A", TileEntityDepartureMelody.class) == null
-            && SamLinkRegistry.findFirst(world, "C", TileEntityDepartureMelody.class) == melody,
-            "Nashorn departure property write immediately reindexes its logical link");
+        engine.put("tile", jp.me1han.sam.script.DepartureScriptContext.snapshot(melody));
+        result = engine.eval("String(tile.linkKey) + ':' + (typeof tile.receivedData);");
+        check("A:undefined".equals(String.valueOf(result)),
+            "Departure context exposes linkKey without ordinary receivedData");
 
         NBTTagCompound saved = new NBTTagCompound(); tile.writeToNBT(saved);
         TileEntityAnnouncer loaded = new TileEntityAnnouncer(); loaded.readFromNBT(saved);
-        check("B".equals(saved.getString("linkKey")) && "B".equals(loaded.getLinkKey()),
+        check("A".equals(saved.getString("linkKey")) && "A".equals(loaded.getLinkKey()),
             "Private JavaBeans property retains the existing linkKey NBT format");
         SamLinkRegistry.clear(world);
     }
@@ -349,6 +349,147 @@ public final class NetworkVerificationTest {
     private static void expectInvalid(Runnable action) {
         try { action.run(); throw new AssertionError("Malformed input accepted"); }
         catch (DecoderException expected) { checks++; }
+    }
+
+    private static void expectEncodeInvalid(Runnable action) {
+        try { action.run(); throw new AssertionError("Invalid outgoing payload accepted"); }
+        catch (IllegalArgumentException expected) { checks++; }
+    }
+
+    private static void senderReceiverValidation() {
+        ByteBuf buf = Unpooled.buffer();
+        try {
+            String asciiLimit = String.join("", Collections.nCopies(PacketLimits.LINK_KEY, "x"));
+            PacketDebugConfig maxKey = new PacketDebugConfig(1, 2, 3, asciiLimit);
+            maxKey.toBytes(buf);
+            PacketDebugConfig maxKeyRead = new PacketDebugConfig(); maxKeyRead.fromBytes(buf);
+            check(asciiLimit.equals(maxKeyRead.linkKey), "Bounded string accepts exactly the Java character limit");
+            buf.clear();
+            expectEncodeInvalid(() -> new PacketDebugConfig(1, 2, 3, asciiLimit + "x").toBytes(buf));
+
+            String utf8Limit = String.join("", Collections.nCopies(PacketLimits.LINK_KEY, "\u754c"));
+            buf.clear(); new PacketDebugConfig(1, 2, 3, utf8Limit).toBytes(buf);
+            PacketDebugConfig utf8Read = new PacketDebugConfig(); utf8Read.fromBytes(buf);
+            check(utf8Limit.equals(utf8Read.linkKey), "Sender and receiver accept the same multibyte UTF-8 boundary");
+            buf.clear();
+            expectEncodeInvalid(() -> new PacketDebugConfig(1, 2, 3, utf8Limit + "\u754c").toBytes(buf));
+
+            List<TrainTypeCondition> maxConditions = new ArrayList<>();
+            for (int i = 0; i < PacketLimits.CONDITIONS; i++)
+                maxConditions.add(new TrainTypeCondition(String.join("", Collections.nCopies(PacketLimits.NAME, "k")), i % 4));
+            PacketTrainTypeConfig train = new PacketTrainTypeConfig(1, 2, 3, maxConditions, "key", true);
+            buf.clear(); train.toBytes(buf);
+            PacketTrainTypeConfig trainRead = new PacketTrainTypeConfig(); trainRead.fromBytes(buf);
+            check(trainRead.conditions.size() == PacketLimits.CONDITIONS, "Condition count and key length boundaries round trip");
+            maxConditions.add(new TrainTypeCondition("extra", 0));
+            buf.clear(); expectEncodeInvalid(() -> train.toBytes(buf));
+            PacketTrainTypeConfig badType = new PacketTrainTypeConfig(1, 2, 3,
+                Collections.singletonList(new TrainTypeCondition("key", 4)), "key", false);
+            buf.clear(); expectEncodeInvalid(() -> badType.toBytes(buf));
+            buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3).writeInt(1);
+            PacketLimits.writeString(buf, "key", PacketLimits.NAME); buf.writeInt(4);
+            PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY); buf.writeBoolean(false);
+            expectInvalid(() -> new PacketTrainTypeConfig().fromBytes(buf));
+
+            for (int range : new int[] {0, PacketLimits.MAX_RANGE + 1}) {
+                buf.clear(); expectEncodeInvalid(() -> new PacketSpeakerConfig(1, 2, 3, "key", range, 1).toBytes(buf));
+                buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+                PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+                buf.writeInt(range).writeFloat(1);
+                expectInvalid(() -> new PacketSpeakerConfig().fromBytes(buf));
+            }
+            for (float volume : new float[] {-0.1F, 1.1F, Float.NaN, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY}) {
+                buf.clear(); expectEncodeInvalid(() -> new PacketSpeakerConfig(1, 2, 3, "key", 16, volume).toBytes(buf));
+                buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+                PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+                buf.writeInt(16).writeFloat(volume);
+                expectInvalid(() -> new PacketSpeakerConfig().fromBytes(buf));
+            }
+
+            String maxSounds = String.join(",", Collections.nCopies(PacketLimits.SOUNDS, "s"));
+            PacketAwarenessConfig awareness = new PacketAwarenessConfig(1, 2, 3, "key", maxSounds,
+                PacketLimits.MAX_TICKS, true, false, true, PacketLimits.MAX_TICKS);
+            buf.clear(); awareness.toBytes(buf);
+            PacketAwarenessConfig awarenessRead = new PacketAwarenessConfig(); awarenessRead.fromBytes(buf);
+            check(awarenessRead.soundList.equals(maxSounds), "Awareness sound and tick boundaries round trip");
+
+            String wireSoundId = String.join("", Collections.nCopies(21, "\u754c"));
+            List<String> wireSounds = new ArrayList<>(Collections.nCopies(PacketLimits.SOUNDS, wireSoundId));
+            String maxWireSoundList = String.join(",", wireSounds);
+            check(maxWireSoundList.length() <= PacketLimits.SOUND_LIST
+                    && maxWireSoundList.getBytes(java.nio.charset.StandardCharsets.UTF_8).length == PacketLimits.MAX_UTF8_WIRE_BYTES,
+                "Awareness sound list fixture reaches the exact Forge UTF-8 wire boundary");
+            PacketAwarenessConfig wireBoundary = new PacketAwarenessConfig(1, 2, 3, "key", maxWireSoundList,
+                20, false, false, false, 0);
+            check(PacketLimits.sounds(maxWireSoundList) && wireBoundary.isValidPayload(),
+                "Awareness accepts a 16383-byte sound list");
+            buf.clear(); wireBoundary.toBytes(buf);
+            PacketAwarenessConfig wireBoundaryRead = new PacketAwarenessConfig(); wireBoundaryRead.fromBytes(buf);
+            check(maxWireSoundList.equals(wireBoundaryRead.soundList) && buf.readableBytes() == 0,
+                "Awareness 16383-byte sound list round trips");
+
+            wireSounds.set(0, wireSoundId + "x");
+            String overWireSoundList = String.join(",", wireSounds);
+            check(wireSounds.size() == PacketLimits.SOUNDS && wireSounds.get(0).length() <= PacketLimits.NAME
+                    && overWireSoundList.length() <= PacketLimits.SOUND_LIST
+                    && overWireSoundList.getBytes(java.nio.charset.StandardCharsets.UTF_8).length == PacketLimits.MAX_UTF8_WIRE_BYTES + 1,
+                "Awareness over-limit fixture exceeds only the Forge UTF-8 wire boundary");
+            PacketAwarenessConfig overWireBoundary = new PacketAwarenessConfig(1, 2, 3, "key", overWireSoundList,
+                20, false, false, false, 0);
+            check(!PacketLimits.sounds(overWireSoundList) && !overWireBoundary.isValidPayload(),
+                "Awareness rejects a 16384-byte sound list in shared payload validation");
+            buf.clear(); expectEncodeInvalid(() -> overWireBoundary.toBytes(buf));
+            check(buf.writerIndex() == 0, "Awareness rejects an oversized wire string before encoding starts");
+
+            buf.clear(); expectEncodeInvalid(() -> new PacketAwarenessConfig(1, 2, 3, "key",
+                maxSounds + ",extra", 20, false, false, false, 0).toBytes(buf));
+            buf.clear(); expectEncodeInvalid(() -> new PacketAwarenessConfig(1, 2, 3, "key", "s",
+                19, false, false, false, 0).toBytes(buf));
+            buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+            PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+            PacketLimits.writeString(buf, maxSounds + ",extra", PacketLimits.SOUND_LIST);
+            buf.writeInt(20).writeBoolean(false).writeBoolean(false).writeBoolean(false).writeInt(0);
+            expectInvalid(() -> new PacketAwarenessConfig().fromBytes(buf));
+
+            PacketDepartureMelodyConfig melody = new PacketDepartureMelodyConfig(1, 2, 3, "key",
+                String.join("", Collections.nCopies(PacketLimits.NAME, "s")),
+                String.join("", Collections.nCopies(PacketLimits.NAME, "j")));
+            buf.clear(); melody.toBytes(buf); new PacketDepartureMelodyConfig().fromBytes(buf);
+            melody.scriptName += "x";
+            buf.clear(); expectEncodeInvalid(() -> melody.toBytes(buf));
+
+            PacketDepartureSwitchConfig invalidOffset = new PacketDepartureSwitchConfig(1, 2, 3,
+                "key", "model", 0, Float.NaN, 0, 0);
+            buf.clear(); expectEncodeInvalid(() -> invalidOffset.toBytes(buf));
+            buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+            PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+            PacketLimits.writeString(buf, "model", PacketLimits.MODEL);
+            buf.writeInt(0).writeFloat(Float.POSITIVE_INFINITY).writeFloat(0).writeFloat(0);
+            expectInvalid(() -> new PacketDepartureSwitchConfig().fromBytes(buf));
+            String modelLimit = String.join("", Collections.nCopies(PacketLimits.MODEL, "m"));
+            PacketDepartureSwitchItemConfig maxModel = new PacketDepartureSwitchItemConfig(8, modelLimit);
+            buf.clear(); maxModel.toBytes(buf);
+            PacketDepartureSwitchItemConfig maxModelRead = new PacketDepartureSwitchItemConfig(); maxModelRead.fromBytes(buf);
+            check(modelLimit.equals(maxModelRead.modelName), "Model boundary remains unchanged");
+            buf.clear(); expectEncodeInvalid(() -> new PacketDepartureSwitchItemConfig(8, modelLimit + "m").toBytes(buf));
+            buf.clear(); expectEncodeInvalid(() -> new PacketDepartureSwitchItemConfig(9, "model").toBytes(buf));
+
+            PacketAnnounce announce = start(901);
+            announce.bodySounds = Collections.singletonList(String.join("", Collections.nCopies(PacketLimits.NAME + 1, "s")));
+            announce.bodyIntervalTicks = Collections.singletonList(0);
+            announce.bodyPartTicks = Collections.singletonList(20);
+            buf.clear(); expectEncodeInvalid(() -> announce.toBytes(buf));
+            PacketDepartureStart departure = departure(902);
+            departure.departure.melodyTicks = PacketAnnounce.MAX_DURATION_TICKS + 1;
+            buf.clear(); expectEncodeInvalid(() -> departure.toBytes(buf));
+
+            PacketSpeakerFallback fallback = new PacketSpeakerFallback(903);
+            fallback.targets.add(new PacketSpeakerFallback.Target(1, 0, 1));
+            buf.clear(); expectEncodeInvalid(() -> fallback.toBytes(buf));
+            PacketSessionSpeakerRoutes routes = new PacketSessionSpeakerRoutes(904, 1, 0, 1);
+            routes.targets.add(new PacketSessionSpeakerRoutes.Target(1, 16, Float.NaN));
+            buf.clear(); expectEncodeInvalid(() -> routes.toBytes(buf));
+        } finally { buf.release(); }
     }
 
     private static PacketAnnounce start(long id) {
@@ -523,10 +664,48 @@ public final class NetworkVerificationTest {
         check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 1,
             "Awareness starts when post-departure interval expires");
 
+        NBTTagCompound pendingSave = new NBTTagCompound();
+        awareness.scheduleAfterDeparture();
+        awareness.writeToNBT(pendingSave);
+        check(!pendingSave.hasKey("pendingDepartureTicks"),
+            "Post-departure pending state is not persisted");
+        check(!((net.minecraft.network.play.server.S35PacketUpdateTileEntity) awareness.getDescriptionPacket())
+            .func_148857_g().hasKey("pendingDepartureTicks"),
+            "Post-departure pending state is not included in the description packet");
+
+        FixtureWorld reloadedWorld = new FixtureWorld();
+        TileEntityAnnouncer reloadedOwner = new TileEntityAnnouncer(); reloadedOwner.setLinkKey("A");
+        reloadedWorld.add(reloadedOwner, 0, 0, 0);
+        TileEntityAwarenessAnnouncer reloaded = new TileEntityAwarenessAnnouncer();
+        pendingSave.setInteger("pendingDepartureTicks", 0); // Legacy world data must be ignored.
+        reloaded.readFromNBT(pendingSave);
+        reloadedWorld.add(reloaded, 1, 0, 0);
+        Speaker reloadedSpeaker = new Speaker(); reloadedSpeaker.linkKey = "A"; reloadedWorld.add(reloadedSpeaker, 2, 0, 0);
+        player(reloadedWorld, 2, 0, 0);
+        out.clear();
+        reloaded.updateEntity(); reloaded.updateEntity(); reloaded.updateEntity();
+        check(out.messages.isEmpty(), "Reload does not revive a legacy post-departure pending event");
+        SamTriggerDispatcher.dispatch(reloadedWorld,
+            new SamTrigger(SamTriggerType.DEPARTURE_FINISHED, "A", 0, 0, 0,
+                SamTriggerSourceType.INTERNAL, SamTrigger.NO_FORMATION));
+        reloaded.updateEntity(); reloaded.updateEntity();
+        check(out.messages.isEmpty(), "A new departure trigger observes the configured delay after reload");
+        reloaded.updateEntity();
+        check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 1,
+            "A new departure trigger schedules Awareness normally after reload");
+
+        NBTTagCompound legacyPositive = (NBTTagCompound) pendingSave.copy();
+        legacyPositive.setInteger("pendingDepartureTicks", 10);
+        TileEntityAwarenessAnnouncer legacyLoaded = new TileEntityAwarenessAnnouncer();
+        legacyLoaded.readFromNBT(legacyPositive);
+        NBTTagCompound rewritten = new NBTTagCompound(); legacyLoaded.writeToNBT(rewritten);
+        check(!rewritten.hasKey("pendingDepartureTicks"), "Positive legacy pending state is ignored and removed on rewrite");
+
         TileEntityAwarenessAnnouncer defaults = new TileEntityAwarenessAnnouncer();
         defaults.readFromNBT(new NBTTagCompound());
         check(defaults.departureDelayTicks == 0, "Missing post-departure interval defaults to zero");
-        ServerSessions.clear(); SpeakerRegistry.clear(world); LoadedSamTiles.clear(world);
+        ServerSessions.clear(); SpeakerRegistry.clear(world); SpeakerRegistry.clear(reloadedWorld);
+        LoadedSamTiles.clear(world); LoadedSamTiles.clear(reloadedWorld);
     }
 
     private static void config() throws Exception {
@@ -698,6 +877,7 @@ public final class NetworkVerificationTest {
         PacketAnnounce intervalPacket = new PacketAnnounce(new AnnounceData(null,
             Arrays.asList("test:one", "", "test:two"), Arrays.asList(0, 3, 0), null, 1),
             "A", true, 0, 0, 0);
+        intervalPacket.sessionId = 704;
         intervalPacket.resolveTiming(AnnouncePackLoader.soundTicks);
         receiveReady(interval, intervalPacket);
         for (int i = 0; i < 5; i++) interval.tick();

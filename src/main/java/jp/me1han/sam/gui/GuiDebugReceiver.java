@@ -2,6 +2,7 @@ package jp.me1han.sam.gui;
 
 import jp.me1han.sam.network.PacketDebugConfig;
 import jp.me1han.sam.network.NetworkHandler;
+import jp.me1han.sam.network.PacketLimits;
 import jp.me1han.sam.render.TileEntityDebugReceiver;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -23,7 +24,7 @@ public class GuiDebugReceiver extends GuiScreen {
 
         this.linkKeyField = new GuiTextField(fontRendererObj, width / 2 - 100, height / 2 - 20, 200, 20);
         this.linkKeyField.setText(tile.getLinkKey());
-        this.linkKeyField.setMaxStringLength(32);
+        this.linkKeyField.setMaxStringLength(PacketLimits.LINK_KEY);
         this.linkKeyField.setFocused(true);
 
         this.buttonList.add(new GuiButton(0, width / 2 - 100, height / 2 + 20, "Done"));
@@ -32,7 +33,9 @@ public class GuiDebugReceiver extends GuiScreen {
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
-            NetworkHandler.INSTANCE.sendToServer(new PacketDebugConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText()));
+            PacketDebugConfig packet = new PacketDebugConfig(tile.xCoord, tile.yCoord, tile.zCoord, linkKeyField.getText());
+            if (!packet.isValidPayload()) return;
+            NetworkHandler.INSTANCE.sendToServer(packet);
             this.mc.thePlayer.closeScreen(); // 安全な閉じ方
         }
     }

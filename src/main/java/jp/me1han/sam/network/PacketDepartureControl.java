@@ -7,6 +7,12 @@ public class PacketDepartureControl implements IMessage {
     public boolean cancel;
     public PacketDepartureControl() {}
     public PacketDepartureControl(long id, boolean cancel) { sessionId = id; this.cancel = cancel; }
-    @Override public void fromBytes(ByteBuf buf) { sessionId = buf.readLong(); cancel = buf.readBoolean(); }
-    @Override public void toBytes(ByteBuf buf) { buf.writeLong(sessionId); buf.writeBoolean(cancel); }
+    @Override public void fromBytes(ByteBuf buf) {
+        sessionId = buf.readLong(); cancel = buf.readBoolean();
+        PacketLimits.requireDecoded(sessionId > 0, "Invalid departure session ID");
+    }
+    @Override public void toBytes(ByteBuf buf) {
+        PacketLimits.require(sessionId > 0, "Invalid departure session ID");
+        buf.writeLong(sessionId); buf.writeBoolean(cancel);
+    }
 }
