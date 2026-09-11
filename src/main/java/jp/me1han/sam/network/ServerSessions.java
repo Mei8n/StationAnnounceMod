@@ -33,15 +33,17 @@ public final class ServerSessions {
     private static long nextId;
     private static final Map<Long, Session> SESSIONS = new HashMap<>();
     private static final Map<UUID, Set<Long>> BY_PLAYER = new HashMap<>();
+    /** World identity -> link key -> sessions that existed when that key changed. */
+    private static Map<World, Map<String, Set<Long>>> dirtyRouteKeys = new IdentityHashMap<>();
     private static final class Session {
         final long id;
         final TileEntityAnnouncer owner;
         final World world;
         final String key;
         final int priority;
+        long routeRevision;
         long expireTick;
         final Set<EntityPlayerMP> recipients = new HashSet<>();
-        final Map<EntityPlayerMP, long[]> unresolvedRequests = new HashMap<>();
         Session(long id, TileEntityAnnouncer owner, PacketAnnounce packet) {
             this.id = id; this.owner = owner; world = owner.getWorldObj();
             key = SpeakerRegistry.normalize(packet.linkKey); priority = packet.priority;
@@ -52,9 +54,6 @@ public final class ServerSessions {
     public static boolean within(double px, double py, double pz, double x, double y, double z, double range) {
         double dx = px-x, dy = py-y, dz = pz-z;
         return dx*dx + dy*dy + dz*dz < range*range;
-    }
-    private static boolean near(EntityPlayerMP player, double x, double y, double z, double range) {
-        return within(player.posX, player.posY, player.posZ, x, y, z, range + RANGE_MARGIN);
     }
     public static long start(TileEntityAnnouncer owner, PacketAnnounce packet) {
         World world = owner.getWorldObj();
@@ -72,40 +71,79 @@ public final class ServerSessions {
         packet.linkKey = SpeakerRegistry.normalize(packet.linkKey);
         packet.sessionId = ++nextId;
         Session session = new Session(packet.sessionId, owner, packet);
-        Collection<SpeakerRegistry.Entry> speakers = SpeakerRegistry.findByKey(world, packet.linkKey);
-        Map<EntityPlayerMP, long[]> targets = new LinkedHashMap<>();
+        // START describes a logical timeline. Routing is resolved from synchronized
+        // client Speaker state at each playback boundary, so every current player in
+        // this World must learn about the session even when it is presently inaudible.
         for (Object obj : world.playerEntities) {
             if (!(obj instanceof EntityPlayerMP)) continue;
             EntityPlayerMP player = (EntityPlayerMP)obj;
             if (player.worldObj != world) continue;
-            List<Long> positions = new ArrayList<>();
-            for (SpeakerRegistry.Entry speaker : speakers) {
-                // Bound both per-player allocation and the eventual START/fallback payload.
-                if (positions.size() == PacketLimits.SESSION_TARGETS) break;
-                if (speaker.tile.isInvalid() || speaker.volume <= 0) continue;
-                if (near(player, speaker.x + .5, speaker.y + .5, speaker.z + .5, speaker.range))
-                    positions.add(SpeakerRegistry.position(speaker.x, speaker.y, speaker.z));
-            }
-            if (positions.isEmpty() && !(packet.playLocalSound && near(player, packet.x+.5, packet.y+.5, packet.z+.5, LOCAL_RANGE))) continue;
-            long[] packed = new long[positions.size()];
-            for (int i = 0; i < packed.length; i++) packed[i] = positions.get(i);
-            targets.put(player, packed);
-            session.unresolvedRequests.put(player, packed);
             session.recipients.add(player);
             BY_PLAYER.computeIfAbsent(player.getUniqueID(), id -> new HashSet<>()).add(session.id);
         }
         if (session.recipients.isEmpty()) return session.id;
         SESSIONS.put(session.id, session);
-        // One local source: exactly the same TargetPoint predicate used to record recipients.
-        if (speakers.isEmpty() && packet.playLocalSound) {
-            delivery.around(packet, new TargetPoint(world.provider.dimensionId,
-                packet.x+.5, packet.y+.5, packet.z+.5, LOCAL_RANGE + RANGE_MARGIN));
-        } else {
-            // One immutable message per player, regardless of overlapping Speaker ranges.
-            for (Map.Entry<EntityPlayerMP, long[]> entry : targets.entrySet())
-                delivery.send(copy(packet, entry.getValue()), entry.getKey());
+        // One logical START followed by one complete, chunked routing revision.
+        List<PacketSessionSpeakerRoutes> routes = routeSnapshot(session);
+        for (EntityPlayerMP player : session.recipients) {
+            delivery.send(copy(packet, new long[0]), player);
+            for (PacketSessionSpeakerRoutes route : routes) delivery.send(route, player);
         }
         return session.id;
+    }
+
+    private static List<PacketSessionSpeakerRoutes> routeSnapshot(Session session) {
+        List<PacketSessionSpeakerRoutes.Target> targets = new ArrayList<>();
+        for (SpeakerRegistry.Entry speaker : SpeakerRegistry.findByKey(session.world, session.key)) {
+            if (speaker.tile.isInvalid() || !PacketLimits.speaker(speaker.range, speaker.volume)) continue;
+            targets.add(new PacketSessionSpeakerRoutes.Target(
+                SpeakerRegistry.position(speaker.x, speaker.y, speaker.z), speaker.range, speaker.volume));
+        }
+        int chunkCount = (int)Math.max(1L, (targets.size() + (long)PacketLimits.SESSION_TARGETS - 1)
+            / PacketLimits.SESSION_TARGETS);
+        long revision = ++session.routeRevision;
+        List<PacketSessionSpeakerRoutes> packets = new ArrayList<>(chunkCount);
+        for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
+            PacketSessionSpeakerRoutes packet = new PacketSessionSpeakerRoutes(
+                session.id, revision, chunkIndex, chunkCount);
+            int from = chunkIndex * PacketLimits.SESSION_TARGETS;
+            int to = Math.min(targets.size(), from + PacketLimits.SESSION_TARGETS);
+            packet.targets.addAll(targets.subList(from, to));
+            packets.add(packet);
+        }
+        return packets;
+    }
+
+    /** Record event-driven mutations; complete snapshots are coalesced at tick END. */
+    public static void speakersChanged(World world, String oldKey, String newKey) {
+        if (world == null || world.isRemote) return;
+        String oldNormalized = oldKey == null ? null : SpeakerRegistry.normalize(oldKey);
+        String newNormalized = newKey == null ? null : SpeakerRegistry.normalize(newKey);
+        Map<String, Set<Long>> worldDirty = null;
+        for (Session session : SESSIONS.values()) {
+            if (session.world != world || session.key.isEmpty()) continue;
+            if (!session.key.equals(oldNormalized) && !session.key.equals(newNormalized)) continue;
+            if (worldDirty == null)
+                worldDirty = dirtyRouteKeys.computeIfAbsent(world, ignored -> new HashMap<>());
+            worldDirty.computeIfAbsent(session.key, ignored -> new HashSet<>()).add(session.id);
+        }
+    }
+
+    private static void flushDirtyRoutes() {
+        if (dirtyRouteKeys.isEmpty()) return;
+        Map<World, Map<String, Set<Long>>> pending = dirtyRouteKeys;
+        dirtyRouteKeys = new IdentityHashMap<>();
+        for (Map.Entry<World, Map<String, Set<Long>>> worldEntry : pending.entrySet()) {
+            World world = worldEntry.getKey();
+            for (Map.Entry<String, Set<Long>> keyEntry : worldEntry.getValue().entrySet()) {
+                String key = keyEntry.getKey();
+                for (Long id : keyEntry.getValue()) {
+                    Session session = SESSIONS.get(id);
+                    if (session == null || session.world != world || !session.key.equals(key)) continue;
+                    for (PacketSessionSpeakerRoutes packet : routeSnapshot(session)) send(session, packet);
+                }
+            }
+        }
     }
     private static PacketAnnounce copy(PacketAnnounce source, long[] targets) {
         PacketAnnounce result;
@@ -162,7 +200,6 @@ public final class ServerSessions {
     public static void finished(EntityPlayerMP player, long id) {
         Session session = SESSIONS.get(id);
         if (session == null || !session.recipients.remove(player)) return;
-        session.unresolvedRequests.remove(player);
         forgetPlayer(player.getUniqueID(), id);
         if (session.recipients.isEmpty()) SESSIONS.remove(id);
     }
@@ -174,7 +211,6 @@ public final class ServerSessions {
         SESSIONS.remove(session.id);
         for (EntityPlayerMP player : session.recipients) forgetPlayer(player.getUniqueID(), session.id);
         session.recipients.clear();
-        session.unresolvedRequests.clear();
     }
     private static void detach(net.minecraft.entity.player.EntityPlayer player) {
         Set<Long> ids = BY_PLAYER.remove(player.getUniqueID());
@@ -183,7 +219,6 @@ public final class ServerSessions {
             Session session = SESSIONS.get(id);
             if (session == null) continue;
             session.recipients.removeIf(p -> p.getUniqueID().equals(player.getUniqueID()));
-            session.unresolvedRequests.keySet().removeIf(p -> p.getUniqueID().equals(player.getUniqueID()));
             if (session.recipients.isEmpty()) SESSIONS.remove(id);
         }
     }
@@ -198,14 +233,18 @@ public final class ServerSessions {
     }
     @SubscribeEvent public void unload(WorldEvent.Unload event) {
         if (event.world.isRemote) return;
+        dirtyRouteKeys.remove(event.world);
         for (Session session : new ArrayList<>(SESSIONS.values())) if (session.world == event.world) stop(session);
         SpeakerRegistry.clear(event.world); jp.me1han.sam.link.SamLinkRegistry.clear(event.world);
         LoadedSamTiles.clear(event.world);
     }
-    public static void clear() { SESSIONS.clear(); BY_PLAYER.clear(); serverTick = 0; }
+    public static void clear() {
+        SESSIONS.clear(); BY_PLAYER.clear(); dirtyRouteKeys.clear(); serverTick = 0;
+    }
 
     @SubscribeEvent public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+        flushDirtyRoutes();
         if (++serverTick % CLEANUP_INTERVAL_TICKS == 0) expireSessions(serverTick);
     }
 
@@ -220,19 +259,7 @@ public final class ServerSessions {
         if (session == null || player.worldObj != session.world || !session.recipients.contains(player)
             || player.playerNetServerHandler == null || !player.playerNetServerHandler.netManager.isChannelOpen()
             || request.targets == null || request.targets.length > PacketLimits.MISSING_TARGETS) return;
-        long[] allowed = session.unresolvedRequests.remove(player);
-        if (allowed == null) return; // At most one response per START recipient.
-        if (request.targets.length > allowed.length) return; // Before HashSet allocation; invalid attempt consumes the one request.
-        Set<Long> requested = new HashSet<>();
-        for (long target : request.targets) requested.add(target);
-        PacketSpeakerFallback response = new PacketSpeakerFallback(session.id);
-        for (long target : allowed) {
-            if (!requested.contains(target)) continue;
-            SpeakerRegistry.Entry speaker = SpeakerRegistry.at(session.world, target);
-            if (speaker != null && !speaker.tile.isInvalid() && session.key.equals(speaker.linkKey)
-                && PacketLimits.speaker(speaker.range, speaker.volume))
-                response.targets.add(new PacketSpeakerFallback.Target(target, speaker.range, speaker.volume));
-        }
-        if (!response.targets.isEmpty()) delivery.send(response, player);
+        // Dynamic START packets contain no server-selected coordinates. Keeping this
+        // legacy endpoint non-authoritative prevents arbitrary coordinate lookups.
     }
 }

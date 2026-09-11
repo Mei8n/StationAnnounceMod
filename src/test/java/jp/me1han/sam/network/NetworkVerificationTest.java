@@ -14,6 +14,7 @@ import io.netty.handler.codec.DecoderException;
 import jp.me1han.sam.*;
 import jp.me1han.sam.api.*;
 import jp.me1han.sam.client.AnnounceManager;
+import jp.me1han.sam.client.ClientSpeakerRegistry;
 import jp.me1han.sam.compat.TrainCompat;
 import jp.me1han.sam.compat.TrainCompatRegistry;
 import jp.me1han.sam.compat.TrainSnapshot;
@@ -51,8 +52,8 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); limitsAndExpiry(); fallbackAuthority();
-        SpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
+        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); serverDescriptorRouting(); coalescedRouteUpdates(); limitsAndExpiry(); fallbackAuthority();
+        SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
 
@@ -332,6 +333,17 @@ public final class NetworkVerificationTest {
             check(stop.sessionId == 15L, "STOP round trip");
             buf.clear(); new PacketDepartureControl(16L, false).toBytes(buf);
             check(buf.readableBytes() == 9, "Departure control is exactly 9 payload bytes");
+            PacketSessionSpeakerRoutes routes = new PacketSessionSpeakerRoutes(17, 2, 0, 1);
+            for (int i = 0; i < PacketLimits.SESSION_TARGETS; i++) routes.targets.add(route(i, 128, 1));
+            buf.clear(); routes.toBytes(buf);
+            check(buf.readableBytes() == 28 + PacketLimits.SESSION_TARGETS * 16,
+                "Route snapshot chunk is bounded to 512 descriptors");
+            PacketSessionSpeakerRoutes decoded = new PacketSessionSpeakerRoutes(); decoded.fromBytes(buf);
+            check(decoded.sessionId == 17 && decoded.revision == 2
+                    && decoded.targets.size() == PacketLimits.SESSION_TARGETS,
+                "Route snapshot header and descriptors round trip");
+            buf.clear(); buf.writeLong(17).writeLong(1).writeInt(1).writeInt(1).writeInt(0);
+            expectInvalid(() -> new PacketSessionSpeakerRoutes().fromBytes(buf));
         } finally { buf.release(); }
     }
     private static void expectInvalid(Runnable action) {
@@ -367,56 +379,61 @@ public final class NetworkVerificationTest {
         routed.bodySounds = Arrays.asList("test:body", "test:body", "test:body");
         routed.bodyIntervalTicks = Arrays.asList(0, 0, 0);
         long id = ServerSessions.start(owner, routed);
-        check(out.messages.size() == 3, "Three body parts still produce exactly one START per recipient");
+        check(out.count(PacketAnnounce.class) == 13 && out.count(PacketSessionSpeakerRoutes.class) == 13,
+            "Each World player receives one START and one bounded route snapshot chunk");
         Set<EntityPlayerMP> unique = new HashSet<>(out.players);
-        check(unique.size() == 3 && unique.containsAll(nearby), "Overlapping recipients deduplicated");
-        for (IMessage packet : out.messages) {
-            check(((PacketAnnounce)packet).targets.length == 10, "Only compact target IDs in START");
-            check(((PacketAnnounce)packet).repeatCount == 2, "Per-recipient START copy preserves repeat count");
-            check(((PacketAnnounce)packet).bodyPartTicks.equals(Arrays.asList(20, 20, 20)),
+        check(unique.size() == 13 && unique.containsAll(nearby), "START recipients are World-scoped and deduplicated");
+        for (IMessage message : out.messages) if (message instanceof PacketAnnounce) {
+            PacketAnnounce packet = (PacketAnnounce)message;
+            check(packet.targets.length == 0, "Dynamic START carries no fixed Speaker targets");
+            check(packet.repeatCount == 2, "Per-recipient START copy preserves repeat count");
+            check(packet.bodyPartTicks.equals(Arrays.asList(20, 20, 20)),
                 "Per-recipient START copy preserves server-authoritative timing");
-            check(((PacketAnnounce)packet).startMeloTicks == 20 && ((PacketAnnounce)packet).arrMeloTicks == 20,
+            check(packet.startMeloTicks == 20 && packet.arrMeloTicks == 20,
                 "Per-recipient START copy preserves melody timing");
         }
         out.clear();
         PacketMissingSpeakers missing = new PacketMissingSpeakers(id, new long[] {SpeakerRegistry.position(0, 0, 0), SpeakerRegistry.position(999, 0, 0)});
         ServerSessions.missing(nearby.get(0), missing);
-        check(out.messages.size() == 1 && ((PacketSpeakerFallback)out.messages.get(0)).targets.size() == 1, "Fallback restricted to original session targets");
-        out.clear(); ServerSessions.missing(nearby.get(0), missing);
-        check(out.messages.isEmpty(), "Missing target response limited to once per session/player");
+        check(out.messages.isEmpty(), "Dynamic session does not expose coordinate fallback lookup");
         Player outsider = (Player)world.playerEntities.get(12);
         ServerSessions.missing(outsider, missing);
         check(out.messages.isEmpty(), "Non-recipient cannot request Speaker settings");
         nearby.get(0).posX = 50000;
         out.clear(); ServerSessions.stopKey(world, "A");
-        check(out.messages.size() == 3 && out.players.contains(nearby.get(0)), "STOP reaches moved recipient");
+        check(out.messages.size() == 13 && out.players.contains(nearby.get(0)), "STOP reaches moved recipient");
         check(((PacketAnnounceStop)out.messages.get(0)).sessionId == id, "STOP names old session");
         out.clear(); ServerSessions.stopKey(world, "A");
         check(out.messages.isEmpty(), "STOP releases session recipients");
         nearby.get(0).posX = 0;
         long first = ServerSessions.start(owner, departure(0));
         out.clear(); ServerSessions.control(first, false);
-        check(out.messages.size() == 3 && !((PacketDepartureControl)out.messages.get(0)).cancel, "OFF reaches original recipients");
+        check(out.messages.size() == 13 && !((PacketDepartureControl)out.messages.get(0)).cancel, "OFF reaches original recipients");
         long second = ServerSessions.start(owner, departure(0));
         check(first != second, "Every start gets unique ID");
         out.clear(); ServerSessions.control(first, true);
-        check(out.messages.size() == 3 && ((PacketDepartureControl)out.messages.get(0)).sessionId == first, "Old CANCEL names only old session");
+        check(out.messages.size() == 13 && ((PacketDepartureControl)out.messages.get(0)).sessionId == first, "Old CANCEL names only old session");
         out.clear(); ServerSessions.control(second, false);
-        check(out.messages.size() == 3, "New session survives old CANCEL");
+        check(out.messages.size() == 13, "New session survives old CANCEL");
         ServerSessions.INSTANCE.logout(new PlayerEvent.PlayerLoggedOutEvent(nearby.get(0)));
         out.clear(); ServerSessions.control(second, false);
-        check(out.messages.size() == 2, "Logout removes original recipient");
+        check(out.messages.size() == 12, "Logout removes original recipient");
         nearby.get(1).worldObj = new FixtureWorld();
         ServerSessions.INSTANCE.changedWorld(new PlayerEvent.PlayerChangedDimensionEvent(nearby.get(1), 0, 1));
         out.clear(); ServerSessions.control(second, false);
-        check(out.messages.size() == 1, "World change cleans recipient");
+        check(out.messages.size() == 11, "World change cleans recipient");
         ServerSessions.finished(nearby.get(2), second);
         out.clear(); ServerSessions.control(second, false);
-        check(out.messages.isEmpty(), "Completion releases last recipient");
+        check(out.messages.size() == 10, "Completion releases only that recipient");
+        ServerSessions.stopKey(world, "A");
         SpeakerRegistry.clear(world);
         PacketAnnounce local = start(0); local.playLocalSound = true;
         ServerSessions.start(owner, local);
-        check(out.around == 1 && out.radius == ServerSessions.LOCAL_RANGE + ServerSessions.RANGE_MARGIN, "Local-only uses bounded TargetPoint");
+        check(out.around == 0 && !out.messages.isEmpty(), "Local routing also uses one World-scoped logical START");
+        out.clear();
+        for (Object obj : world.playerEntities) if (obj instanceof EntityPlayerMP) ((EntityPlayerMP)obj).posX += 100;
+        for (int i = 0; i < ServerSessions.CLEANUP_INTERVAL_TICKS * 2; i++) endTick();
+        check(out.messages.isEmpty(), "Player movement and periodic cleanup emit no routing packets");
         ServerSessions.clear();
     }
 
@@ -493,7 +510,7 @@ public final class NetworkVerificationTest {
         RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
 
         owner.startDirectSound("test:a", PacketAnnounce.PRIORITY_AWARENESS, false);
-        check(out.messages.size() == 1 && out.messages.get(0) instanceof PacketAnnounce,
+        check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 1,
             "Awareness session starts before departure completion");
         out.clear();
         owner.notifyDepartureMelodyFinished();
@@ -503,7 +520,7 @@ public final class NetworkVerificationTest {
         awareness.updateEntity(); awareness.updateEntity();
         check(out.messages.isEmpty(), "Awareness remains silent during post-departure interval");
         awareness.updateEntity();
-        check(out.messages.size() == 1 && out.messages.get(0) instanceof PacketAnnounce,
+        check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 1,
             "Awareness starts when post-departure interval expires");
 
         TileEntityAwarenessAnnouncer defaults = new TileEntityAwarenessAnnouncer();
@@ -591,16 +608,16 @@ public final class NetworkVerificationTest {
         PacketAnnounce packet = start(100); packet.targets = new long[] {SpeakerRegistry.position(0, 0, 0)};
         Thread network = new Thread(() -> client.receive(packet)); network.start(); network.join();
         check(client.worldReads == 0 && client.played.isEmpty(), "Network thread touches no world or sound");
-        client.tick(); check(client.played.isEmpty(), "Missing client TE is null-safe");
-        client.tick(); check(client.played.isEmpty(), "Unresolved TE is retried on client tick");
         Speaker speaker = new Speaker(); world.add(speaker, 0, 0, 0);
-        syncSpeaker(speaker, "A", 16, 1.0F); client.tick();
-        check(client.played.size() == 1, "Delayed TE settings recover current sound without scanning");
+        client.tick(); check(client.played.isEmpty(), "Unsynchronized client TE is not authoritative");
+        syncSpeaker(speaker, "A", 16, 1.0F);
+        for (int i = 0; i < 20; i++) client.tick();
+        check(client.played.isEmpty(), "Speaker synchronization does not restart a part already in progress");
         client.receive(packet); client.tick();
-        check(client.played.size() == 1, "Duplicate START does not replay");
+        check(client.played.isEmpty(), "Duplicate START does not replay");
         PacketAnnounce newer = start(101); newer.targets = packet.targets;
         client.receive(newer); client.receive(new PacketAnnounceStop(100)); client.tick();
-        check(client.played.size() == 2 && client.live.size() == 1, "Old STOP cannot stop newer same-key session");
+        check(client.played.size() == 1 && client.live.size() == 1, "Old STOP cannot stop newer same-key session");
         client.receive(new PacketAnnounceStop(101)); client.tick();
         check(client.live.isEmpty(), "Matching STOP stops sound");
         PacketDepartureStart dep = departure(200); dep.targets = packet.targets;
@@ -624,7 +641,8 @@ public final class NetworkVerificationTest {
         before = client.played.size(); client.receive(overlapHigh); client.receive(overlap); client.tick();
         check(client.played.size() == before+2, "Awareness allowOverlap preserved");
         client.world = new FixtureWorld(); client.tick();
-        check(client.live.isEmpty(), "World identity change clears sessions/sounds/deferred targets");
+        check(client.live.isEmpty() && ClientSpeakerRegistry.findByKey(world, "A").isEmpty(),
+            "World identity change clears sessions, sounds and the client Speaker index");
         int acknowledgements = client.ended.size();
         PacketAnnounce normal = start(500); normal.playLocalSound = true;
         normal.bodySounds = Arrays.asList("test:body", "test:body");
@@ -637,13 +655,13 @@ public final class NetworkVerificationTest {
         int requests = client.missing.size(); before = client.played.size();
         client.receive(missingStart);
         for (int i = 0; i < 5; i++) client.tick();
-        check(client.missing.size() == requests+1 && client.played.size() == before, "Missing TE coordinates requested once after grace period");
+        check(client.missing.size() == requests && client.played.size() == before, "Dynamic routing never requests fixed target coordinates");
         PacketSpeakerFallback fallback = new PacketSpeakerFallback(600);
         fallback.targets.add(new PacketSpeakerFallback.Target(missingStart.targets[0], 64, .75F));
         client.receive(fallback); client.tick();
-        check(client.played.size() == before+1, "Missing/unloaded TE recovers through exceptional compact settings response");
+        check(client.played.size() == before, "Unsolicited legacy fallback is ignored");
         for (int i = 0; i < 25; i++) client.tick();
-        check(client.missing.size() == requests+1 && client.live.isEmpty(), "Fallback neither polls server nor leaves late sounds playing");
+        check(client.missing.size() == requests && client.live.isEmpty(), "Missing TE neither polls server nor leaves late sounds playing");
     }
 
     private static void ordinaryRepeats() {
@@ -701,6 +719,422 @@ public final class NetworkVerificationTest {
         List<String> result = new ArrayList<>();
         for (ISound sound : client.played) result.add(sound.getPositionedSoundLocation().toString());
         return result;
+    }
+
+    private static PacketAnnounce routed(long id, boolean local, String... sounds) {
+        Map<String, Integer> lengths = new HashMap<>();
+        for (String sound : sounds) lengths.put(sound, 2);
+        PacketAnnounce packet = new PacketAnnounce(new AnnounceData("", Arrays.asList(sounds), ""), "A", local, 0, 0, 0);
+        packet.sessionId = id;
+        packet.resolveTiming(lengths);
+        return packet;
+    }
+
+    private static void advanceToNextPart(TestClient client) {
+        client.tick();
+        client.tick();
+        client.tick();
+    }
+
+    private static void dynamicRouting() {
+        ClientSpeakerRegistry.clear();
+        FixtureWorld world = new FixtureWorld(); world.isRemote = true;
+        Speaker a = new Speaker(); world.add(a, 0, 0, 0); syncSpeaker(a, "A", 10, 1);
+        Speaker b = new Speaker(); world.add(b, 100, 0, 0); syncSpeaker(b, "A", 10, 1);
+        RoutingClient moving = new RoutingClient(); moving.world = world; moving.px = 50;
+        moving.receive(routed(1000, false, "test:r1", "test:r2", "test:r3", "test:r4", "test:r5"));
+        moving.tick();
+        moving.px = 0; advanceToNextPart(moving);
+        moving.px = 100; advanceToNextPart(moving);
+        moving.px = 50; advanceToNextPart(moving);
+        moving.px = 100; advanceToNextPart(moving);
+        check(soundNames(moving).equals(Arrays.asList("test:r2", "test:r3", "test:r5")),
+            "Timeline advances while inaudible and resumes only at later part boundaries");
+        check(moving.played.get(0).getXPosF() == .5F && moving.played.get(1).getXPosF() == 100.5F,
+            "Moving from Speaker A to B re-resolves the physical source");
+
+        FixtureWorld addedWorld = new FixtureWorld(); addedWorld.isRemote = true;
+        RoutingClient added = new RoutingClient(); added.world = addedWorld; added.px = 20;
+        added.receive(routed(1001, false, "test:add1", "test:add2")); added.tick();
+        Speaker late = new Speaker(); addedWorld.add(late, 20, 0, 0); syncSpeaker(late, "A", 8, 1);
+        advanceToNextPart(added);
+        check(soundNames(added).equals(Collections.singletonList("test:add2")),
+            "Speaker synchronized after START is available at the next part");
+
+        FixtureWorld changedWorld = new FixtureWorld(); changedWorld.isRemote = true;
+        Speaker changed = new Speaker(); changedWorld.add(changed, 0, 0, 0); syncSpeaker(changed, "A", 10, 1);
+        RoutingClient changedClient = new RoutingClient(); changedClient.world = changedWorld; changedClient.px = 5;
+        changedClient.receive(routed(1002, false, "test:c1", "test:c2", "test:c3", "test:c4", "test:c5", "test:c6", "test:c7"));
+        changedClient.tick();
+        changed.onChunkUnload(); advanceToNextPart(changedClient);
+        changed.validate(); advanceToNextPart(changedClient);
+        changed.invalidate(); advanceToNextPart(changedClient);
+        Speaker replacement = new Speaker(); changedWorld.add(replacement, 0, 0, 0); syncSpeaker(replacement, "B", 10, 1);
+        advanceToNextPart(changedClient);
+        syncSpeaker(replacement, "A", 1, 1); advanceToNextPart(changedClient);
+        syncSpeaker(replacement, "A", 10, .5F); advanceToNextPart(changedClient);
+        check(soundNames(changedClient).equals(Arrays.asList("test:c1", "test:c3", "test:c7"))
+                && changedClient.played.get(2).getVolume() == .3125F,
+            "Unload, reload, destruction, replacement, unlink, range and volume changes affect the next part only");
+
+        FixtureWorld localWorld = new FixtureWorld(); localWorld.isRemote = true;
+        RoutingClient local = new RoutingClient(); local.world = localWorld; local.px = 30;
+        local.receive(routed(1003, true, "test:l1", "test:l2", "test:l3")); local.tick();
+        local.px = 0; advanceToNextPart(local);
+        local.px = 30; advanceToNextPart(local);
+        check(soundNames(local).equals(Collections.singletonList("test:l2")),
+            "Local sound checks the current player position at every part boundary");
+
+        Map<String, Integer> loopLength = Collections.singletonMap("test:loop-dynamic", 2);
+        PacketAnnounce loop = new PacketAnnounce(new AnnounceData("", Collections.<String>emptyList(), "test:loop-dynamic"), "A", false, 0, 0, 0);
+        loop.sessionId = 1004; loop.resolveTiming(loopLength);
+        RoutingClient looping = new RoutingClient(); looping.world = world; looping.px = 50;
+        looping.receive(loop); looping.tick(); looping.px = 0; advanceToNextPart(looping);
+        looping.px = 50; advanceToNextPart(looping);
+        check(soundNames(looping).equals(Collections.singletonList("test:loop-dynamic")),
+            "Arrival melody re-resolves routing for each loop");
+
+        RoutingClient departureClient = new RoutingClient(); departureClient.world = world; departureClient.px = 0;
+        PacketDepartureStart departure = departure(1005);
+        departureClient.receive(departure); departureClient.tick();
+        departureClient.px = 100;
+        departureClient.receive(new PacketDepartureControl(1005, false)); departureClient.tick();
+        check(soundNames(departureClient).equals(Arrays.asList("test:m", "test:d"))
+                && departureClient.played.get(0).getXPosF() == .5F
+                && departureClient.played.get(1).getXPosF() == 100.5F,
+            "Departure keeps one session identity while play events move from A to B");
+
+        RoutingClient priority = new RoutingClient(); priority.world = new FixtureWorld(); priority.world.isRemote = true; priority.px = 0;
+        PacketAnnounce awareness = routed(1006, true, "test:aware1", "test:aware2");
+        awareness.priority = PacketAnnounce.PRIORITY_AWARENESS;
+        PacketAnnounce remoteHigh = routed(1007, true, "test:high1"); remoteHigh.priority = PacketAnnounce.PRIORITY_DEPARTURE_MELODY; remoteHigh.x = 100;
+        priority.receive(awareness); priority.receive(remoteHigh); priority.tick();
+        check(soundNames(priority).equals(Collections.singletonList("test:aware1")),
+            "Inaudible high-priority session does not suppress audible Awareness");
+    }
+
+    private static PacketSessionSpeakerRoutes routes(long sessionId, long revision, int chunkIndex,
+        int chunkCount, PacketSessionSpeakerRoutes.Target... targets) {
+        PacketSessionSpeakerRoutes packet = new PacketSessionSpeakerRoutes(sessionId, revision, chunkIndex, chunkCount);
+        packet.targets.addAll(Arrays.asList(targets));
+        return packet;
+    }
+
+    private static PacketSessionSpeakerRoutes.Target route(int x, int range, float volume) {
+        return new PacketSessionSpeakerRoutes.Target(SpeakerRegistry.position(x, 0, 0), range, volume);
+    }
+
+    private static void serverDescriptorRouting() throws Exception {
+        ClientSpeakerRegistry.clear();
+        FixtureWorld world = new FixtureWorld(); world.isRemote = true;
+        RoutingClient client = new RoutingClient(); client.world = world; client.px = 100;
+        PacketAnnounce packet = routed(1100, false, "test:s1", "test:s2", "test:s3");
+        client.receive(packet);
+        client.receive(routes(1100, 1, 0, 1, route(0, 128, .25F)));
+        client.tick();
+        check(soundNames(client).equals(Collections.singletonList("test:s1"))
+                && client.played.get(0).getVolume() == 2.0F,
+            "A range-128 server descriptor plays when the client Speaker TE is not loaded");
+
+        Speaker formal = new Speaker(); world.add(formal, 0, 0, 0); syncSpeaker(formal, "A", 128, .1F);
+        advanceToNextPart(client);
+        check(client.played.size() == 2 && client.played.get(1).getVolume() == .8F,
+            "Synchronized client TE overrides its same-position server descriptor without duplication");
+        formal.onChunkUnload();
+        advanceToNextPart(client);
+        check(client.played.size() == 3 && client.played.get(2).getVolume() == 2.0F,
+            "Server descriptor remains usable after the client TE unloads");
+
+        RoutingClient moving = new RoutingClient(); moving.world = world; moving.px = 0;
+        moving.receive(routed(1101, false, "test:move1", "test:move2"));
+        moving.receive(routes(1101, 1, 0, 1, route(0, 8, 1), route(100, 8, 1)));
+        moving.tick(); moving.px = 100; advanceToNextPart(moving);
+        check(moving.played.size() == 2 && moving.played.get(0).getXPosF() == .5F
+                && moving.played.get(1).getXPosF() == 100.5F && moving.missing.isEmpty(),
+            "Movement routes from loaded-area A to descriptor-only B without START or query packets");
+
+        RoutingClient updated = new RoutingClient(); updated.world = world; updated.px = 5;
+        updated.receive(routed(1109, false, "test:update1", "test:update2", "test:update3"));
+        updated.receive(routes(1109, 1, 0, 1, route(0, 1, 1))); updated.tick();
+        updated.receive(routes(1109, 2, 0, 1, route(0, 10, .25F))); updated.tick();
+        check(updated.played.isEmpty(), "Route update does not start an in-progress sound");
+        updated.tick(); updated.tick();
+        updated.receive(routes(1109, 3, 0, 1, route(0, 10, .5F)));
+        advanceToNextPart(updated);
+        check(updated.played.size() == 2 && updated.played.get(0).getVolume() == .15625F
+                && updated.played.get(1).getVolume() == .3125F,
+            "Descriptor range and volume revisions apply at subsequent part boundaries");
+
+        RoutingClient removal = new RoutingClient(); removal.world = world; removal.px = 0;
+        removal.receive(routed(1110, false, "test:remove1", "test:remove2"));
+        removal.receive(routes(1110, 1, 0, 1, route(0, 10, 1))); removal.tick();
+        removal.receive(routes(1110, 2, 0, 1)); advanceToNextPart(removal);
+        check(soundNames(removal).equals(Collections.singletonList("test:remove1")),
+            "Empty removal revision prevents playback from the next part");
+
+        RoutingClient stale = new RoutingClient(); stale.world = world; stale.px = 100;
+        stale.receive(routed(1102, false, "test:rev1", "test:rev2"));
+        stale.receive(routes(1102, 3, 0, 1, route(100, 10, 1)));
+        stale.receive(routes(1102, 2, 0, 1, route(0, 10, 1)));
+        stale.tick();
+        check(stale.played.size() == 1 && stale.played.get(0).getXPosF() == 100.5F,
+            "Older routing revision cannot replace a newer complete snapshot");
+        stale.receive(routes(1102, 4, 0, 2, route(0, 10, 1)));
+        advanceToNextPart(stale);
+        check(stale.played.size() == 2 && stale.played.get(1).getXPosF() == 100.5F,
+            "Incomplete newer revision does not replace the last complete snapshot");
+
+        RoutingClient split = new RoutingClient(); split.world = world; split.px = 5120;
+        split.receive(routed(1103, false, "test:split"));
+        PacketSessionSpeakerRoutes first = routes(1103, 1, 0, 2);
+        for (int i = 0; i < PacketLimits.SESSION_TARGETS; i++) first.targets.add(route(i * 10, 1, 1));
+        PacketSessionSpeakerRoutes second = routes(1103, 1, 1, 2, route(5120, 1, 1));
+        split.receive(first); split.receive(second); split.tick();
+        check(split.played.size() == 1 && split.played.get(0).getXPosF() == 5120.5F
+                && first.targets.size() == PacketLimits.SESSION_TARGETS && second.targets.size() == 1,
+            "A split snapshot retains and routes all 513 descriptors within per-packet limits");
+
+        RoutingClient priority = new RoutingClient(); priority.world = world; priority.px = 0;
+        PacketAnnounce high = routed(1104, false, "test:descriptor-high");
+        high.priority = PacketAnnounce.PRIORITY_DEPARTURE_MELODY;
+        PacketAnnounce awareness = routed(1105, false, "test:descriptor-awareness");
+        awareness.priority = PacketAnnounce.PRIORITY_AWARENESS;
+        priority.receive(high); priority.receive(routes(1104, 1, 0, 1, route(0, 10, 1)));
+        priority.receive(awareness); priority.receive(routes(1105, 1, 0, 1, route(0, 10, 1)));
+        priority.tick();
+        check(soundNames(priority).equals(Collections.singletonList("test:descriptor-high")),
+            "Descriptor-only audible high priority session pauses Awareness");
+
+        RoutingClient stopped = new RoutingClient(); stopped.world = world; stopped.px = 0;
+        stopped.receive(routed(1106, false, "test:stop1", "test:stop2"));
+        stopped.receive(routes(1106, 1, 0, 1, route(0, 10, 1))); stopped.tick();
+        stopped.receive(new PacketAnnounceStop(1106)); stopped.tick();
+        stopped.receive(routes(1106, 2, 0, 1, route(0, 10, 1))); advanceToNextPart(stopped);
+        check(stopped.played.size() == 1 && stopped.live.isEmpty(),
+            "STOP releases descriptors and ignores later route updates");
+
+        RoutingClient completed = new RoutingClient(); completed.world = world; completed.px = 0;
+        completed.receive(routed(1107, false, "test:complete"));
+        completed.receive(routes(1107, 1, 0, 1, route(0, 10, 1))); completed.tick();
+        advanceToNextPart(completed);
+        completed.receive(routes(1107, 2, 0, 1, route(0, 10, 1))); completed.tick();
+        check(completed.played.size() == 1 && completed.ended.contains(1107L),
+            "Session completion releases descriptors and ignores later updates");
+
+        RoutingClient switched = new RoutingClient(); switched.world = world; switched.px = 0;
+        switched.receive(routed(1108, false, "test:world1", "test:world2"));
+        switched.receive(routes(1108, 1, 0, 1, route(0, 10, 1))); switched.tick();
+        switched.world = new FixtureWorld(); switched.world.isRemote = true; switched.tick();
+        switched.receive(routes(1108, 2, 0, 1, route(0, 10, 1))); advanceToNextPart(switched);
+        check(switched.played.size() == 1 && switched.live.isEmpty(),
+            "World identity change releases session descriptors and rejects old-World updates");
+
+        FixtureWorld serverWorld = new FixtureWorld();
+        TileEntityAnnouncer ownerA = new TileEntityAnnouncer(); ownerA.setLinkKey("A"); serverWorld.add(ownerA, -2, 0, 0);
+        TileEntityAnnouncer ownerB = new TileEntityAnnouncer(); ownerB.setLinkKey("B"); serverWorld.add(ownerB, -3, 0, 0);
+        Speaker changed = new Speaker(); changed.linkKey = "A"; serverWorld.add(changed, 0, 0, 0);
+        player(serverWorld, 0, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        long sessionA = ServerSessions.start(ownerA, start(0));
+        PacketAnnounce bStart = start(0); bStart.linkKey = "B";
+        long sessionB = ServerSessions.start(ownerB, bStart);
+        out.clear(); changed.applyConfig("B", 24, .5F);
+        check(out.messages.isEmpty(), "Speaker reindex queues routing updates until tick END");
+        endTick();
+        PacketSessionSpeakerRoutes updateA = out.routeFor(sessionA);
+        PacketSessionSpeakerRoutes updateB = out.routeFor(sessionB);
+        check(updateA != null && updateA.revision == 2 && updateA.targets.isEmpty()
+                && updateB != null && updateB.revision == 2 && updateB.targets.size() == 1,
+            "A to B reindex removes the route from A and adds it to B");
+        out.clear(); changed.applyConfig("B", 40, .5F); endTick();
+        PacketSessionSpeakerRoutes rangeUpdate = out.routeFor(sessionB);
+        check(rangeUpdate != null && rangeUpdate.revision == 3 && rangeUpdate.targets.get(0).range == 40,
+            "Range changes produce an event-driven authoritative descriptor update");
+        out.clear(); changed.applyConfig("B", 40, .25F); endTick();
+        PacketSessionSpeakerRoutes volumeUpdate = out.routeFor(sessionB);
+        check(volumeUpdate != null && volumeUpdate.revision == 4 && volumeUpdate.targets.get(0).volume == .25F,
+            "Volume changes produce an event-driven authoritative descriptor update");
+        out.clear(); changed.invalidate(); endTick();
+        PacketSessionSpeakerRoutes removed = out.routeFor(sessionB);
+        check(removed != null && removed.revision == 5 && removed.targets.isEmpty(),
+            "Server Speaker removal publishes an empty replacement snapshot");
+        out.clear();
+        ((EntityPlayerMP)serverWorld.playerEntities.get(0)).posX = 100;
+        for (int i = 0; i < 10; i++) endTick();
+        check(out.messages.isEmpty(), "Player movement and part timing produce no routing update packets");
+        ServerSessions.clear();
+    }
+
+    private static void coalescedRouteUpdates() throws Exception {
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A"); world.add(owner, -1, 0, 0);
+        player(world, 0, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        long session = ServerSessions.start(owner, start(0));
+        check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 1
+                && out.routeFor(session).revision == 1,
+            "START sends its initial empty revision immediately without waiting for tick END");
+
+        out.clear(); List<Speaker> ten = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, i, 0, 0); ten.add(speaker);
+        }
+        check(out.messages.isEmpty(), "Ten same-key registrations emit no routing packets during mutation");
+        endTick();
+        PacketSessionSpeakerRoutes registered = out.routeFor(session);
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && registered.revision == 2
+                && registered.targets.size() == 10,
+            "Ten same-key registrations coalesce into one final revision containing all Speakers");
+
+        out.clear(); for (Speaker speaker : ten) speaker.onChunkUnload();
+        check(out.messages.isEmpty(), "Chunk-unload-style unregister burst emits no intermediate snapshots");
+        endTick();
+        PacketSessionSpeakerRoutes unregistered = out.routeFor(session);
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && unregistered.revision == 3
+                && unregistered.targets.isEmpty(),
+            "Ten unregisters coalesce into one final empty revision");
+
+        Speaker original = new Speaker(); original.linkKey = "A"; world.add(original, 20, 0, 0); endTick();
+        out.clear(); original.onChunkUnload();
+        Speaker replacement = new Speaker(); replacement.linkKey = "A"; replacement.range = 48; replacement.volume = .75F;
+        world.add(replacement, 20, 0, 0);
+        check(out.messages.isEmpty(), "Unregister and replacement registration retain only dirty state before flush");
+        endTick();
+        PacketSessionSpeakerRoutes replaced = out.routeFor(session);
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && replaced.targets.size() == 1
+                && replaced.targets.get(0).range == 48 && replaced.targets.get(0).volume == .75F,
+            "Same-tick replacement publishes no intermediate empty snapshot");
+
+        Speaker lateOld = new Speaker(); lateOld.linkKey = "A"; world.add(lateOld, 21, 0, 0); endTick();
+        Speaker lateReplacement = new Speaker(); lateReplacement.linkKey = "A"; world.add(lateReplacement, 21, 0, 0); endTick();
+        out.clear(); lateOld.invalidate(); endTick();
+        check(out.messages.isEmpty(), "Late invalidation of a replaced TE creates no unnecessary dirty update");
+        lateReplacement.onChunkUnload(); endTick(); out.clear();
+
+        replacement.applyConfig("A", 32, .75F);
+        replacement.applyConfig("A", 64, .75F);
+        replacement.applyConfig("A", 64, .6F);
+        replacement.applyConfig("A", 64, .5F);
+        check(out.messages.isEmpty(), "Repeated range and volume changes are dirty-only until tick END");
+        endTick();
+        PacketSessionSpeakerRoutes settings = out.routeFor(session);
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && settings.targets.size() == 1
+                && settings.targets.get(0).range == 64 && settings.targets.get(0).volume == .5F,
+            "One coalesced snapshot contains only final range and volume values");
+
+        TileEntityAnnouncer ownerB = new TileEntityAnnouncer(); ownerB.setLinkKey("B"); world.add(ownerB, -2, 0, 0);
+        TileEntityAnnouncer ownerC = new TileEntityAnnouncer(); ownerC.setLinkKey("C"); world.add(ownerC, -3, 0, 0);
+        PacketAnnounce startB = start(0); startB.linkKey = "B";
+        PacketAnnounce startC = start(0); startC.linkKey = "C";
+        long sessionB = ServerSessions.start(ownerB, startB);
+        long sessionC = ServerSessions.start(ownerC, startC);
+        out.clear();
+        replacement.applyConfig("B", 64, .5F);
+        replacement.applyConfig("C", 64, .5F);
+        replacement.applyConfig("A", 64, .5F);
+        check(out.messages.isEmpty(), "A to B to C to A reindexes produce no intermediate snapshots");
+        endTick();
+        check(out.count(PacketSessionSpeakerRoutes.class) == 3
+                && out.routeFor(session).targets.size() == 1
+                && out.routeFor(sessionB).targets.isEmpty() && out.routeFor(sessionC).targets.isEmpty(),
+            "A, B and C dirty keys flush independently once with their final state");
+
+        FixtureWorld otherWorld = new FixtureWorld();
+        TileEntityAnnouncer otherOwner = new TileEntityAnnouncer(); otherOwner.setLinkKey("A"); otherWorld.add(otherOwner, -1, 0, 0);
+        player(otherWorld, 0, 0, 0);
+        long otherSession = ServerSessions.start(otherOwner, start(0));
+        out.clear();
+        Speaker worldOne = new Speaker(); worldOne.linkKey = "A"; world.add(worldOne, 30, 0, 0);
+        Speaker worldTwo = new Speaker(); worldTwo.linkKey = "A"; otherWorld.add(worldTwo, 0, 0, 0);
+        check(dirtyWorlds() == 2, "Dirty routing state isolates distinct World identities");
+        endTick();
+        check(out.routeFor(session) != null && out.routeFor(otherSession) != null,
+            "Distinct Worlds flush only their own active sessions");
+
+        PacketAnnounce startD = start(0); startD.linkKey = "D";
+        TileEntityAnnouncer ownerD = new TileEntityAnnouncer(); ownerD.setLinkKey("D"); world.add(ownerD, -4, 0, 0);
+        long sessionD = ServerSessions.start(ownerD, startD); out.clear();
+        Speaker dirtyD = new Speaker(); dirtyD.linkKey = "D"; world.add(dirtyD, 40, 0, 0);
+        ServerSessions.stopKey(world, "D");
+        check(out.count(PacketAnnounceStop.class) == 1, "Dirty session can stop before route flush");
+        out.clear(); endTick();
+        check(out.routeFor(sessionD) == null, "Flush sends no route packet to a stopped session");
+
+        FixtureWorld unloading = new FixtureWorld();
+        TileEntityAnnouncer unloadingOwner = new TileEntityAnnouncer(); unloadingOwner.setLinkKey("A"); unloading.add(unloadingOwner, -1, 0, 0);
+        player(unloading, 0, 0, 0);
+        long unloadingSession = ServerSessions.start(unloadingOwner, start(0)); out.clear();
+        Speaker unloadingSpeaker = new Speaker(); unloadingSpeaker.linkKey = "A"; unloading.add(unloadingSpeaker, 0, 0, 0);
+        check(dirtyContains(unloading), "World has pending dirty routing state before unload");
+        ServerSessions.INSTANCE.unload(new net.minecraftforge.event.world.WorldEvent.Unload(unloading));
+        check(!dirtyContains(unloading), "World unload removes its dirty World reference");
+        out.clear(); endTick();
+        check(out.routeFor(unloadingSession) == null, "World unload prevents pending route transmission");
+
+        Speaker pending = new Speaker(); pending.linkKey = "A"; world.add(pending, 50, 0, 0);
+        check(dirtyWorlds() > 0, "Speaker mutation creates pending dirty state");
+        ServerSessions.clear(); out.clear(); endTick();
+        check(dirtyWorlds() == 0 && out.messages.isEmpty(), "ServerSessions.clear removes all pending route state");
+        out.clear(); endTick();
+        check(out.messages.isEmpty(), "A server tick with no dirty keys emits no routing packets");
+
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        FixtureWorld reentrantWorld = new FixtureWorld();
+        TileEntityAnnouncer reentrantOwner = new TileEntityAnnouncer(); reentrantOwner.setLinkKey("A");
+        reentrantWorld.add(reentrantOwner, -1, 0, 0); player(reentrantWorld, 0, 0, 0);
+        ReentrantDelivery reentrant = new ReentrantDelivery(reentrantWorld); ServerSessions.delivery = reentrant;
+        long reentrantSession = ServerSessions.start(reentrantOwner, start(0)); reentrant.clear();
+        Speaker firstMutation = new Speaker(); firstMutation.linkKey = "A"; reentrantWorld.add(firstMutation, 0, 0, 0);
+        reentrant.armed = true; endTick();
+        check(reentrant.routeFor(reentrantSession).targets.size() == 1 && dirtyContains(reentrantWorld),
+            "Mutation during flush is retained for the next tick, not the active dirty batch");
+        reentrant.clear(); endTick();
+        check(reentrant.routeFor(reentrantSession).targets.size() == 2
+                && reentrant.routeFor(reentrantSession).revision == 3,
+            "Mutation raised during flush publishes one complete revision on the next tick");
+
+        ServerSessions.clear(); SpeakerRegistry.clear(); ServerSessions.delivery = out;
+        FixtureWorld denseWorld = new FixtureWorld();
+        TileEntityAnnouncer denseOwner = new TileEntityAnnouncer(); denseOwner.setLinkKey("A"); denseWorld.add(denseOwner, -1, 0, 0);
+        player(denseWorld, 0, 0, 0);
+        long denseSession = ServerSessions.start(denseOwner, start(0)); out.clear();
+        List<Speaker> dense = new ArrayList<>();
+        for (int i = 0; i < PacketLimits.SESSION_TARGETS + 1; i++) {
+            Speaker speaker = new Speaker(); speaker.linkKey = "A"; denseWorld.add(speaker, i, 0, 0); dense.add(speaker);
+        }
+        check(out.messages.isEmpty(), "A 513-Speaker load burst sends nothing before END flush");
+        endTick();
+        int total = 0; long denseRevision = -1;
+        for (IMessage message : out.messages) if (message instanceof PacketSessionSpeakerRoutes) {
+            PacketSessionSpeakerRoutes route = (PacketSessionSpeakerRoutes)message;
+            if (route.sessionId == denseSession) {
+                total += route.targets.size();
+                if (denseRevision < 0) denseRevision = route.revision;
+                else check(denseRevision == route.revision, "All split chunks share one coalesced revision");
+            }
+        }
+        check(out.count(PacketSessionSpeakerRoutes.class) == 2 && total == PacketLimits.SESSION_TARGETS + 1
+                && denseRevision == 2,
+            "Coalesced 513-Speaker snapshot remains split without truncation");
+
+        out.clear(); for (Speaker speaker : dense) speaker.onChunkUnload();
+        check(out.messages.isEmpty(), "A 513-Speaker movement-style unload has no per-Speaker packet burst");
+        endTick();
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && out.routeFor(denseSession).targets.isEmpty()
+                && out.routeFor(denseSession).revision == 3,
+            "A 513-Speaker unload coalesces to one final snapshot revision");
+        ServerSessions.clear(); SpeakerRegistry.clear();
+    }
+
+    private static int dirtyWorlds() throws Exception {
+        Field field = ServerSessions.class.getDeclaredField("dirtyRouteKeys"); field.setAccessible(true);
+        return ((Map<?, ?>)field.get(null)).size();
+    }
+
+    private static boolean dirtyContains(World world) throws Exception {
+        Field field = ServerSessions.class.getDeclaredField("dirtyRouteKeys"); field.setAccessible(true);
+        return ((Map<?, ?>)field.get(null)).containsKey(world);
     }
 
     private static int sessions() throws Exception {
@@ -783,9 +1217,13 @@ public final class NetworkVerificationTest {
         Player player = player(world, 0, 0, 0); RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
         long id = ServerSessions.start(owner, start(0)); out.clear();
         ServerSessions.missing(player, new PacketMissingSpeakers(id, new long[11]));
-        check(out.messages.isEmpty(), "11 requests for 10 allowed targets rejected before set allocation");
+        check(out.messages.isEmpty(), "Legacy multi-coordinate request returns no route data");
         ServerSessions.missing(player, new PacketMissingSpeakers(id, new long[] {SpeakerRegistry.position(0, 0, 0)}));
-        check(out.messages.isEmpty(), "Oversized attempt consumes single fallback request");
+        check(out.messages.isEmpty(), "Legacy single-coordinate request returns no route data");
+        new NetworkHandler.MissingSpeakersHandler().onMessage(
+            new PacketMissingSpeakers(id, new long[] {SpeakerRegistry.position(0, 0, 0)}), context(player));
+        serverTick();
+        check(out.messages.isEmpty(), "Legacy missing-Speaker handler returns no client-selected coordinate data");
         new NetworkHandler.FinishedHandler().onMessage(new PacketSessionFinished(id), context(player));
         check(sessions() == 1, "FINISHED remains queued"); serverTick(); check(sessions() == 0, "FINISHED handler cleans recipient/session");
 
@@ -834,7 +1272,12 @@ public final class NetworkVerificationTest {
             world.add(s, i%20, i/20, 0);
         }
         out.clear(); ServerSessions.start(owner, start(0));
-        check(out.messages.size() == 1 && ((PacketAnnounce)out.messages.get(0)).targets.length == PacketLimits.SESSION_TARGETS, "START sender caps dense recipient at 512 targets");
+        int described = 0;
+        for (IMessage message : out.messages) if (message instanceof PacketSessionSpeakerRoutes)
+            described += ((PacketSessionSpeakerRoutes)message).targets.size();
+        check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 2
+                && described == PacketLimits.SESSION_TARGETS + 10,
+            "START splits more than 512 Speaker descriptors without truncation");
         PacketAnnounce tooMany = start(0); tooMany.bodySounds = Collections.nCopies(PacketLimits.BODY_SOUNDS+1, "test:body");
         int count = sessions(); out.clear();
         check(ServerSessions.start(owner, tooMany) == 0 && out.messages.isEmpty() && sessions() == count, "Oversized script sequence rejected before session allocation");
@@ -855,25 +1298,24 @@ public final class NetworkVerificationTest {
             Speaker formal = new Speaker(); world.add(formal, 0, 0, 0);
             check(!formal.isClientConfigSynced() && formal.linkKey.isEmpty()
                 && formal.range == 16 && formal.volume == 1.0F, "New client Speaker TE is not configuration-synchronized");
-            client.receive(packet); for (int i = 0; i < 5; i++) client.tick();
-            check(client.played.isEmpty() && client.missing.size() == 1,
-                "Unsynchronized existing Speaker TE remains deferred and requests fallback");
+            client.receive(packet); client.tick();
+            check(client.played.isEmpty() && client.missing.isEmpty(),
+                "Unsynchronized existing Speaker TE is skipped without coordinate requests");
             PacketSpeakerFallback fallback = new PacketSpeakerFallback(900);
             fallback.targets.add(new PacketSpeakerFallback.Target(packet.targets[0], 64, .75F));
             client.receive(fallback); client.tick();
-            check(client.played.size() == 1 && client.played.get(0).getVolume() == 2.0F,
-                "Unsynchronized existing Speaker TE uses fallback for the current sound");
+            check(client.played.isEmpty(), "Unsolicited fallback cannot authorize a Speaker");
             syncSpeaker(formal, currentKey, 16, .25F);
             check(formal.isClientConfigSynced(), "S35 application marks client Speaker configuration synchronized");
             for (int i = 0; i < 20; i++) client.tick();
             if (currentKey.equals("A")) {
-                check(client.played.size() == 2 && client.played.get(1).getVolume() == .25F,
-                    "Synchronized TE range/volume override fallback");
-            } else check(client.played.size() == 1,
-                "Synchronized mismatched/empty TE key suppresses stale fallback");
-            world.tiles.clear(); // A resolved TE must also have evicted its old fallback entry.
+                check(client.played.size() == 1 && client.played.get(0).getVolume() == .25F,
+                    "Next part uses synchronized TE range/volume from the client index");
+            } else check(client.played.isEmpty(),
+                "Synchronized mismatched/empty TE key is not routed");
+            formal.onChunkUnload(); world.tiles.clear();
             int played = client.played.size(); for (int i = 0; i < 21; i++) client.tick();
-            check(client.played.size() == played, "Synchronized TE evicts fallback even after later TE unload");
+            check(client.played.size() == played, "Unloaded TE is removed before the next part");
             client.receive(new PacketAnnounceStop(900)); client.tick();
             client.receive(fallback); client.tick();
             check(client.played.size() == played && client.live.isEmpty(), "Late fallback after session stop is ignored");
@@ -999,7 +1441,31 @@ public final class NetworkVerificationTest {
         public void send(IMessage packet, EntityPlayerMP player) { messages.add(packet); players.add(player); }
         public void around(IMessage packet, TargetPoint point) { around++; radius = point.range; }
         public void all(IMessage packet) { messages.add(packet); }
+        int count(Class<?> type) {
+            int count = 0;
+            for (IMessage message : messages) if (type.isInstance(message)) count++;
+            return count;
+        }
+        PacketSessionSpeakerRoutes routeFor(long sessionId) {
+            PacketSessionSpeakerRoutes found = null;
+            for (IMessage message : messages) if (message instanceof PacketSessionSpeakerRoutes
+                && ((PacketSessionSpeakerRoutes)message).sessionId == sessionId)
+                found = (PacketSessionSpeakerRoutes)message;
+            return found;
+        }
         void clear() { messages.clear(); players.clear(); }
+    }
+    private static class ReentrantDelivery extends RecordingDelivery {
+        final FixtureWorld world;
+        boolean armed, mutated;
+        ReentrantDelivery(FixtureWorld world) { this.world = world; }
+        @Override public void send(IMessage packet, EntityPlayerMP player) {
+            super.send(packet, player);
+            if (armed && !mutated && packet instanceof PacketSessionSpeakerRoutes) {
+                mutated = true;
+                Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 10, 0, 0);
+            }
+        }
     }
     private static class TestClient extends AnnounceManager {
         World world; int worldReads, ticks;
@@ -1014,5 +1480,16 @@ public final class NetworkVerificationTest {
         final List<PacketMissingSpeakers> missing = new ArrayList<>();
         @Override protected void finished(long id) { check(ended.add(id), "No duplicate completion acknowledgement"); }
         void tick() { ticks++; onClientTick(new TickEvent.ClientTickEvent(TickEvent.Phase.START)); }
+    }
+
+    private static class RoutingClient extends TestClient {
+        double px, py, pz;
+        @Override protected boolean inSpeakerRange(TileEntitySpeaker speaker) {
+            return inRange(speaker.xCoord, speaker.yCoord, speaker.zCoord, speaker.range);
+        }
+        @Override protected boolean inRange(int x, int y, int z, int range) {
+            double dx = px - (x + .5), dy = py - (y + .5), dz = pz - (z + .5);
+            return dx*dx + dy*dy + dz*dz <= (double)range * range;
+        }
     }
 }

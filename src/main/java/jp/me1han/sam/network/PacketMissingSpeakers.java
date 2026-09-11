@@ -3,7 +3,7 @@ package jp.me1han.sam.network;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
 
-/** Exceptional request: once per recipient/session, only targets not resolved from client TEs. */
+/** Legacy wire packet. Dynamic sessions do not accept client-selected coordinates. */
 public class PacketMissingSpeakers implements IMessage {
     public long sessionId;
     public long[] targets = new long[0];
