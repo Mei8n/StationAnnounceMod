@@ -318,7 +318,7 @@ public class AnnounceManager {
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
         World world = currentWorld();
-        boolean overflow = pendingOverflow.getAndSet(false);
+        boolean overflow = pendingOverflow.get();
         if (sessionWorld != world) {
             for (AnnounceSession session : activeSessions.values()) session.stop();
             activeSessions.clear();
@@ -326,12 +326,13 @@ public class AnnounceManager {
             ClientSpeakerRegistry.clear(sessionWorld);
             sessionWorld = world;
         }
-        if (world == null) { pending.clear(); return; }
         if (overflow) {
             pending.clear();
             stopAnnounce();
+            pendingOverflow.set(false);
             return;
         }
+        if (world == null) { pending.clear(); return; }
         clientTick++;
         Runnable action;
         while ((action = pending.poll()) != null) action.run();

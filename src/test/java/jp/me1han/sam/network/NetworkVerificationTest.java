@@ -329,6 +329,12 @@ public final class NetworkVerificationTest {
         return ((Map<?, ?>)field.get(null)).size();
     }
 
+    private static int clientSessionCount(AnnounceManager manager) throws Exception {
+        Field field = AnnounceManager.class.getDeclaredField("activeSessions");
+        field.setAccessible(true);
+        return ((Map<?, ?>)field.get(manager)).size();
+    }
+
     private static int lastTrainId(TileEntityTrainTypeSelector selector) throws Exception {
         Field field = TileEntityTrainTypeSelector.class.getDeclaredField("lastTrainId");
         field.setAccessible(true);
@@ -1004,11 +1010,17 @@ public final class NetworkVerificationTest {
             "Client pending queue accepts at most MAX_PENDING actions");
         check(bounded.overflowPending() && bounded.worldReads == readsBeforeOverflow && !bounded.live.isEmpty(),
             "Queue overflow performs no world or sound work on the network thread");
+        bounded.receiveDuringStop = start(652);
         bounded.tick();
-        check(bounded.pendingCount() == 0 && !bounded.overflowPending() && bounded.live.isEmpty(),
-            "Next client tick clears overflow actions, sessions and playing sounds");
+        check(bounded.overflowObservedDuringStop && bounded.pendingObservedDuringStop == 0,
+            "Overflow remains latched and rejects packets received during recovery");
+        check(bounded.pendingCount() == 0 && !bounded.overflowPending() && bounded.live.isEmpty()
+                && clientSessionCount(bounded) == 0,
+            "Recovery completion leaves no pending actions, sessions or playing sounds before unlatching");
         PacketAnnounce recovered = start(651); recovered.playLocalSound = true;
-        receiveReady(bounded, recovered); bounded.tick();
+        receiveReady(bounded, recovered);
+        check(bounded.pendingCount() == 2, "A new START and route queue normally after overflow recovery");
+        bounded.tick();
         check(!bounded.live.isEmpty(), "Client accepts a new START after overflow recovery");
         bounded.receive(new PacketAnnounceStop(99999));
         bounded.world = new FixtureWorld(); bounded.tick();
@@ -2014,11 +2026,23 @@ public final class NetworkVerificationTest {
     }
     private static class TestClient extends AnnounceManager {
         World world; int worldReads, ticks;
+        PacketAnnounce receiveDuringStop;
+        boolean overflowObservedDuringStop;
+        int pendingObservedDuringStop = -1;
         final List<ISound> played = new ArrayList<>(); final Set<ISound> live = new HashSet<>(); final Set<Long> ended = new HashSet<>();
         final List<Integer> playedAtTicks = new ArrayList<>();
         @Override protected World currentWorld() { worldReads++; return world; }
         @Override protected void playSound(ISound sound) { played.add(sound); playedAtTicks.add(ticks); live.add(sound); }
-        @Override protected void stopSound(ISound sound) { live.remove(sound); }
+        @Override protected void stopSound(ISound sound) {
+            if (receiveDuringStop != null) {
+                PacketAnnounce packet = receiveDuringStop;
+                receiveDuringStop = null;
+                overflowObservedDuringStop = overflowPending();
+                receive(packet);
+                pendingObservedDuringStop = pendingCount();
+            }
+            live.remove(sound);
+        }
         @Override protected boolean inSpeakerRange(TileEntitySpeaker speaker) { return true; }
         @Override protected boolean inRange(int x, int y, int z, int range) { return true; }
         @Override protected void requestMissing(PacketMissingSpeakers packet) { missing.add(packet); }
