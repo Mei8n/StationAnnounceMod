@@ -52,7 +52,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); serverDescriptorRouting(); coalescedRouteUpdates(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -474,7 +474,7 @@ public final class NetworkVerificationTest {
             FixtureWorld clientWorld = new FixtureWorld(); clientWorld.isRemote = true;
             TestClient client = new TestClient(); client.world = clientWorld;
             AnnouncePackLoader.soundTicks.clear(); // Prove ordinary playback has no client-local fallback.
-            client.receive(timeline);
+            receiveReady(client, timeline);
             for (int i = 0; i < 29; i++) client.tick();
             check(client.playedAtTicks.equals(Arrays.asList(1, 4, 10, 15, 18, 24))
                 && soundNames(client).equals(Arrays.asList("test:start", "test:one", "test:two",
@@ -487,7 +487,7 @@ public final class NetworkVerificationTest {
             loop.resolveTiming(Collections.singletonMap("test:arr", 3));
             TestClient loopClient = new TestClient(); loopClient.world = clientWorld;
             AnnouncePackLoader.soundTicks.put("test:arr", 55);
-            loopClient.receive(loop);
+            receiveReady(loopClient, loop);
             for (int i = 0; i < 5; i++) loopClient.tick();
             check(loopClient.playedAtTicks.equals(Arrays.asList(1, 5)),
                 "Arrival loop cadence uses server-authoritative duration despite a different client value");
@@ -606,7 +606,8 @@ public final class NetworkVerificationTest {
         FixtureWorld world = new FixtureWorld(); world.isRemote = true;
         TestClient client = new TestClient(); client.world = world;
         PacketAnnounce packet = start(100); packet.targets = new long[] {SpeakerRegistry.position(0, 0, 0)};
-        Thread network = new Thread(() -> client.receive(packet)); network.start(); network.join();
+        Thread network = new Thread(() -> receiveReady(client, packet));
+        network.start(); network.join();
         check(client.worldReads == 0 && client.played.isEmpty(), "Network thread touches no world or sound");
         Speaker speaker = new Speaker(); world.add(speaker, 0, 0, 0);
         client.tick(); check(client.played.isEmpty(), "Unsynchronized client TE is not authoritative");
@@ -616,13 +617,13 @@ public final class NetworkVerificationTest {
         client.receive(packet); client.tick();
         check(client.played.isEmpty(), "Duplicate START does not replay");
         PacketAnnounce newer = start(101); newer.targets = packet.targets;
-        client.receive(newer); client.receive(new PacketAnnounceStop(100)); client.tick();
+        receiveReady(client, newer, route(0, 16, 1)); client.receive(new PacketAnnounceStop(100)); client.tick();
         check(client.played.size() == 1 && client.live.size() == 1, "Old STOP cannot stop newer same-key session");
         client.receive(new PacketAnnounceStop(101)); client.tick();
         check(client.live.isEmpty(), "Matching STOP stops sound");
         PacketDepartureStart dep = departure(200); dep.targets = packet.targets;
         int departureFirst = client.played.size();
-        client.receive(dep); client.receive(new PacketDepartureControl(200, false)); client.tick();
+        receiveReady(client, dep, route(0, 16, 1)); client.receive(new PacketDepartureControl(200, false)); client.tick();
         check(client.played.get(departureFirst).getPositionedSoundLocation().toString().equals("test:m"), "START initializes melody before same-tick OFF");
         client.receive(new PacketDepartureControl(199, true)); client.tick();
         check(!client.ended.contains(200L), "Stale departure CANCEL ignored");
@@ -631,14 +632,15 @@ public final class NetworkVerificationTest {
         PacketDepartureStart high = departure(300); high.targets = packet.targets;
         PacketAnnounce awareness = start(301); awareness.priority = PacketAnnounce.PRIORITY_AWARENESS; awareness.targets = packet.targets;
         int before = client.played.size();
-        client.receive(high); client.receive(awareness); client.tick();
+        receiveReady(client, high, route(0, 16, 1)); receiveReady(client, awareness, route(0, 16, 1)); client.tick();
         check(client.played.size() == before+1, "Awareness waits behind departure priority");
         client.receive(new PacketDepartureControl(300, true)); client.tick();
         check(client.played.size() == before+2, "Waiting Awareness resumes after departure CANCEL");
         client.receive(new PacketAnnounceStop(0)); client.tick();
         PacketDepartureStart overlapHigh = departure(400); overlapHigh.targets = packet.targets;
         PacketAnnounce overlap = start(401); overlap.priority = 0; overlap.allowOverlap = true; overlap.targets = packet.targets;
-        before = client.played.size(); client.receive(overlapHigh); client.receive(overlap); client.tick();
+        before = client.played.size(); receiveReady(client, overlapHigh, route(0, 16, 1));
+        receiveReady(client, overlap, route(0, 16, 1)); client.tick();
         check(client.played.size() == before+2, "Awareness allowOverlap preserved");
         client.world = new FixtureWorld(); client.tick();
         check(client.live.isEmpty() && ClientSpeakerRegistry.findByKey(world, "A").isEmpty(),
@@ -648,12 +650,12 @@ public final class NetworkVerificationTest {
         normal.bodySounds = Arrays.asList("test:body", "test:body");
         normal.bodyIntervalTicks = Arrays.asList(0, 0);
         normal.resolveTiming(Collections.singletonMap("test:body", 20));
-        client.receive(normal); client.tick();
+        receiveReady(client, normal); client.tick();
         for (int i = 0; i < 45; i++) client.tick();
         check(client.ended.size() == acknowledgements+1 && client.ended.contains(500L), "One completion acknowledgement per session, not per sound");
         PacketAnnounce missingStart = start(600); missingStart.targets = new long[] {SpeakerRegistry.position(100, 0, 0)};
         int requests = client.missing.size(); before = client.played.size();
-        client.receive(missingStart);
+        receiveReady(client, missingStart);
         for (int i = 0; i < 5; i++) client.tick();
         check(client.missing.size() == requests && client.played.size() == before, "Dynamic routing never requests fixed target coordinates");
         PacketSpeakerFallback fallback = new PacketSpeakerFallback(600);
@@ -697,7 +699,7 @@ public final class NetworkVerificationTest {
             Arrays.asList("test:one", "", "test:two"), Arrays.asList(0, 3, 0), null, 1),
             "A", true, 0, 0, 0);
         intervalPacket.resolveTiming(AnnouncePackLoader.soundTicks);
-        interval.receive(intervalPacket);
+        receiveReady(interval, intervalPacket);
         for (int i = 0; i < 5; i++) interval.tick();
         check(soundNames(interval).equals(Collections.singletonList("test:one")),
             "Ordinary body interval delays the following part");
@@ -710,7 +712,7 @@ public final class NetworkVerificationTest {
         TestClient client = new TestClient(); client.world = world;
         PacketAnnounce packet = new PacketAnnounce(data, "A", true, 0, 0, 0); packet.sessionId = id;
         packet.resolveTiming(AnnouncePackLoader.soundTicks);
-        client.receive(packet);
+        receiveReady(client, packet);
         for (int i = 0; i < ticks; i++) client.tick();
         return client;
     }
@@ -719,6 +721,12 @@ public final class NetworkVerificationTest {
         List<String> result = new ArrayList<>();
         for (ISound sound : client.played) result.add(sound.getPositionedSoundLocation().toString());
         return result;
+    }
+
+    private static void receiveReady(TestClient client, PacketAnnounce packet,
+        PacketSessionSpeakerRoutes.Target... targets) {
+        client.receive(packet);
+        client.receive(routes(packet.sessionId, 1, 0, 1, targets));
     }
 
     private static PacketAnnounce routed(long id, boolean local, String... sounds) {
@@ -742,7 +750,8 @@ public final class NetworkVerificationTest {
         Speaker a = new Speaker(); world.add(a, 0, 0, 0); syncSpeaker(a, "A", 10, 1);
         Speaker b = new Speaker(); world.add(b, 100, 0, 0); syncSpeaker(b, "A", 10, 1);
         RoutingClient moving = new RoutingClient(); moving.world = world; moving.px = 50;
-        moving.receive(routed(1000, false, "test:r1", "test:r2", "test:r3", "test:r4", "test:r5"));
+        receiveReady(moving, routed(1000, false, "test:r1", "test:r2", "test:r3", "test:r4", "test:r5"),
+            route(0, 10, 1), route(100, 10, 1));
         moving.tick();
         moving.px = 0; advanceToNextPart(moving);
         moving.px = 100; advanceToNextPart(moving);
@@ -755,8 +764,9 @@ public final class NetworkVerificationTest {
 
         FixtureWorld addedWorld = new FixtureWorld(); addedWorld.isRemote = true;
         RoutingClient added = new RoutingClient(); added.world = addedWorld; added.px = 20;
-        added.receive(routed(1001, false, "test:add1", "test:add2")); added.tick();
+        receiveReady(added, routed(1001, false, "test:add1", "test:add2")); added.tick();
         Speaker late = new Speaker(); addedWorld.add(late, 20, 0, 0); syncSpeaker(late, "A", 8, 1);
+        added.receive(routes(1001, 2, 0, 1, route(20, 8, 1)));
         advanceToNextPart(added);
         check(soundNames(added).equals(Collections.singletonList("test:add2")),
             "Speaker synchronized after START is available at the next part");
@@ -764,22 +774,25 @@ public final class NetworkVerificationTest {
         FixtureWorld changedWorld = new FixtureWorld(); changedWorld.isRemote = true;
         Speaker changed = new Speaker(); changedWorld.add(changed, 0, 0, 0); syncSpeaker(changed, "A", 10, 1);
         RoutingClient changedClient = new RoutingClient(); changedClient.world = changedWorld; changedClient.px = 5;
-        changedClient.receive(routed(1002, false, "test:c1", "test:c2", "test:c3", "test:c4", "test:c5", "test:c6", "test:c7"));
+        receiveReady(changedClient, routed(1002, false, "test:c1", "test:c2", "test:c3", "test:c4", "test:c5", "test:c6", "test:c7"),
+            route(0, 10, 1));
         changedClient.tick();
-        changed.onChunkUnload(); advanceToNextPart(changedClient);
-        changed.validate(); advanceToNextPart(changedClient);
-        changed.invalidate(); advanceToNextPart(changedClient);
+        changed.onChunkUnload(); changedClient.receive(routes(1002, 2, 0, 1)); advanceToNextPart(changedClient);
+        changed.validate(); changedClient.receive(routes(1002, 3, 0, 1, route(0, 10, 1))); advanceToNextPart(changedClient);
+        changed.invalidate(); changedClient.receive(routes(1002, 4, 0, 1)); advanceToNextPart(changedClient);
         Speaker replacement = new Speaker(); changedWorld.add(replacement, 0, 0, 0); syncSpeaker(replacement, "B", 10, 1);
         advanceToNextPart(changedClient);
-        syncSpeaker(replacement, "A", 1, 1); advanceToNextPart(changedClient);
-        syncSpeaker(replacement, "A", 10, .5F); advanceToNextPart(changedClient);
+        syncSpeaker(replacement, "A", 1, 1); changedClient.receive(routes(1002, 5, 0, 1, route(0, 1, 1)));
+        advanceToNextPart(changedClient);
+        syncSpeaker(replacement, "A", 10, .5F); changedClient.receive(routes(1002, 6, 0, 1, route(0, 10, .5F)));
+        advanceToNextPart(changedClient);
         check(soundNames(changedClient).equals(Arrays.asList("test:c1", "test:c3", "test:c7"))
                 && changedClient.played.get(2).getVolume() == .3125F,
             "Unload, reload, destruction, replacement, unlink, range and volume changes affect the next part only");
 
         FixtureWorld localWorld = new FixtureWorld(); localWorld.isRemote = true;
         RoutingClient local = new RoutingClient(); local.world = localWorld; local.px = 30;
-        local.receive(routed(1003, true, "test:l1", "test:l2", "test:l3")); local.tick();
+        receiveReady(local, routed(1003, true, "test:l1", "test:l2", "test:l3")); local.tick();
         local.px = 0; advanceToNextPart(local);
         local.px = 30; advanceToNextPart(local);
         check(soundNames(local).equals(Collections.singletonList("test:l2")),
@@ -789,14 +802,15 @@ public final class NetworkVerificationTest {
         PacketAnnounce loop = new PacketAnnounce(new AnnounceData("", Collections.<String>emptyList(), "test:loop-dynamic"), "A", false, 0, 0, 0);
         loop.sessionId = 1004; loop.resolveTiming(loopLength);
         RoutingClient looping = new RoutingClient(); looping.world = world; looping.px = 50;
-        looping.receive(loop); looping.tick(); looping.px = 0; advanceToNextPart(looping);
+        receiveReady(looping, loop, route(0, 10, 1), route(100, 10, 1));
+        looping.tick(); looping.px = 0; advanceToNextPart(looping);
         looping.px = 50; advanceToNextPart(looping);
         check(soundNames(looping).equals(Collections.singletonList("test:loop-dynamic")),
             "Arrival melody re-resolves routing for each loop");
 
         RoutingClient departureClient = new RoutingClient(); departureClient.world = world; departureClient.px = 0;
         PacketDepartureStart departure = departure(1005);
-        departureClient.receive(departure); departureClient.tick();
+        receiveReady(departureClient, departure, route(0, 10, 1), route(100, 10, 1)); departureClient.tick();
         departureClient.px = 100;
         departureClient.receive(new PacketDepartureControl(1005, false)); departureClient.tick();
         check(soundNames(departureClient).equals(Arrays.asList("test:m", "test:d"))
@@ -808,9 +822,83 @@ public final class NetworkVerificationTest {
         PacketAnnounce awareness = routed(1006, true, "test:aware1", "test:aware2");
         awareness.priority = PacketAnnounce.PRIORITY_AWARENESS;
         PacketAnnounce remoteHigh = routed(1007, true, "test:high1"); remoteHigh.priority = PacketAnnounce.PRIORITY_DEPARTURE_MELODY; remoteHigh.x = 100;
-        priority.receive(awareness); priority.receive(remoteHigh); priority.tick();
+        receiveReady(priority, awareness); receiveReady(priority, remoteHigh); priority.tick();
         check(soundNames(priority).equals(Collections.singletonList("test:aware1")),
             "Inaudible high-priority session does not suppress audible Awareness");
+    }
+
+    private static void initialRouteGate() {
+        FixtureWorld world = new FixtureWorld(); world.isRemote = true;
+
+        TestClient waiting = new TestClient(); waiting.world = world;
+        PacketAnnounce waitingStart = routed(1200, true, "test:gate1", "test:gate2");
+        waiting.receive(waitingStart);
+        for (int i = 0; i < 6; i++) waiting.tick();
+        check(waiting.played.isEmpty(), "START alone cannot advance ordinary playback before initial routes");
+        waiting.receive(routes(1200, 1, 0, 1)); waiting.tick();
+        check(soundNames(waiting).equals(Collections.singletonList("test:gate1")),
+            "A complete empty snapshot is routing-ready and starts from the first part");
+        int firstTick = waiting.playedAtTicks.get(0);
+        advanceToNextPart(waiting);
+        check(soundNames(waiting).equals(Arrays.asList("test:gate1", "test:gate2"))
+                && waiting.playedAtTicks.get(1) - firstTick == 3,
+            "Snapshot wait ticks do not consume the ordinary timeline");
+
+        RoutingClient chunked = new RoutingClient(); chunked.world = world; chunked.px = 10;
+        chunked.receive(routed(1201, false, "test:chunked"));
+        chunked.receive(routes(1201, 1, 0, 2, route(0, 1, 1))); chunked.tick();
+        check(chunked.played.isEmpty(), "A partial initial route revision cannot start playback");
+        chunked.receive(routes(1201, 1, 1, 2, route(10, 2, 1))); chunked.tick();
+        check(soundNames(chunked).equals(Collections.singletonList("test:chunked")),
+            "The final initial route chunk atomically enables playback");
+
+        TestClient priority = new TestClient(); priority.world = world;
+        PacketAnnounce high = routed(1202, true, "test:gate-high");
+        high.priority = PacketAnnounce.PRIORITY_DEPARTURE_MELODY;
+        receiveReady(priority, high); priority.tick();
+        int beforeCandidate = priority.played.size();
+        PacketAnnounce low = routed(1203, true, "test:gate-rejected");
+        receiveReady(priority, low); priority.tick();
+        check(priority.played.size() == beforeCandidate && priority.ended.contains(1203L),
+            "Initial priority rejection occurs before the candidate can play");
+
+        TestClient deferredPriority = new TestClient(); deferredPriority.world = world;
+        PacketAnnounce existing = routed(1207, true, "test:gate-existing");
+        receiveReady(deferredPriority, existing); deferredPriority.tick();
+        PacketAnnounce pendingHigh = routed(1208, true, "test:gate-pending-high");
+        pendingHigh.priority = PacketAnnounce.PRIORITY_DEPARTURE_MELODY;
+        deferredPriority.receive(pendingHigh); deferredPriority.tick();
+        check(soundNames(deferredPriority).equals(Collections.singletonList("test:gate-existing"))
+                && !deferredPriority.ended.contains(1207L),
+            "An unready high-priority START cannot arbitrate or suppress an existing session");
+        deferredPriority.receive(routes(1208, 1, 0, 1)); deferredPriority.tick();
+        check(soundNames(deferredPriority).equals(Arrays.asList("test:gate-existing", "test:gate-pending-high"))
+                && deferredPriority.ended.contains(1207L),
+            "A high-priority session arbitrates only after its initial snapshot completes");
+
+        RoutingClient departureWaiting = new RoutingClient(); departureWaiting.world = world; departureWaiting.px = 0;
+        departureWaiting.receive(departure(1204));
+        for (int i = 0; i < 3; i++) departureWaiting.tick();
+        check(departureWaiting.played.isEmpty(),
+            "Departure START cannot initialize or advance before initial routes");
+        departureWaiting.receive(routes(1204, 1, 0, 1, route(0, 2, 1))); departureWaiting.tick();
+        check(soundNames(departureWaiting).equals(Collections.singletonList("test:m")),
+            "Departure initializes on the tick after its complete initial snapshot is accepted");
+
+        RoutingClient earlyOff = new RoutingClient(); earlyOff.world = world; earlyOff.px = 0;
+        earlyOff.receive(departure(1205));
+        earlyOff.receive(new PacketDepartureControl(1205, false)); earlyOff.tick();
+        check(earlyOff.played.isEmpty(), "Early departure OFF records state without pre-route playback");
+        earlyOff.receive(routes(1205, 1, 0, 1, route(0, 2, 1))); earlyOff.tick();
+        check(soundNames(earlyOff).equals(Arrays.asList("test:m", "test:d")),
+            "Early departure OFF is applied from the released state after routing becomes ready");
+
+        TestClient stopped = new TestClient(); stopped.world = world;
+        stopped.receive(routed(1206, true, "test:stopped-before-routes")); stopped.tick();
+        stopped.receive(new PacketAnnounceStop(1206)); stopped.tick();
+        stopped.receive(routes(1206, 1, 0, 1));
+        for (int i = 0; i < 3; i++) stopped.tick();
+        check(stopped.played.isEmpty(), "STOP before initial routes prevents late route resurrection");
     }
 
     private static PacketSessionSpeakerRoutes routes(long sessionId, long revision, int chunkIndex,
@@ -1300,7 +1388,7 @@ public final class NetworkVerificationTest {
             Speaker formal = new Speaker(); world.add(formal, 0, 0, 0);
             check(!formal.isClientConfigSynced() && formal.linkKey.isEmpty()
                 && formal.range == 16 && formal.volume == 1.0F, "New client Speaker TE is not configuration-synchronized");
-            client.receive(packet); client.tick();
+            receiveReady(client, packet); client.tick();
             check(client.played.isEmpty() && client.missing.isEmpty(),
                 "Unsynchronized existing Speaker TE is skipped without coordinate requests");
             PacketSpeakerFallback fallback = new PacketSpeakerFallback(900);
@@ -1309,6 +1397,7 @@ public final class NetworkVerificationTest {
             check(client.played.isEmpty(), "Unsolicited fallback cannot authorize a Speaker");
             syncSpeaker(formal, currentKey, 16, .25F);
             check(formal.isClientConfigSynced(), "S35 application marks client Speaker configuration synchronized");
+            client.receive(routes(900, 2, 0, 1, route(0, 16, .25F)));
             for (int i = 0; i < 20; i++) client.tick();
             if (currentKey.equals("A")) {
                 check(client.played.size() == 1 && client.played.get(0).getVolume() == .25F,
@@ -1316,6 +1405,7 @@ public final class NetworkVerificationTest {
             } else check(client.played.isEmpty(),
                 "Synchronized mismatched/empty TE key is not routed");
             formal.onChunkUnload(); world.tiles.clear();
+            client.receive(routes(900, 3, 0, 1));
             int played = client.played.size(); for (int i = 0; i < 21; i++) client.tick();
             check(client.played.size() == played, "Unloaded TE is removed before the next part");
             client.receive(new PacketAnnounceStop(900)); client.tick();
