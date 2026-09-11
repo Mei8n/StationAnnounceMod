@@ -19,14 +19,18 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AnnounceManager {
     public static final AnnounceManager INSTANCE = new AnnounceManager();
+    public static final int MAX_PENDING = 1024;
 
     private final Map<Long, AnnounceSession> activeSessions = new ConcurrentHashMap<>();
-    private final ConcurrentLinkedQueue<Runnable> pending = new ConcurrentLinkedQueue<>();
+    private final ArrayBlockingQueue<Runnable> pending = new ArrayBlockingQueue<>(MAX_PENDING);
+    private final AtomicBoolean pendingOverflow = new AtomicBoolean();
     private World sessionWorld;
     private long clientTick;
 
@@ -43,13 +47,20 @@ public class AnnounceManager {
     protected void requestMissing(jp.me1han.sam.network.PacketMissingSpeakers packet) {
         NetworkHandler.INSTANCE.sendToServer(packet);
     }
+    protected final int pendingActionCount() { return pending.size(); }
+    protected final boolean hasPendingOverflow() { return pendingOverflow.get(); }
+
+    private void enqueueClientAction(Runnable action) {
+        if (pendingOverflow.get()) return;
+        if (!pending.offer(action)) pendingOverflow.set(true);
+    }
 
     public void receive(PacketAnnounce packet) {
-        pending.add(() -> startAnnounce(packet));
+        enqueueClientAction(() -> startAnnounce(packet));
     }
 
     public void receive(jp.me1han.sam.network.PacketDepartureControl packet) {
-        pending.add(() -> {
+        enqueueClientAction(() -> {
             long key = packet.sessionId;
             AnnounceSession session = activeSessions.get(key);
             if (session == null || session.departure == null) return;
@@ -67,7 +78,7 @@ public class AnnounceManager {
     }
 
     public void receive(jp.me1han.sam.network.PacketAnnounceStop packet) {
-        pending.add(() -> {
+        enqueueClientAction(() -> {
             if (packet.sessionId == 0) stopAnnounce();
             else {
                 AnnounceSession session = activeSessions.remove(packet.sessionId);
@@ -92,7 +103,7 @@ public class AnnounceManager {
     }
 
     public void receive(final jp.me1han.sam.network.PacketSessionSpeakerRoutes packet) {
-        pending.add(() -> {
+        enqueueClientAction(() -> {
             AnnounceSession session = activeSessions.get(packet.sessionId);
             if (session != null) session.acceptRoutes(packet);
         });
@@ -307,12 +318,19 @@ public class AnnounceManager {
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
         World world = currentWorld();
+        boolean overflow = pendingOverflow.get();
         if (sessionWorld != world) {
             for (AnnounceSession session : activeSessions.values()) session.stop();
             activeSessions.clear();
-            if (sessionWorld != null) pending.clear();
+            if (sessionWorld != null || overflow) pending.clear();
             ClientSpeakerRegistry.clear(sessionWorld);
             sessionWorld = world;
+        }
+        if (overflow) {
+            pending.clear();
+            stopAnnounce();
+            pendingOverflow.set(false);
+            return;
         }
         if (world == null) { pending.clear(); return; }
         clientTick++;

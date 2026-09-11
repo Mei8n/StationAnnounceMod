@@ -68,7 +68,17 @@ public final class SpeakerRegistry {
     public static Collection<Entry> findByKey(World world, String key) {
         DimensionSpeakers registry = WORLDS.get(world);
         Map<Long, Entry> group = registry == null ? null : registry.byLinkKey.get(normalize(key));
-        return group == null || normalize(key).isEmpty() ? Collections.<Entry>emptyList() : new ArrayList<>(group.values());
+        if (group == null || normalize(key).isEmpty()) return Collections.emptyList();
+        List<Entry> entries = new ArrayList<>(group.values());
+        Collections.sort(entries, new Comparator<Entry>() {
+            @Override public int compare(Entry left, Entry right) {
+                int compared = Integer.compare(left.x, right.x);
+                if (compared == 0) compared = Integer.compare(left.y, right.y);
+                if (compared == 0) compared = Integer.compare(left.z, right.z);
+                return compared;
+            }
+        });
+        return entries;
     }
     public static void clear(World world) { WORLDS.remove(world); }
     public static Entry at(World world, long position) {

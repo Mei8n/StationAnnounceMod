@@ -5,20 +5,12 @@ import java.util.ServiceLoader;
 import jp.me1han.sam.StationAnnounceModCore;
 import net.minecraft.entity.Entity;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.AxisAlignedBB;
-import net.minecraft.world.World;
 
 /** Discovers optional train integrations without linking SAM core to their APIs. */
 public final class TrainCompatRegistry {
     private static final TrainCompat NONE = new TrainCompat() {
         @Override public String getId() { return "none"; }
         @Override public boolean isAvailable() { return false; }
-        @Override public TrainSnapshot findFirstTrain(World world, AxisAlignedBB bounds, boolean controlCarOnly) {
-            return null;
-        }
-        @Override public long findFirstFormationId(World world, AxisAlignedBB bounds, boolean controlCarOnly) {
-            return -1L;
-        }
         @Override public TrainSnapshot wrap(Entity entity) { return null; }
         @Override public boolean isInspectionTool(ItemStack stack) { return false; }
     };
@@ -28,6 +20,7 @@ public final class TrainCompatRegistry {
     private TrainCompatRegistry() {}
 
     public static synchronized void initialize() {
+        TrainDetectionManager.clear();
         active = NONE;
         try {
             ServiceLoader<TrainCompat> loader = ServiceLoader.load(TrainCompat.class, TrainCompat.class.getClassLoader());

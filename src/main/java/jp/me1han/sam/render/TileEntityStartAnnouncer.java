@@ -2,7 +2,7 @@ package jp.me1han.sam.render;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.AxisAlignedBB;
-import jp.me1han.sam.compat.TrainCompatRegistry;
+import jp.me1han.sam.compat.TrainDetectionManager;
 import jp.me1han.sam.link.LinkKey;
 import jp.me1han.sam.link.SamLinkedTile;
 import jp.me1han.sam.link.SamLinkRegistry;
@@ -29,7 +29,7 @@ public class TileEntityStartAnnouncer extends RegisteredTileEntity implements Sa
         int r = 2;
         AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
 
-        long currentFormationId = TrainCompatRegistry.get()
+        long currentFormationId = TrainDetectionManager
             .findFirstFormationId(this.worldObj, aabb, this.isControlCar);
 
         if (currentFormationId == -1L) {

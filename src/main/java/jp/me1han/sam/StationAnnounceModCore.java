@@ -108,6 +108,7 @@ public class StationAnnounceModCore {
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(jp.me1han.sam.network.ServerTaskQueue.INSTANCE);
         cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(jp.me1han.sam.network.ServerSessions.INSTANCE);
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(jp.me1han.sam.network.ServerSessions.INSTANCE);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(jp.me1han.sam.compat.TrainDetectionManager.INSTANCE);
         AnnouncePackLoader.loadPacks();
         proxy.init(event);
     }
@@ -124,5 +125,6 @@ public class StationAnnounceModCore {
         SpeakerRegistry.clear();
         jp.me1han.sam.link.SamLinkRegistry.clear();
         LoadedSamTiles.clear();
+        jp.me1han.sam.compat.TrainDetectionManager.clear();
     }
 }

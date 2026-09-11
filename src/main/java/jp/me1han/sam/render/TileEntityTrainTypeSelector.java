@@ -1,7 +1,7 @@
 package jp.me1han.sam.render;
 
 import jp.me1han.sam.api.TrainTypeCondition;
-import jp.me1han.sam.compat.TrainCompatRegistry;
+import jp.me1han.sam.compat.TrainDetectionManager;
 import jp.me1han.sam.compat.TrainSnapshot;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -42,7 +42,7 @@ public class TileEntityTrainTypeSelector extends RegisteredTileEntity implements
 
         int r = 2;
         AxisAlignedBB aabb = AxisAlignedBB.getBoundingBox(xCoord - r, yCoord - r, zCoord - r, xCoord + r + 1, yCoord + r + 1, zCoord + r + 1);
-        TrainSnapshot train = TrainCompatRegistry.get()
+        TrainSnapshot train = TrainDetectionManager
             .findFirstTrain(this.worldObj, aabb, this.isControlCar);
 
         if (train == null) {

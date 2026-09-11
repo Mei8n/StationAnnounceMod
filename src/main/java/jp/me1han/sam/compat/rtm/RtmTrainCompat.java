@@ -4,7 +4,6 @@ import cpw.mods.fml.common.Loader;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -13,8 +12,6 @@ import jp.me1han.sam.compat.TrainSnapshot;
 import net.minecraft.entity.Entity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.AxisAlignedBB;
-import net.minecraft.world.World;
 
 /** RTM adapter. RTM classes are resolved by name so the base mod builds and loads without RTM. */
 public final class RtmTrainCompat implements TrainCompat {
@@ -56,18 +53,6 @@ public final class RtmTrainCompat implements TrainCompat {
     }
 
     @Override
-    public TrainSnapshot findFirstTrain(World world, AxisAlignedBB bounds, boolean controlCarOnly) {
-        Entity entity = this.findFirstEntity(world, bounds, controlCarOnly);
-        return entity == null ? null : new RtmTrainSnapshot(entity);
-    }
-
-    @Override
-    public long findFirstFormationId(World world, AxisAlignedBB bounds, boolean controlCarOnly) {
-        Entity entity = this.findFirstEntity(world, bounds, controlCarOnly);
-        return entity == null ? -1L : this.getFormationId(entity);
-    }
-
-    @Override
     public TrainSnapshot wrap(Entity entity) {
         if (this.trainClass == null || !this.trainClass.isInstance(entity)) return null;
         return new RtmTrainSnapshot(entity);
@@ -77,25 +62,6 @@ public final class RtmTrainCompat implements TrainCompat {
     public boolean isInspectionTool(ItemStack stack) {
         return this.available && stack != null
             && stack.getItem().getClass().getName().contains("ItemCrowbar");
-    }
-
-    private Entity findFirstEntity(World world, AxisAlignedBB bounds, boolean controlCarOnly) {
-        if (!this.available || world == null || bounds == null) return null;
-
-        final List<?> entities;
-        try {
-            entities = world.getEntitiesWithinAABB(this.trainClass, bounds);
-        } catch (LinkageError error) {
-            return null;
-        }
-
-        for (int i = 0, size = entities.size(); i < size; i++) {
-            Object candidate = entities.get(i);
-            if (!(candidate instanceof Entity)) continue;
-            Entity entity = (Entity) candidate;
-            if (!controlCarOnly || this.isControlCar(entity)) return entity;
-        }
-        return null;
     }
 
     private boolean isControlCar(Entity entity) {
