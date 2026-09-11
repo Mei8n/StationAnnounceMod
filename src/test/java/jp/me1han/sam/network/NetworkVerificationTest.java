@@ -1149,7 +1149,9 @@ public final class NetworkVerificationTest {
 
     private static void limitsAndExpiry() throws Exception {
         cpw.mods.fml.common.Mod mod = StationAnnounceModCore.class.getAnnotation(cpw.mods.fml.common.Mod.class);
-        check("0.2.1-beta".equals(StationAnnounceModCore.VERSION) && "[0.2.1-beta]".equals(mod.acceptableRemoteVersions()), "Forge exact remote version gate");
+        check("0.2.2-beta".equals(StationAnnounceModCore.VERSION), "Expected network-incompatible SAM version");
+        check(("[" + StationAnnounceModCore.VERSION + "]").equals(mod.acceptableRemoteVersions()),
+            "Forge exact remote version gate follows SAM version");
         ByteBuf buf = Unpooled.buffer();
         try {
             buf.writeLong(1).writeInt(PacketLimits.MISSING_TARGETS+1);
