@@ -1,5 +1,6 @@
 # StationAnnounceMod
 
+[![CI](https://github.com/Mei8n/StationAnnounceMod/actions/workflows/ci.yml/badge.svg)](https://github.com/Mei8n/StationAnnounceMod/actions/workflows/ci.yml)
 [![MCVer](https://img.shields.io/badge/Minecraft-1.7.10-brightgreen)](https://www.minecraft.net/)
 [![ForgeVer](https://img.shields.io/badge/Forge-10.13.4.1614-important)](https://files.minecraftforge.net/maven/net/minecraftforge/forge/index_1.7.10.html)
 [![DLCount](https://img.shields.io/github/downloads/Mei8n/stationannouncemod/total)](https://github.com/Mei8n/stationannouncemod/releases)
@@ -27,6 +28,33 @@ Minecraftで駅放送を流せるようにするModです。\
 3. Minecraftを終了し、放送パックを`mods/SAMpacks`に入れて再起動します
 
 マルチプレイでは、サーバーと各クライアントの両方に同じバージョンのModと同じパックを導入してください。
+
+## 開発・ビルド
+
+ビルド環境は次のversionを基準とします。
+
+- Minecraft 1.7.10
+- Minecraft Forge 10.13.4.1614
+- Java 8
+- CI baseline: Eclipse Temurin 8u482-b08
+- Gradle Wrapper 7.6.3
+- ForgeGradle 1.2-1.1.1
+
+通常の検証とビルドは、repository rootで次を実行してください。
+
+Windows:
+
+```text
+gradlew.bat clean check build
+```
+
+Linux / macOS:
+
+```text
+./gradlew clean check build
+```
+
+repositoryの`gradle.properties`には、個人PC固有の`org.gradle.java.home`を記載しないでください。ローカルでJDK pathの指定が必要な場合は、ユーザー側の`~/.gradle/gradle.properties`へ記載してください。
 
 ## 追加ブロック、アイテムの説明
 ### ・放送装置ブロック

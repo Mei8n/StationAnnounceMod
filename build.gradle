@@ -7,10 +7,14 @@ buildscript {
         }
     }
     dependencies {
-        classpath('com.anatawa12.forge:ForgeGradle:1.2-1.1.+') {
-            changing = true
-        }
+        classpath 'com.anatawa12.forge:ForgeGradle:1.2-1.1.1'
     }
+}
+
+tasks.named('wrapper', Wrapper) {
+    gradleVersion = '7.6.3'
+    distributionType = Wrapper.DistributionType.BIN
+    distributionSha256Sum = '740c2e472ee4326c33bf75a5c9f5cd1e69ecf3f9b580f6e236c86d1f3d98cfac'
 }
 
 configurations {
@@ -210,6 +214,26 @@ tasks.register('buildRelease') {
     group = 'build'
     dependsOn 'build'
 }
+
+tasks.register('verifyBuildEnvironment') {
+    group = 'verification'
+    description = 'Require the repository Gradle version and Java 8 runtime.'
+
+    doLast {
+        def expectedGradle = '7.6.3'
+        def actualGradle = gradle.gradleVersion
+        if (actualGradle != expectedGradle) {
+            throw new GradleException("Unsupported Gradle runtime: expected ${expectedGradle}, actual ${actualGradle}")
+        }
+
+        def expectedJava = 'Java 8'
+        def actualJava = System.getProperty('java.version')
+        if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
+            throw new GradleException("Unsupported Java runtime: expected ${expectedJava}, actual ${actualJava}")
+        }
+    }
+}
+check.dependsOn verifyBuildEnvironment
 
 tasks.register('verifyDeparture', JavaExec) {
     group = 'verification'
