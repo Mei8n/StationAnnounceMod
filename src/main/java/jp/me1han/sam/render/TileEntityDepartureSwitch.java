@@ -10,6 +10,7 @@ import jp.me1han.sam.link.SamLinkedTile;
 import jp.me1han.sam.link.SamLinkRegistry;
 
 public class TileEntityDepartureSwitch extends RegisteredTileEntity implements SamLinkedTile {
+    public static final float MAX_OFFSET = 16.0F;
     private String linkKey = "";
     public String modelName = SwitchModelRegistry.DEFAULT_MODEL;
     private float rotationYaw;
@@ -22,7 +23,7 @@ public class TileEntityDepartureSwitch extends RegisteredTileEntity implements S
     public float getOffsetY() { return offsetY; }
     public float getOffsetZ() { return offsetZ; }
     public static boolean validOffset(float value) {
-        return !Float.isNaN(value) && !Float.isInfinite(value);
+        return !Float.isNaN(value) && !Float.isInfinite(value) && Math.abs(value) <= MAX_OFFSET;
     }
     public void setOffset(float x, float y, float z) {
         if (!validOffset(x) || !validOffset(y) || !validOffset(z)) throw new IllegalArgumentException("Invalid switch offset");

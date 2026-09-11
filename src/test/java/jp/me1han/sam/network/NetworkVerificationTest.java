@@ -466,6 +466,19 @@ public final class NetworkVerificationTest {
             PacketLimits.writeString(buf, "model", PacketLimits.MODEL);
             buf.writeInt(0).writeFloat(Float.POSITIVE_INFINITY).writeFloat(0).writeFloat(0);
             expectInvalid(() -> new PacketDepartureSwitchConfig().fromBytes(buf));
+            for (float offset : new float[] {16.000002F, -16.000002F}) {
+                PacketDepartureSwitchConfig unsafe = new PacketDepartureSwitchConfig(1, 2, 3,
+                    "key", "model", 0, offset, 0, 0);
+                buf.clear(); expectEncodeInvalid(() -> unsafe.toBytes(buf));
+                buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+                PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+                PacketLimits.writeString(buf, "model", PacketLimits.MODEL);
+                buf.writeInt(0).writeFloat(offset).writeFloat(0).writeFloat(0);
+                expectInvalid(() -> new PacketDepartureSwitchConfig().fromBytes(buf));
+            }
+            PacketDepartureSwitchConfig boundaryOffset = new PacketDepartureSwitchConfig(1, 2, 3,
+                "key", "model", 0, -16, 16, 0);
+            buf.clear(); boundaryOffset.toBytes(buf); new PacketDepartureSwitchConfig().fromBytes(buf);
             String modelLimit = String.join("", Collections.nCopies(PacketLimits.MODEL, "m"));
             PacketDepartureSwitchItemConfig maxModel = new PacketDepartureSwitchItemConfig(8, modelLimit);
             buf.clear(); maxModel.toBytes(buf);

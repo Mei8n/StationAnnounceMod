@@ -193,7 +193,7 @@ public final class SwitchModelTest {
         check(placed.xCoord == 9 && placed.modelName.equals("melodysw_alternate_sample") && placed.getLinkKey().equals("test") && placed.getRotationYaw() == 180
             && placed.getOffsetX() == 0.25F && placed.getOffsetY() == -0.5F && placed.getOffsetZ() == 1.25F
             && !portable.hasKey("x"), "Block placement restores metadata without mutating copied item data");
-        placed.setOffset(10000, -10000, 5000);
+        placed.setOffset(16, -16, 16);
         block.setBlockBoundsBasedOnState(world, 9, 0, 0);
         net.minecraft.util.AxisAlignedBB interaction = block.getCollisionBoundingBoxFromPool(world, 9, 0, 0);
         check(interaction.minX == 9 && interaction.minY == 0 && interaction.minZ == 0
@@ -504,9 +504,16 @@ public final class SwitchModelTest {
             && Math.abs(shifted.minZ - 3.45) < 1e-6, "Render bounds follow world-axis offsets");
         try { tile.setOffset(Float.NaN, 0, 0); throw new AssertionError("NaN offset accepted"); }
         catch (IllegalArgumentException expected) { checks++; }
-        tile.setOffset(10000, -10000, Float.MAX_VALUE);
-        check(tile.getOffsetX() == 10000 && tile.getOffsetY() == -10000 && tile.getOffsetZ() == Float.MAX_VALUE,
-            "RTM-compatible finite offsets are not range-limited");
+        tile.setOffset(-TileEntityDepartureSwitch.MAX_OFFSET, TileEntityDepartureSwitch.MAX_OFFSET, 0);
+        check(tile.getOffsetX() == -16 && tile.getOffsetY() == 16,
+            "Switch offset accepts both inclusive safety boundaries");
+        for (float invalid : new float[] {Math.nextUp(TileEntityDepartureSwitch.MAX_OFFSET),
+                Math.nextDown(-TileEntityDepartureSwitch.MAX_OFFSET), Float.NaN,
+                Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY}) {
+            check(!TileEntityDepartureSwitch.validOffset(invalid), "Switch offset rejects unsafe value " + invalid);
+            try { tile.setOffset(invalid, 0, 0); throw new AssertionError("Unsafe offset accepted: " + invalid); }
+            catch (IllegalArgumentException expected) { checks++; }
+        }
         for (int playerYaw = -720; playerYaw <= 720; playerYaw += 45) {
             double angle = Math.toRadians(SwitchYaw.placement(playerYaw, false));
             double playerAngle = Math.toRadians(playerYaw);
@@ -524,6 +531,16 @@ public final class SwitchModelTest {
         check(client.getRotationYaw() == 137.25F && client.getOffsetX() == 0.25F
             && client.getOffsetY() == -0.5F && client.getOffsetZ() == 1.25F,
             "Description packet retains yaw and offsets");
+        NBTTagCompound legacy = (NBTTagCompound)saved.copy();
+        legacy.setFloat("offsetX", 10000); legacy.setFloat("offsetY", Float.NaN); legacy.setFloat("offsetZ", Float.POSITIVE_INFINITY);
+        Button sanitized = new Button(); sanitized.readFromNBT(legacy);
+        check(sanitized.getOffsetX() == 0 && sanitized.getOffsetY() == 0 && sanitized.getOffsetZ() == 0,
+            "Legacy unsafe offsets sanitize per axis during NBT load");
+        net.minecraft.util.AxisAlignedBB sanitizedBounds = sanitized.getRenderBoundingBox();
+        check(sanitizedBounds.minX > -1 && sanitizedBounds.maxX < 2
+                && sanitizedBounds.minY > -1 && sanitizedBounds.maxY < 2
+                && sanitizedBounds.minZ > -1 && sanitizedBounds.maxZ < 2,
+            "Sanitized legacy offsets cannot expand render bounds to huge coordinates");
         double[] bounds = SwitchYaw.rotateBounds(new double[]{0.3,0,0.3,0.7,0.2,0.7}, 45);
         check(Math.abs(bounds[0] - (0.5 - Math.sqrt(0.08))) < 1e-6
             && Math.abs(bounds[5] - (0.5 + Math.sqrt(0.08))) < 1e-6, "Diagonal bounds enclose the rotated model");
