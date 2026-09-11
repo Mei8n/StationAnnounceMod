@@ -75,8 +75,8 @@ public class NetworkHandler {
     }
     public static class MissingSpeakersHandler implements IMessageHandler<PacketMissingSpeakers, IMessage> {
         @Override public IMessage onMessage(PacketMissingSpeakers message, MessageContext ctx) {
-            final net.minecraft.entity.player.EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-            ServerTaskQueue.INSTANCE.enqueue(() -> ServerSessions.missing(player, message));
+            // Retained only so older/malformed clients cannot shift packet IDs.
+            // Dynamic routing never accepts client-selected Speaker coordinates.
             return null;
         }
     }

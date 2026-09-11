@@ -67,6 +67,7 @@ public class TileEntitySpeaker extends TileEntity {
     public void onDataPacket(NetworkManager net, S35PacketUpdateTileEntity pkt) {
         this.readFromNBT(pkt.func_148857_g());
         this.clientConfigSynced = true;
+        jp.me1han.sam.client.ClientSpeakerRegistry.register(this);
     }
 
     /** True only after this client TE has applied a server description packet. */
@@ -87,18 +88,14 @@ public class TileEntitySpeaker extends TileEntity {
     }
 
     private void syncRegistry() {
-        if (this.worldObj == null || this.worldObj.isRemote) {
-            return;
-        }
-
-        SpeakerRegistry.register(this);
+        if (this.worldObj == null) return;
+        if (this.worldObj.isRemote) jp.me1han.sam.client.ClientSpeakerRegistry.register(this);
+        else SpeakerRegistry.register(this);
     }
 
     private void removeFromRegistry() {
-        if (this.worldObj == null || this.worldObj.isRemote) {
-            return;
-        }
-
-        SpeakerRegistry.unregister(this);
+        if (this.worldObj == null) return;
+        if (this.worldObj.isRemote) jp.me1han.sam.client.ClientSpeakerRegistry.unregister(this);
+        else SpeakerRegistry.unregister(this);
     }
 }
