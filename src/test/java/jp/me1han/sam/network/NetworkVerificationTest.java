@@ -843,6 +843,32 @@ public final class NetworkVerificationTest {
         check(client.played.size() == before, "Unsolicited legacy fallback is ignored");
         for (int i = 0; i < 25; i++) client.tick();
         check(client.missing.size() == requests && client.live.isEmpty(), "Missing TE neither polls server nor leaves late sounds playing");
+
+        TestClient bounded = new TestClient(); bounded.world = world;
+        PacketAnnounce playing = start(650); playing.playLocalSound = true;
+        receiveReady(bounded, playing); bounded.tick();
+        check(!bounded.live.isEmpty(), "Queue overflow fixture starts an active sound");
+        int readsBeforeOverflow = bounded.worldReads;
+        Thread flood = new Thread(() -> {
+            for (int i = 0; i < AnnounceManager.MAX_PENDING + 1; i++)
+                bounded.receive(new PacketAnnounceStop(10000 + i));
+        });
+        flood.start();
+        try { flood.join(); } catch (InterruptedException e) { throw new AssertionError(e); }
+        check(bounded.pendingCount() == AnnounceManager.MAX_PENDING,
+            "Client pending queue accepts at most MAX_PENDING actions");
+        check(bounded.overflowPending() && bounded.worldReads == readsBeforeOverflow && !bounded.live.isEmpty(),
+            "Queue overflow performs no world or sound work on the network thread");
+        bounded.tick();
+        check(bounded.pendingCount() == 0 && !bounded.overflowPending() && bounded.live.isEmpty(),
+            "Next client tick clears overflow actions, sessions and playing sounds");
+        PacketAnnounce recovered = start(651); recovered.playLocalSound = true;
+        receiveReady(bounded, recovered); bounded.tick();
+        check(!bounded.live.isEmpty(), "Client accepts a new START after overflow recovery");
+        bounded.receive(new PacketAnnounceStop(99999));
+        bounded.world = new FixtureWorld(); bounded.tick();
+        check(bounded.pendingCount() == 0 && !bounded.overflowPending() && bounded.live.isEmpty(),
+            "World identity change clears pending and overflow state");
     }
 
     private static void ordinaryRepeats() {
@@ -1855,6 +1881,8 @@ public final class NetworkVerificationTest {
         @Override protected void requestMissing(PacketMissingSpeakers packet) { missing.add(packet); }
         final List<PacketMissingSpeakers> missing = new ArrayList<>();
         @Override protected void finished(long id) { check(ended.add(id), "No duplicate completion acknowledgement"); }
+        int pendingCount() { return pendingActionCount(); }
+        boolean overflowPending() { return hasPendingOverflow(); }
         void tick() { ticks++; onClientTick(new TickEvent.ClientTickEvent(TickEvent.Phase.START)); }
     }
 
