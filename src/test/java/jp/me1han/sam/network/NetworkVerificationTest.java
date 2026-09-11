@@ -17,6 +17,7 @@ import jp.me1han.sam.client.AnnounceManager;
 import jp.me1han.sam.client.ClientSpeakerRegistry;
 import jp.me1han.sam.compat.TrainCompat;
 import jp.me1han.sam.compat.TrainCompatRegistry;
+import jp.me1han.sam.compat.TrainDetectionManager;
 import jp.me1han.sam.compat.TrainSnapshot;
 import jp.me1han.sam.render.*;
 import jp.me1han.sam.link.LinkKey;
@@ -165,6 +166,7 @@ public final class NetworkVerificationTest {
         TrainCompat original = (TrainCompat)activeField.get(null);
 
         try {
+            TrainDetectionManager.clear();
             check(!TrainCompatRegistry.get().isAvailable(), "RTM-free registry starts with unavailable no-op compat");
             FixtureWorld noRtmWorld = new FixtureWorld();
             TileEntityStartAnnouncer noRtmStart = new TileEntityStartAnnouncer();
@@ -176,86 +178,155 @@ public final class NetworkVerificationTest {
             noRtmStart.updateEntity();
             noRtmStop.updateEntity();
             noRtmSelector.updateEntity();
-            check(!TrainCompatRegistry.get().isAvailable(), "RTM-free train tile updates retain no-op compat");
+            check(!TrainCompatRegistry.get().isAvailable()
+                    && TrainDetectionManager.findFirstTrain(noRtmWorld,
+                        AxisAlignedBB.getBoundingBox(-2, -2, -2, 2, 2, 2), false) == null,
+                "RTM-free train tile updates and indexed queries remain safely empty");
 
-            FakeTrain nonControl = new FakeTrain(10, false, 100L, "non-control");
-            FakeTrain control = new FakeTrain(20, true, 200L, "control");
-            FakeTrainCompat fake = new FakeTrainCompat(nonControl, control);
+            FakeTrainCompat fake = new FakeTrainCompat();
             activeField.set(null, fake);
+            TrainDetectionManager.clear();
+
+            FixtureWorld indexed = new FixtureWorld();
+            FakeTrain near = indexed.addTrain(10, false, 100L, "near", 0, 0);
+            FakeTrain control = indexed.addTrain(20, true, 200L, "control", 2, 0);
+            indexed.addTrain(30, true, 300L, "far", 100, 100);
+            AxisAlignedBB local = AxisAlignedBB.getBoundingBox(-2, -2, -2, 4, 3, 3);
+            for (int i = 0; i < 100; i++)
+                check(TrainDetectionManager.findFirstTrain(indexed, local, false) == near,
+                    "Repeated train query keeps deterministic nearest result");
+            check(indexed.entityScans == 1 && fake.wraps == 3,
+                "One World and tick performs one loaded-entity enumeration and wrap pass");
+            indexed.nextTick();
+            check(indexed.entityScans == 1, "A tick without train queries performs no eager rebuild");
+            TrainDetectionManager.findFirstTrain(indexed, local, false);
+            check(indexed.entityScans == 2 && fake.wraps == 6,
+                "First query in the next tick rebuilds the train index exactly once");
+            check(TrainDetectionManager.findFirstTrain(indexed, local, true) == control,
+                "Control-car query excludes a nearer non-control train");
+
+            FixtureWorld boundaryWorld = new FixtureWorld();
+            FakeTrain crossing = boundaryWorld.addTrain(40, true, 400L, "crossing", 16, 0);
+            crossing.boundingBox.setBounds(15.5, 0, -.5, 16.5, 1, .5);
+            TrainSnapshot crossingResult = TrainDetectionManager.findFirstTrain(boundaryWorld,
+                AxisAlignedBB.getBoundingBox(16.25, 0, -.25, 16.75, 1, .25), true);
+            check(crossingResult == crossing && crossing.controlChecks == 1,
+                "Cell-crossing train is found and deduplicated across indexed cells");
+            check(TrainDetectionManager.findFirstTrain(boundaryWorld,
+                AxisAlignedBB.getBoundingBox(80, 0, 80, 81, 1, 81), false) == null,
+                "Spatial query excludes distant trains");
+            check(TrainDetectionManager.findFirstTrain(boundaryWorld,
+                AxisAlignedBB.getBoundingBox(17, 0, -.25, 17.5, 1, .25), false) == null,
+                "Shared spatial cell does not bypass final train/query AABB intersection");
+
+            FixtureWorld clientWorld = new FixtureWorld(); clientWorld.isRemote = true;
+            clientWorld.addTrain(45, true, 450L, "client", 0, 0);
+            int cachedBeforeClient = trainDetectionWorlds();
+            check(TrainDetectionManager.findFirstTrain(clientWorld, local, false) == null
+                    && clientWorld.entityScans == 0 && trainDetectionWorlds() == cachedBeforeClient,
+                "Client World never builds a train index");
+
+            FixtureWorld deterministicWorld = new FixtureWorld();
+            deterministicWorld.addTrain(60, false, 600L, "higher-id", 0, 0);
+            FakeTrain lowerId = deterministicWorld.addTrain(50, false, 500L, "lower-id", 0, 0);
+            check(TrainDetectionManager.findFirstTrain(deterministicWorld, local, false) == lowerId,
+                "Equal-distance train selection uses entity id as deterministic tie break");
+            check(indexed.entityScans == 2,
+                "A query in another World does not rebuild the first World index");
+
+            int cached = trainDetectionWorlds();
+            TrainDetectionManager.INSTANCE.unload(new net.minecraftforge.event.world.WorldEvent.Unload(boundaryWorld));
+            check(trainDetectionWorlds() == cached - 1, "World unload releases its train index and Entity references");
+            int boundaryScans = boundaryWorld.entityScans;
+            TrainDetectionManager.findFirstTrain(boundaryWorld, local, false);
+            check(boundaryWorld.entityScans == boundaryScans + 1,
+                "A query after unload creates a fresh World index");
+            TrainDetectionManager.clear();
+            check(trainDetectionWorlds() == 0, "Server-stop style clear releases every train index");
 
             FixtureWorld offWorld = new FixtureWorld();
+            FakeTrain nonControl = offWorld.addTrain(10, false, 100L, "non-control", 1, 0);
+            offWorld.addTrain(20, true, 200L, "control", 2, 0);
             CountingAnnouncer offReceiver = new CountingAnnouncer(); offReceiver.setLinkKey("selector-off");
             offWorld.add(offReceiver, 0, 0, 0);
             TileEntityTrainTypeSelector off = new TileEntityTrainTypeSelector(); off.setLinkKey("selector-off");
             off.conditions.add(new TrainTypeCondition("name", 0)); offWorld.add(off, 1, 0, 0);
             off.updateEntity();
             check("non-control".equals(offReceiver.receivedData.get("name")) && offReceiver.dataReceives == 1,
-                "Selector without control-car filtering chooses the first train");
+                "Selector without control-car filtering dispatches selected train data");
             off.updateEntity();
             check(offReceiver.dataReceives == 1, "Selector does not resend while the same entity remains selected");
-            fake.setTrains();
+            offWorld.loadedEntityList.clear(); offWorld.nextTick();
             off.updateEntity();
             check(lastTrainId(off) == -1, "Selector clears entity identity after all trains leave");
-            fake.setTrains(nonControl, control);
+            offWorld.loadedEntityList.add(nonControl); offWorld.nextTick();
             off.updateEntity();
             check(offReceiver.dataReceives == 2, "Selector sends again when the same entity re-enters");
 
             FixtureWorld onWorld = new FixtureWorld();
+            onWorld.addTrain(11, false, 110L, "non-control", 1, 0);
+            FakeTrain onControl = onWorld.addTrain(21, true, 210L, "control", 2, 0);
             CountingAnnouncer onReceiver = new CountingAnnouncer(); onReceiver.setLinkKey("selector-on");
             onWorld.add(onReceiver, 0, 0, 0);
             TileEntityTrainTypeSelector on = new TileEntityTrainTypeSelector(); on.setLinkKey("selector-on");
             on.isControlCar = true; on.conditions.add(new TrainTypeCondition("name", 0)); onWorld.add(on, 1, 0, 0);
             on.updateEntity();
-            check(fake.lastControlCarOnly && "control".equals(onReceiver.receivedData.get("name"))
-                && lastTrainId(on) == control.entityId,
-                "Control-car selector skips a leading non-control car and selects the first control car");
+            check("control".equals(onReceiver.receivedData.get("name"))
+                && lastTrainId(on) == onControl.getEntityId(),
+                "Control-car selector skips a nearer non-control car");
             int receives = onReceiver.dataReceives;
-            fake.setTrains(nonControl);
+            onWorld.loadedEntityList.remove(onControl); onWorld.nextTick();
             on.updateEntity();
             check(onReceiver.dataReceives == receives && lastTrainId(on) == -1,
                 "A non-control car neither sends data nor becomes the remembered selector entity");
-            fake.setTrains(nonControl, control);
+            onWorld.loadedEntityList.add(onControl); onWorld.nextTick();
             on.updateEntity();
             check(onReceiver.dataReceives == receives + 1,
                 "Control car can be processed again after no qualifying train was present");
 
             FixtureWorld triggerWorld = new FixtureWorld();
+            FakeTrain triggerTrain = triggerWorld.addTrain(70, true, 700L, "trigger", 2, 0);
             CountingAnnouncer triggerReceiver = new CountingAnnouncer(); triggerReceiver.setLinkKey("train-trigger");
             triggerWorld.add(triggerReceiver, 0, 0, 0);
             TileEntityStartAnnouncer start = new TileEntityStartAnnouncer(); start.setLinkKey("train-trigger");
             triggerWorld.add(start, 1, 0, 0);
             TileEntityStopAnnouncer stop = new TileEntityStopAnnouncer(); stop.setLinkKey("train-trigger");
             stop.isControlCar = true; triggerWorld.add(stop, 2, 0, 0);
-            int snapshotSearches = fake.trainSearches;
             start.updateEntity();
             stop.updateEntity();
-            check(triggerReceiver.starts == 1 && triggerReceiver.stops == 1
-                && fake.formationSelections.equals(Arrays.asList(100L, 200L)),
-                "Start/stop select one formation with control-car filtering applied");
-            check(fake.trainSearches == snapshotSearches,
-                "Start/stop formation lookup does not request TrainSnapshot wrappers");
+            check(triggerReceiver.starts == 1 && triggerReceiver.stops == 1 && triggerWorld.entityScans == 1,
+                "Start/stop share one indexed scan while preserving formation triggers");
+            check(triggerTrain.formationChecks == 1,
+                "Formation id reflection result is cached across detectors in one tick");
             start.updateEntity();
             stop.updateEntity();
             check(triggerReceiver.starts == 1 && triggerReceiver.stops == 1,
                 "Start/stop trigger only once while the same formation remains");
-            FakeTrain anotherCarInFormation = new FakeTrain(11, false, 100L, "same-formation");
-            fake.setTrains(anotherCarInFormation, nonControl, control);
+            triggerWorld.loadedEntityList.clear();
+            triggerWorld.addTrain(71, true, 700L, "same-formation", 2, 0); triggerWorld.nextTick();
             start.updateEntity();
             stop.updateEntity();
             check(triggerReceiver.starts == 1 && triggerReceiver.stops == 1,
                 "A different entity from the same formation does not cause a duplicate trigger");
-            fake.setTrains();
+            triggerWorld.loadedEntityList.clear(); triggerWorld.nextTick();
             start.updateEntity();
             stop.updateEntity();
-            fake.setTrains(nonControl, control);
+            triggerWorld.addTrain(72, true, 700L, "reentered", 2, 0); triggerWorld.nextTick();
             start.updateEntity();
             stop.updateEntity();
             check(triggerReceiver.starts == 2 && triggerReceiver.stops == 2,
                 "Start/stop trigger again after the formation leaves and re-enters");
         } finally {
             activeField.set(null, original);
+            TrainDetectionManager.clear();
             SamLinkRegistry.clear();
         }
+    }
+
+    private static int trainDetectionWorlds() throws Exception {
+        Field field = TrainDetectionManager.class.getDeclaredField("WORLDS");
+        field.setAccessible(true);
+        return ((Map<?, ?>)field.get(null)).size();
     }
 
     private static int lastTrainId(TileEntityTrainTypeSelector selector) throws Exception {
@@ -1820,51 +1891,35 @@ public final class NetworkVerificationTest {
             super.onDataReceived(data, sourcePos);
         }
     }
-    private static final class FakeTrain implements TrainSnapshot {
-        final int entityId;
+    private static final class FakeTrain extends Entity implements TrainSnapshot {
         final boolean controlCar;
         final long formationId;
         final String name;
-        FakeTrain(int entityId, boolean controlCar, long formationId, String name) {
-            this.entityId = entityId;
+        int controlChecks, formationChecks, extractChecks;
+        FakeTrain(World world, int entityId, boolean controlCar, long formationId, String name, double x, double z) {
+            super(world);
+            setEntityId(entityId);
             this.controlCar = controlCar;
             this.formationId = formationId;
             this.name = name;
+            setSize(1, 1);
+            setPosition(x, 0, z);
         }
-        @Override public int getEntityId() { return entityId; }
-        @Override public boolean isControlCar() { return controlCar; }
-        @Override public long getFormationId() { return formationId; }
+        @Override protected void entityInit() {}
+        @Override protected void readEntityFromNBT(NBTTagCompound nbt) {}
+        @Override protected void writeEntityToNBT(NBTTagCompound nbt) {}
+        @Override public boolean isControlCar() { controlChecks++; return controlCar; }
+        @Override public long getFormationId() { formationChecks++; return formationId; }
         @Override public String extractData(String key, int type) {
+            extractChecks++;
             return "name".equals(key) && type == 0 ? name : null;
         }
     }
     private static final class FakeTrainCompat implements TrainCompat {
-        List<FakeTrain> trains = Collections.emptyList();
-        final List<Long> formationSelections = new ArrayList<>();
-        boolean lastControlCarOnly;
-        int trainSearches;
-        FakeTrainCompat(FakeTrain... trains) { setTrains(trains); }
-        void setTrains(FakeTrain... trains) { this.trains = Arrays.asList(trains); }
-        private FakeTrain select(boolean controlCarOnly) {
-            lastControlCarOnly = controlCarOnly;
-            for (FakeTrain train : trains) {
-                if (!controlCarOnly || train.isControlCar()) return train;
-            }
-            return null;
-        }
+        int wraps;
         @Override public String getId() { return "test"; }
         @Override public boolean isAvailable() { return true; }
-        @Override public TrainSnapshot findFirstTrain(World world, AxisAlignedBB bounds, boolean controlCarOnly) {
-            trainSearches++;
-            return select(controlCarOnly);
-        }
-        @Override public long findFirstFormationId(World world, AxisAlignedBB bounds, boolean controlCarOnly) {
-            FakeTrain selected = select(controlCarOnly);
-            long id = selected == null ? -1L : selected.getFormationId();
-            if (selected != null) formationSelections.add(id);
-            return id;
-        }
-        @Override public TrainSnapshot wrap(Entity entity) { return null; }
+        @Override public TrainSnapshot wrap(Entity entity) { wraps++; return entity instanceof FakeTrain ? (FakeTrain)entity : null; }
         @Override public boolean isInspectionTool(ItemStack stack) { return false; }
     }
     private static class CountingAwareness extends TileEntityAwarenessAnnouncer {
@@ -1872,19 +1927,33 @@ public final class NetworkVerificationTest {
         @Override public void scheduleAfterDeparture() { scheduled++; }
     }
     private static class FixtureWorld extends World {
-        int updates;
+        int updates, entityScans;
+        long time;
         final Map<Long, TileEntity> tiles = new HashMap<>();
         FixtureWorld() {
             super(new SaveHandlerMP(), "network-test", new WorldProviderSurface(), new WorldSettings(0, WorldSettings.GameType.CREATIVE, false, false, WorldType.FLAT), new Profiler());
             loadedTileEntityList = new ArrayList() { @Override public Iterator iterator() { throw new AssertionError("Full TE scan"); } };
+            loadedEntityList = new ArrayList() {
+                @Override public Iterator iterator() { entityScans++; return super.iterator(); }
+            };
         }
         void add(TileEntity tile, int x, int y, int z) {
             tile.setWorldObj(this); tile.xCoord = x; tile.yCoord = y; tile.zCoord = z;
             tiles.put(SpeakerRegistry.position(x, y, z), tile); tile.validate();
         }
+        FakeTrain addTrain(int id, boolean control, long formation, String name, double x, double z) {
+            FakeTrain train = new FakeTrain(this, id, control, formation, name, x, z);
+            loadedEntityList.add(train);
+            return train;
+        }
+        void nextTick() { time++; }
+        @Override public long getTotalWorldTime() { return time; }
         @Override protected IChunkProvider createChunkProvider() { return null; }
         @Override protected int func_152379_p() { return 0; }
         @Override public Entity getEntityByID(int id) { return null; }
+        @Override public List getEntitiesWithinAABB(Class type, AxisAlignedBB bounds) {
+            throw new AssertionError("Detector performed a per-query World entity search");
+        }
         @Override public boolean blockExists(int x, int y, int z) { return true; }
         @Override public TileEntity getTileEntity(int x, int y, int z) { return tiles.get(SpeakerRegistry.position(x, y, z)); }
         @Override public void markBlockForUpdate(int x, int y, int z) { updates++; }
