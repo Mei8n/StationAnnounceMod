@@ -208,26 +208,26 @@ public final class NetworkVerificationTest {
         ScriptEngine engine = SamScriptEngineFactory.requireEngine();
         FixtureWorld world = new FixtureWorld();
         TileEntityAnnouncer tile = new TileEntityAnnouncer(); tile.setLinkKey("A"); world.add(tile, 1, 0, 0);
-        engine.put("tile", tile);
-        Object result = engine.eval("tile.linkKey = ' B '; tile.linkKey;");
-        check("B".equals(tile.getLinkKey()) && "B".equals(String.valueOf(result)),
-            "Nashorn maps announcer linkKey reads and writes to JavaBeans accessors");
-        check(SamLinkRegistry.findFirst(world, "A", TileEntityAnnouncer.class) == null
-            && SamLinkRegistry.findFirst(world, "B", TileEntityAnnouncer.class) == tile,
-            "Nashorn announcer property write immediately reindexes its logical link");
+        tile.receivedData.put("name", "snapshot");
+        engine.put("tile", jp.me1han.sam.script.AnnounceScriptContext.snapshot(tile));
+        Object result = engine.eval("String(tile.linkKey) + ':' + String(tile.getLinkKey()) + ':'"
+            + " + String(tile.receivedData.get('name'));");
+        check("A:A:snapshot".equals(String.valueOf(result)),
+            "Nashorn maps documented context getters to JavaBeans properties");
+        engine.eval("try { tile.linkKey = 'B'; tile.receivedData.put('name', 'changed'); } catch (expected) {}");
+        check("A".equals(tile.getLinkKey()) && "snapshot".equals(tile.receivedData.get("name"))
+            && SamLinkRegistry.findFirst(world, "A", TileEntityAnnouncer.class) == tile,
+            "Script context writes cannot mutate or reindex the real announcer");
 
         TileEntityDepartureMelody melody = new TileEntityDepartureMelody(); melody.setLinkKey("A"); world.add(melody, 2, 0, 0);
-        engine.put("tile", melody);
-        result = engine.eval("tile.linkKey = ' C '; tile.linkKey;");
-        check("C".equals(melody.getLinkKey()) && "C".equals(String.valueOf(result)),
-            "Nashorn maps departure melody linkKey through the same JavaBeans property");
-        check(SamLinkRegistry.findFirst(world, "A", TileEntityDepartureMelody.class) == null
-            && SamLinkRegistry.findFirst(world, "C", TileEntityDepartureMelody.class) == melody,
-            "Nashorn departure property write immediately reindexes its logical link");
+        engine.put("tile", jp.me1han.sam.script.DepartureScriptContext.snapshot(melody));
+        result = engine.eval("String(tile.linkKey) + ':' + (typeof tile.receivedData);");
+        check("A:undefined".equals(String.valueOf(result)),
+            "Departure context exposes linkKey without ordinary receivedData");
 
         NBTTagCompound saved = new NBTTagCompound(); tile.writeToNBT(saved);
         TileEntityAnnouncer loaded = new TileEntityAnnouncer(); loaded.readFromNBT(saved);
-        check("B".equals(saved.getString("linkKey")) && "B".equals(loaded.getLinkKey()),
+        check("A".equals(saved.getString("linkKey")) && "A".equals(loaded.getLinkKey()),
             "Private JavaBeans property retains the existing linkKey NBT format");
         SamLinkRegistry.clear(world);
     }

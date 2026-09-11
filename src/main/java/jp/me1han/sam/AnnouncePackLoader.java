@@ -5,7 +5,13 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import jp.me1han.sam.api.AnnounceData;
 import jp.me1han.sam.api.AnnounceScriptInfo;
+import jp.me1han.sam.api.DepartureProgram;
+import jp.me1han.sam.network.PacketAnnounce;
+import jp.me1han.sam.network.PacketDepartureStart;
+import jp.me1han.sam.network.PacketLimits;
 import jp.me1han.sam.render.TileEntityAnnouncer;
+import jp.me1han.sam.script.AnnounceScriptContext;
+import jp.me1han.sam.script.DepartureScriptContext;
 import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -100,61 +106,104 @@ public class AnnouncePackLoader {
     }
 
     private static void parseJavaScript(InputStream is, String scriptName) {
+        if (!PacketLimits.string(scriptName, PacketLimits.NAME)) {
+            logScriptFailure(scriptName, "load", new IllegalArgumentException("Script filename is too long"));
+            return;
+        }
+        ScriptEngine engine = SamScriptEngineFactory.createEngine();
+        if (engine == null) {
+            logScriptFailure(scriptName, "load", new IllegalStateException(SamScriptEngineFactory.unavailableMessage()));
+            return;
+        }
         try (InputStreamReader reader = new InputStreamReader(is, "UTF-8")) {
-            ScriptEngine engine = SamScriptEngineFactory.createEngine();
-
-            if (engine == null) {
-                StationAnnounceModCore.logger.error("[SAM] CRITICAL: "
-                    + SamScriptEngineFactory.unavailableMessage());
-                return;
-            }
-
             engine.put("sam", new SAMScriptAPI());
             engine.eval(reader);
+            if (!Boolean.TRUE.equals(engine.eval("typeof samMain === 'function'")))
+                throw new IllegalArgumentException("Required function samMain(tile) is missing");
 
-            String displayName = scriptName;
-            try {
-                Invocable inv = (Invocable) engine;
-                Object result = inv.invokeFunction("getDisplayName");
-                if (result != null) displayName = result.toString();
-            } catch (Exception e) {
-                // getDisplayNameがない場合はファイル名を使用
-            }
-
-            scriptEngines.put(scriptName, engine);
-            availableScripts.removeIf(info -> info.fileName.equals(scriptName));
-            availableScripts.add(new AnnounceScriptInfo(scriptName, displayName));
-            StationAnnounceModCore.logger.info("[SAM] Registered: " + displayName);
-
-        } catch (Exception e) {
-            StationAnnounceModCore.logger.error("[SAM] JS Error in " + scriptName, e);
+        } catch (Throwable error) {
+            rethrowFatal(error);
+            logScriptFailure(scriptName, "load", error);
+            return;
         }
+
+        String displayName = scriptName;
+        try {
+            if (Boolean.TRUE.equals(engine.eval("typeof getDisplayName === 'function'"))) {
+                Object result = ((Invocable) engine).invokeFunction("getDisplayName");
+                if (result == null) throw new IllegalArgumentException("getDisplayName() returned null");
+                String candidate = result.toString();
+                if (!PacketLimits.string(candidate, PacketLimits.NAME))
+                    throw new IllegalArgumentException("getDisplayName() exceeds " + PacketLimits.NAME + " characters");
+                displayName = candidate;
+            }
+        } catch (Throwable error) {
+            rethrowFatal(error);
+            logScriptFailure(scriptName, "getDisplayName", error);
+        }
+
+        scriptEngines.put(scriptName, engine);
+        availableScripts.removeIf(info -> info.fileName.equals(scriptName));
+        availableScripts.add(new AnnounceScriptInfo(scriptName, displayName));
+        StationAnnounceModCore.logger.info("[SAM] Registered: " + displayName);
     }
 
     public static AnnounceData runScript(String name, TileEntityAnnouncer tile) {
         try {
             ScriptEngine engine = scriptEngines.get(name);
-            if (engine == null) return null;
+            if (engine == null) throw new IllegalArgumentException("Script not found");
+            AnnounceScriptContext context = AnnounceScriptContext.snapshot(tile);
             synchronized (engine) {
-                Invocable inv = (Invocable) engine;
-                return (AnnounceData) inv.invokeFunction("samMain", tile);
+                Object value = ((Invocable) engine).invokeFunction("samMain", context);
+                if (!(value instanceof AnnounceData))
+                    throw new IllegalArgumentException("samMain(tile) must return sam.build(...) AnnounceData");
+                AnnounceData data = (AnnounceData)value;
+                PacketAnnounce validation = new PacketAnnounce(data, context.getLinkKey(), false, 0, 0, 0);
+                validation.sessionId = 1;
+                validation.resolveTiming(soundTicks);
+                validation.validatePayload();
+                return data;
             }
-        } catch (Exception e) {
-            StationAnnounceModCore.logger.error("[SAM] Runtime Error", e);
+        } catch (Throwable error) {
+            rethrowFatal(error);
+            logScriptFailure(name, "samMain", error);
+            return null;
         }
-        return null;
     }
 
-    public static jp.me1han.sam.api.DepartureProgram runDepartureScript(String name,
+    public static DepartureProgram runDepartureScript(String name,
             jp.me1han.sam.render.TileEntityDepartureMelody tile) throws Exception {
-        ScriptEngine engine = scriptEngines.get(name);
-        if (engine == null) throw new IllegalArgumentException("Departure script not found: " + name);
-        synchronized (engine) {
-            Object value = ((Invocable) engine).invokeFunction("samMain", tile);
-            if (!(value instanceof jp.me1han.sam.api.DepartureProgram)) {
-                throw new IllegalArgumentException("Departure samMain must return sam.build(melody, sounds, mode)");
+        try {
+            ScriptEngine engine = scriptEngines.get(name);
+            if (engine == null) throw new IllegalArgumentException("Departure script not found");
+            DepartureScriptContext context = DepartureScriptContext.snapshot(tile);
+            synchronized (engine) {
+                Object value = ((Invocable) engine).invokeFunction("samMain", context);
+                if (!(value instanceof DepartureProgram))
+                    throw new IllegalArgumentException("Departure samMain(tile) must return sam.build(melody, sounds, mode)");
+                DepartureProgram program = ((DepartureProgram)value).resolve(soundTicks);
+                PacketDepartureStart validation = new PacketDepartureStart();
+                validation.sessionId = 1; validation.linkKey = context.getLinkKey(); validation.departure = program;
+                validation.validateDeparturePayload();
+                return program;
             }
-            return ((jp.me1han.sam.api.DepartureProgram) value).resolve(soundTicks);
+        } catch (Throwable error) {
+            rethrowFatal(error);
+            logScriptFailure(name, "samMain", error);
+            if (error instanceof Exception) throw (Exception)error;
+            throw new IllegalArgumentException(error.toString(), error);
         }
+    }
+
+    private static void logScriptFailure(String scriptName, String phase, Throwable error) {
+        String cause = error.getMessage();
+        if (cause == null || cause.isEmpty()) cause = error.getClass().getName();
+        StationAnnounceModCore.logger.error("[SAM] Script '" + scriptName + "' failed during "
+            + phase + ": " + cause, error);
+    }
+
+    private static void rethrowFatal(Throwable error) {
+        if (error instanceof VirtualMachineError) throw (VirtualMachineError)error;
+        if (error instanceof ThreadDeath) throw (ThreadDeath)error;
     }
 }

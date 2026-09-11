@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
 import jp.me1han.sam.api.AnnounceData;
 import jp.me1han.sam.api.DepartureProgram;
 import jp.me1han.sam.api.DepartureSequence;
@@ -141,14 +140,28 @@ public final class DeparturePlaybackTest {
     }
 
     private static void verifyJavaScriptRuntime() throws Exception {
-        ScriptEngine managerEngine = new ScriptEngineManager().getEngineByName("nashorn");
-        check(managerEngine != null, SamScriptEngineFactory.unavailableMessage());
-
         ScriptEngine engine = SamScriptEngineFactory.requireEngine();
+        check(SamScriptEngineFactory.unavailableMessage().contains("Expected Java runtime: Java 8")
+            && SamScriptEngineFactory.unavailableMessage().contains(System.getProperty("java.runtime.version")),
+            "Nashorn-unavailable diagnostic identifies the required and actual runtime");
         engine.put("sam", new SAMScriptAPI());
+        check(Boolean.TRUE.equals(engine.eval("typeof Java === 'undefined' && typeof Packages === 'undefined'"
+            + " && typeof load === 'undefined' && typeof loadWithNewGlobal === 'undefined'"
+            + " && typeof exit === 'undefined' && typeof quit === 'undefined'")),
+            "Nashorn Java/package lookup and unnecessary host helpers are disabled");
+        expectScriptRejected(engine, "Java.type('java.lang.System')");
+        expectScriptRejected(engine, "Packages.java.lang.System.currentTimeMillis()");
+        expectScriptRejected(engine, "load('anything.js')");
+        expectScriptRejected(engine, "loadWithNewGlobal('anything.js')");
+        expectScriptRejected(engine, "sam.getClass().forName('java.lang.System')");
+
         engine.eval("function getDisplayName() { return 'runtime-check'; }"
             + " function samMain(tile) {"
-            + " if (String(tile.getLinkKey()) !== 'runtime') throw 'TileEntity interop failed';"
+            + " if (String(tile.getLinkKey()) !== 'runtime' || String(tile.linkKey) !== 'runtime') throw 'link context failed';"
+            + " if (String(tile.receivedData.get('key')) !== 'original') throw 'receivedData context failed';"
+            + " if (!tile.receivedData.containsKey('key') || tile.receivedData.isEmpty() || tile.receivedData.size() !== 1) throw 'read queries failed';"
+            + " try { tile.receivedData.put('key', 'changed'); } catch (expected) {}"
+            + " if (typeof tile.getWorldObj !== 'undefined' || typeof tile.worldObj !== 'undefined') throw 'raw world leaked';"
             + " return sam.build(null, ['test:body'], null); }");
         Invocable invocable = (Invocable)engine;
         check("runtime-check".equals(invocable.invokeFunction("getDisplayName")),
@@ -156,10 +169,59 @@ public final class DeparturePlaybackTest {
         jp.me1han.sam.render.TileEntityAnnouncer tile =
             new jp.me1han.sam.render.TileEntityAnnouncer();
         tile.setLinkKey("runtime");
-        Object value = invocable.invokeFunction("samMain", tile);
-        check(value instanceof AnnounceData
-            && ((AnnounceData)value).bodySounds.equals(Collections.singletonList("test:body")),
-            "Nashorn samMain(), sam.build(...) and TileEntity Java interop remain available");
+        tile.receivedData.put("key", "original");
+        AnnouncePackLoader.soundTicks.put("test:body", 1);
+        AnnouncePackLoader.scriptEngines.put("runtime-context.js", engine);
+        AnnounceData value = AnnouncePackLoader.runScript("runtime-context.js", tile);
+        check(value != null && value.bodySounds.equals(Collections.singletonList("test:body")),
+            "Documented ordinary samMain(), sam.build(...) and read-only context work");
+        check("original".equals(tile.receivedData.get("key")),
+            "Script mutation cannot change the TileEntity receivedData map");
+
+        ScriptEngine departureEngine = SamScriptEngineFactory.requireEngine();
+        departureEngine.put("sam", new SAMScriptAPI());
+        departureEngine.eval("function samMain(tile) {"
+            + " if (String(tile.getLinkKey()) !== 'departure' || String(tile.linkKey) !== 'departure') throw 'link context failed';"
+            + " if (typeof tile.receivedData !== 'undefined') throw 'departure receivedData leaked';"
+            + " return sam.build('test:melody', ['test:door'], sam.push()); }");
+        AnnouncePackLoader.scriptEngines.put("departure-context.js", departureEngine);
+        AnnouncePackLoader.soundTicks.putAll(lengths(20, 5));
+        jp.me1han.sam.render.TileEntityDepartureMelody departureTile =
+            new jp.me1han.sam.render.TileEntityDepartureMelody();
+        departureTile.setLinkKey("departure");
+        check(AnnouncePackLoader.runDepartureScript("departure-context.js", departureTile).melodyTicks == 20,
+            "Departure scripts receive linkKey but no receivedData or raw TileEntity");
+
+        ScriptEngine wrong = SamScriptEngineFactory.requireEngine(); wrong.eval("function samMain(tile) { return null; }");
+        AnnouncePackLoader.scriptEngines.put("wrong.js", wrong);
+        check(AnnouncePackLoader.runScript("wrong.js", tile) == null, "Null/wrong ordinary return fails closed");
+        ScriptEngine runtimeError = SamScriptEngineFactory.requireEngine();
+        runtimeError.eval("function samMain(tile) { throw new Error('runtime-test'); }");
+        AnnouncePackLoader.scriptEngines.put("runtime-error.js", runtimeError);
+        check(AnnouncePackLoader.runScript("runtime-error.js", tile) == null,
+            "JavaScript runtime exception is contained at the script boundary");
+        ScriptEngine missing = SamScriptEngineFactory.requireEngine();
+        AnnouncePackLoader.scriptEngines.put("missing.js", missing);
+        check(AnnouncePackLoader.runScript("missing.js", tile) == null, "Missing samMain fails closed");
+        ScriptEngine wrongDeparture = SamScriptEngineFactory.requireEngine();
+        wrongDeparture.put("sam", new SAMScriptAPI());
+        wrongDeparture.eval("function samMain(tile) { return sam.build(null, [], null); }");
+        AnnouncePackLoader.scriptEngines.put("wrong-departure.js", wrongDeparture);
+        try {
+            AnnouncePackLoader.runDepartureScript("wrong-departure.js", departureTile);
+            throw new AssertionError("Wrong departure return type was accepted");
+        } catch (IllegalArgumentException expected) { checks++; }
+        AnnouncePackLoader.scriptEngines.remove("runtime-context.js");
+        AnnouncePackLoader.scriptEngines.remove("departure-context.js");
+        AnnouncePackLoader.scriptEngines.remove("wrong.js");
+        AnnouncePackLoader.scriptEngines.remove("runtime-error.js");
+        AnnouncePackLoader.scriptEngines.remove("missing.js");
+        AnnouncePackLoader.scriptEngines.remove("wrong-departure.js");
+    }
+
+    private static void expectScriptRejected(ScriptEngine engine, String source) {
+        try { engine.eval(source); throw new AssertionError("Restricted Nashorn host access was available: " + source); }
+        catch (javax.script.ScriptException expected) { checks++; }
     }
 
     private static void verifyParts() throws Exception {
@@ -216,6 +278,10 @@ public final class DeparturePlaybackTest {
             == AnnounceData.MAX_REPEAT_COUNT, "Excessive repeat count is capped");
         check(new AnnounceData("test:start", Collections.singletonList("test:body"), "test:arr").repeatCount == 1,
             "Existing AnnounceData constructor defaults to one repeat");
+        String oversizedSound = String.join("", Collections.nCopies(
+            jp.me1han.sam.network.PacketLimits.NAME + 1, "s"));
+        expectInvalid(() -> api.startmelo(oversizedSound));
+        expectInvalid(() -> api.build(null, Collections.<Object>singletonList(oversizedSound), null));
         AnnounceData withInterval = api.build(null,
             Arrays.<Object>asList("test:one", api.interval(0.25), "test:two"), null, 2);
         check(withInterval.bodySounds.equals(Arrays.asList("test:one", "", "test:two"))
@@ -296,6 +362,7 @@ public final class DeparturePlaybackTest {
     private static void verifyPackScripts() throws Exception {
         java.nio.file.Path path = java.nio.file.Files.createTempFile("sam-script-test-", ".zip");
         String departure = "function samMain(tile) { return sam.build('test:melody', [], sam.toggle().interval(0.059)); }";
+        String hugeDisplayName = String.join("", Collections.nCopies(257, "x"));
         try {
             try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(path))) {
                 scriptEntry(zip, "sam_length.json", "{\"test:melody\":{\"length\":1.23}}");
@@ -303,6 +370,9 @@ public final class DeparturePlaybackTest {
                 scriptEntry(zip, "departure/ignored.js", departure);
                 scriptEntry(zip, "scripts/ordinary.js", "function samMain(t) { return sam.build(null, [], null); }");
                 scriptEntry(zip, "scripts/sub/departure.js", departure);
+                scriptEntry(zip, "scripts/huge-name.js", "function getDisplayName(){return '" + hugeDisplayName
+                    + "';} function samMain(tile){return sam.build(null, [], null);}");
+                scriptEntry(zip, "scripts/missing-main.js", "function getDisplayName(){return 'invalid';}");
             }
             try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(path.toFile())) {
                 AnnouncePackLoader.loadScripts(zip);
@@ -318,6 +388,12 @@ public final class DeparturePlaybackTest {
             check(!AnnouncePackLoader.scriptEngines.containsKey("ignored.js"), "Legacy departure folder is not loaded");
             check(AnnouncePackLoader.runDepartureScript("departure.js", null).alternate, "Subfolder scripts resolve by filename");
             check(AnnouncePackLoader.runScript("ordinary.js", null) != null, "Ordinary script runs from shared folder");
+            check(AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.fileName.equals("ordinary.js")
+                && s.displayName.equals("ordinary.js")), "Missing getDisplayName falls back to the script filename");
+            check(AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.fileName.equals("huge-name.js")
+                && s.displayName.equals("huge-name.js")), "Oversized getDisplayName fails closed to the filename");
+            check(!AnnouncePackLoader.scriptEngines.containsKey("missing-main.js"),
+                "Pack loader rejects a script without required samMain");
             try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(path))) {
                 scriptEntry(zip, "scripts/shared.js", departure + "function getDisplayName() { return 'later'; }");
             }
