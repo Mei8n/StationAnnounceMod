@@ -15,6 +15,7 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ public class AnnounceManager {
     private final Map<Long, AnnounceSession> activeSessions = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<Runnable> pending = new ConcurrentLinkedQueue<>();
     private World sessionWorld;
+    private long clientTick;
 
     protected World currentWorld() { return Minecraft.getMinecraft().theWorld; }
     protected void playSound(ISound sound) { Minecraft.getMinecraft().getSoundHandler().playSound(sound); }
@@ -89,6 +91,13 @@ public class AnnounceManager {
         // request or trust coordinate settings outside synchronized client TEs.
     }
 
+    public void receive(final jp.me1han.sam.network.PacketSessionSpeakerRoutes packet) {
+        pending.add(() -> {
+            AnnounceSession session = activeSessions.get(packet.sessionId);
+            if (session != null) session.acceptRoutes(packet);
+        });
+    }
+
     private class AnnounceSession {
         final long sessionId;
         final String linkKey;
@@ -115,6 +124,23 @@ public class AnnounceManager {
         final Map<jp.me1han.sam.api.DepartureSequence.Channel, List<ISound>> departureSounds =
             new java.util.EnumMap<>(jp.me1han.sam.api.DepartureSequence.Channel.class);
         jp.me1han.sam.api.DepartureSequence.Channel playbackChannel;
+        Map<Long, jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target> routes = new HashMap<>();
+        long routeRevision;
+        RouteAssembly routeAssembly;
+        long audibleTick = Long.MIN_VALUE;
+        boolean audibleThisTick;
+        boolean priorityArbitrated;
+
+        final class RouteAssembly {
+            final long revision;
+            final int chunkCount;
+            final Map<Integer, List<jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target>> chunks = new HashMap<>();
+
+            RouteAssembly(long revision, int chunkCount) {
+                this.revision = revision;
+                this.chunkCount = chunkCount;
+            }
+        }
 
         void trackSound(ISound sound) {
             if (playbackChannel == null) activeSounds.add(sound);
@@ -125,6 +151,31 @@ public class AnnounceManager {
             List<ISound> sounds = departureSounds.remove(channel);
             if (sounds != null) for (ISound sound : sounds)
                 stopSound(sound);
+        }
+
+        void acceptRoutes(jp.me1han.sam.network.PacketSessionSpeakerRoutes packet) {
+            if (packet.revision <= routeRevision) return;
+            if (routeAssembly == null || packet.revision > routeAssembly.revision) {
+                routeAssembly = new RouteAssembly(packet.revision, packet.chunkCount);
+            }
+            if (packet.revision != routeAssembly.revision || packet.chunkCount != routeAssembly.chunkCount
+                || routeAssembly.chunks.containsKey(packet.chunkIndex)) return;
+            routeAssembly.chunks.put(packet.chunkIndex,
+                new ArrayList<jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target>(packet.targets));
+            if (routeAssembly.chunks.size() != routeAssembly.chunkCount) return;
+
+            Map<Long, jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target> complete = new HashMap<>();
+            for (int i = 0; i < routeAssembly.chunkCount; i++) {
+                List<jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target> chunk = routeAssembly.chunks.get(i);
+                if (chunk == null) return;
+                for (jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target target : chunk)
+                    complete.put(target.position, target);
+            }
+            routes = complete;
+            routeRevision = routeAssembly.revision;
+            routeAssembly = null;
+            audibleTick = Long.MIN_VALUE;
+            if (!priorityArbitrated) arbitrateInitialPriority(this);
         }
 
         AnnounceSession(PacketAnnounce msg) {
@@ -171,6 +222,8 @@ public class AnnounceManager {
             if (sequence != null) sequence.cancel();
             stopSounds();
             queue.clear();
+            routes.clear();
+            routeAssembly = null;
         }
 
         void stopSounds() {
@@ -198,43 +251,41 @@ public class AnnounceManager {
             }
         }
 
-        String key = normalizeKey(msg.linkKey);
         long sessionKey = msg.sessionId;
         if (activeSessions.containsKey(sessionKey)) return;
         AnnounceSession candidate = new AnnounceSession(msg);
-        boolean candidateAudible = isCurrentlyAudible(candidate);
+        activeSessions.put(sessionKey, candidate);
+    }
 
-        // Decide whether the new session may start before mutating any active session.
-        // This keeps a rejected lower-priority request from stopping unrelated audio.
-        for (Map.Entry<Long, AnnounceSession> entry : activeSessions.entrySet()) {
-            AnnounceSession existing = entry.getValue();
-            if (!candidateAudible || !key.equals(existing.linkKey) || !isCurrentlyAudible(existing)) {
-                continue;
-            }
+    /** Apply START arbitration only after its authoritative initial route snapshot is complete. */
+    private void arbitrateInitialPriority(AnnounceSession candidate) {
+        if (candidate.priorityArbitrated || activeSessions.get(candidate.sessionId) != candidate) return;
+        candidate.priorityArbitrated = true;
+        if (!isCurrentlyAudible(candidate)) return;
 
-            if (existing.priority > msg.priority && !msg.allowOverlap
-                && msg.priority != PacketAnnounce.PRIORITY_AWARENESS) {
-                finished(msg.sessionId);
+        for (AnnounceSession existing : activeSessions.values()) {
+            if (existing == candidate || !candidate.linkKey.equals(existing.linkKey)
+                || !isCurrentlyAudible(existing)) continue;
+            if (existing.priority > candidate.priority && !candidate.allowOverlap
+                && candidate.priority != PacketAnnounce.PRIORITY_AWARENESS) {
+                activeSessions.remove(candidate.sessionId, candidate);
+                candidate.stop();
+                finished(candidate.sessionId);
                 return;
             }
         }
-
         for (Map.Entry<Long, AnnounceSession> entry : activeSessions.entrySet()) {
             AnnounceSession existing = entry.getValue();
-            if (!candidateAudible || !key.equals(existing.linkKey) || !isCurrentlyAudible(existing)) {
-                continue;
-            }
-            boolean interruptLower = existing.priority < msg.priority && !existing.allowOverlap
+            if (existing == candidate || !candidate.linkKey.equals(existing.linkKey)
+                || !isCurrentlyAudible(existing)) continue;
+            boolean interruptLower = existing.priority < candidate.priority && !existing.allowOverlap
                 && (existing.priority != PacketAnnounce.PRIORITY_AWARENESS || existing.hasStartedPlayback);
-            if (existing.priority == msg.priority || interruptLower) {
+            if (existing.priority == candidate.priority || interruptLower) {
                 existing.stop();
                 activeSessions.remove(entry.getKey(), existing);
                 finished(existing.sessionId);
             }
         }
-
-        activeSessions.put(sessionKey, candidate);
-
     }
 
     public void stopAnnounce() {
@@ -258,6 +309,7 @@ public class AnnounceManager {
             sessionWorld = world;
         }
         if (world == null) { pending.clear(); return; }
+        clientTick++;
         Runnable action;
         while ((action = pending.poll()) != null) action.run();
 
@@ -369,13 +421,24 @@ public class AnnounceManager {
 
             if (isPlaybackSuppressed(session)) return;
             boolean played = false;
-            int sourceCount = 0;
-            Collection<TileEntitySpeaker> speakers = ClientSpeakerRegistry.findByKey(world, session.linkKey);
-            for (TileEntitySpeaker speaker : speakers) {
-                if (sourceCount == jp.me1han.sam.network.PacketLimits.SESSION_TARGETS) break;
-                if (playSoundAtSpeaker(res, session, speaker)) {
-                    sourceCount++;
-                    played = true;
+            if (session.routeRevision > 0) {
+                for (jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target target : session.routes.values()) {
+                    TileEntitySpeaker speaker = ClientSpeakerRegistry.at(world, target.position);
+                    if (speaker != null) {
+                        if (session.linkKey.equals(normalizeKey(speaker.linkKey))
+                            && playSoundAtSpeaker(res, session, speaker)) {
+                            played = true;
+                        }
+                    } else if (playDescriptor(res, session, target)) {
+                        played = true;
+                    }
+                }
+            } else {
+                Collection<TileEntitySpeaker> speakers = ClientSpeakerRegistry.findByKey(world, session.linkKey);
+                for (TileEntitySpeaker speaker : speakers) {
+                    if (playSoundAtSpeaker(res, session, speaker)) {
+                        played = true;
+                    }
                 }
             }
             if (session.playLocalSound
@@ -391,13 +454,37 @@ public class AnnounceManager {
     }
 
     private boolean isCurrentlyAudible(AnnounceSession session) {
+        if (session.audibleTick == clientTick) return session.audibleThisTick;
         World world = currentWorld();
-        if (world == null) return false;
+        boolean audible = false;
+        if (world == null) return cacheAudible(session, false);
         if (session.playLocalSound
-            && inRange(session.x, session.y, session.z, (int)jp.me1han.sam.network.ServerSessions.LOCAL_RANGE)) return true;
-        for (TileEntitySpeaker speaker : ClientSpeakerRegistry.findByKey(world, session.linkKey))
-            if (validAudibleSpeaker(speaker)) return true;
-        return false;
+            && inRange(session.x, session.y, session.z, (int)jp.me1han.sam.network.ServerSessions.LOCAL_RANGE))
+            return cacheAudible(session, true);
+        if (session.routeRevision > 0) {
+            for (jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target target : session.routes.values()) {
+                TileEntitySpeaker speaker = ClientSpeakerRegistry.at(world, target.position);
+                if (speaker != null) {
+                    if (session.linkKey.equals(normalizeKey(speaker.linkKey)) && validAudibleSpeaker(speaker)) {
+                        audible = true;
+                        break;
+                    }
+                } else if (validAudibleDescriptor(target)) {
+                    audible = true;
+                    break;
+                }
+            }
+        } else {
+            for (TileEntitySpeaker speaker : ClientSpeakerRegistry.findByKey(world, session.linkKey))
+                if (validAudibleSpeaker(speaker)) { audible = true; break; }
+        }
+        return cacheAudible(session, audible);
+    }
+
+    private boolean cacheAudible(AnnounceSession session, boolean audible) {
+        session.audibleTick = clientTick;
+        session.audibleThisTick = audible;
+        return audible;
     }
 
     private boolean isPlaybackSuppressed(AnnounceSession session) {
@@ -415,6 +502,21 @@ public class AnnounceManager {
         return speaker != null && !speaker.isInvalid() && speaker.isClientConfigSynced()
             && jp.me1han.sam.network.PacketLimits.speaker(speaker.range, speaker.volume)
             && speaker.volume > 0 && inSpeakerRange(speaker);
+    }
+
+    private boolean validAudibleDescriptor(jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target target) {
+        return target != null && jp.me1han.sam.network.PacketLimits.speaker(target.range, target.volume)
+            && target.volume > 0 && inRange(jp.me1han.sam.SpeakerRegistry.x(target.position),
+                jp.me1han.sam.SpeakerRegistry.y(target.position), jp.me1han.sam.SpeakerRegistry.z(target.position), target.range);
+    }
+
+    private boolean playDescriptor(ResourceLocation res, AnnounceSession session,
+        jp.me1han.sam.network.PacketSessionSpeakerRoutes.Target target) {
+        if (!validAudibleDescriptor(target)) return false;
+        playAtCoordinates(res, session, jp.me1han.sam.SpeakerRegistry.x(target.position),
+            jp.me1han.sam.SpeakerRegistry.y(target.position), jp.me1han.sam.SpeakerRegistry.z(target.position),
+            target.range, target.volume);
+        return true;
     }
 
     private boolean playSoundAtSpeaker(ResourceLocation res, AnnounceSession session, TileEntitySpeaker speaker) {

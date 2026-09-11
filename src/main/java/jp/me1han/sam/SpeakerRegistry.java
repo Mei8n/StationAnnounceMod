@@ -44,6 +44,8 @@ public final class SpeakerRegistry {
         Entry entry = new Entry(tile);
         registry.byPosition.put(pos, entry);
         registry.byLinkKey.computeIfAbsent(key, k -> new HashMap<>()).put(pos, entry);
+        jp.me1han.sam.network.ServerSessions.speakersChanged(world,
+            old == null ? null : old.linkKey, entry.linkKey);
     }
     public static void unregister(TileEntitySpeaker tile) {
         DimensionSpeakers registry = WORLDS.get(tile.getWorldObj());
@@ -51,7 +53,10 @@ public final class SpeakerRegistry {
         long pos = position(tile.xCoord, tile.yCoord, tile.zCoord);
         Entry old = registry.byPosition.get(pos);
         // Late invalidation of an old TE must not remove its replacement.
-        if (old != null && old.tile == tile) remove(registry, pos, old);
+        if (old != null && old.tile == tile) {
+            remove(registry, pos, old);
+            jp.me1han.sam.network.ServerSessions.speakersChanged(tile.getWorldObj(), old.linkKey, null);
+        }
         if (registry.byPosition.isEmpty()) WORLDS.remove(tile.getWorldObj());
     }
     private static void remove(DimensionSpeakers registry, long pos, Entry old) {

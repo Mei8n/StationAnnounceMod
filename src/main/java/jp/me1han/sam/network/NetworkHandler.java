@@ -37,6 +37,7 @@ public class NetworkHandler {
         INSTANCE.registerMessage(MissingSpeakersHandler.class, PacketMissingSpeakers.class, 15, Side.SERVER);
         INSTANCE.registerMessage(SpeakerFallbackHandler.class, PacketSpeakerFallback.class, 16, Side.CLIENT);
         INSTANCE.registerMessage(PacketDepartureSwitchItemConfig.Handler.class, PacketDepartureSwitchItemConfig.class, 17, Side.SERVER);
+        INSTANCE.registerMessage(SessionSpeakerRoutesHandler.class, PacketSessionSpeakerRoutes.class, 18, Side.CLIENT);
     }
 
     // --- クライアント側受信 ---
@@ -82,6 +83,11 @@ public class NetworkHandler {
     }
     public static class SpeakerFallbackHandler implements IMessageHandler<PacketSpeakerFallback, IMessage> {
         @Override public IMessage onMessage(PacketSpeakerFallback message, MessageContext ctx) {
+            jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message); return null;
+        }
+    }
+    public static class SessionSpeakerRoutesHandler implements IMessageHandler<PacketSessionSpeakerRoutes, IMessage> {
+        @Override public IMessage onMessage(PacketSessionSpeakerRoutes message, MessageContext ctx) {
             jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message); return null;
         }
     }

@@ -70,6 +70,12 @@ public final class ClientSpeakerRegistry {
         return group.values();
     }
 
+    public static TileEntitySpeaker at(World world, long position) {
+        DimensionSpeakers registry = WORLDS.get(world);
+        Entry entry = registry == null ? null : registry.byPosition.get(position);
+        return entry == null ? null : entry.tile;
+    }
+
     public static void clear(World world) { if (world != null) WORLDS.remove(world); }
     public static void clear() { WORLDS.clear(); }
 }

@@ -9,6 +9,8 @@ public final class PacketLimits {
     public static final int LINK_KEY = 64, NAME = 256, MODEL = 128;
     public static final int CONDITIONS = 64, SOUNDS = 256, SOUND_LIST = 8192;
     public static final int SESSION_TARGETS = 512, MISSING_TARGETS = SESSION_TARGETS;
+    /** Enough chunks to represent every entry addressable by a Java collection. */
+    public static final int ROUTE_CHUNKS = (int)((Integer.MAX_VALUE + (long)SESSION_TARGETS - 1) / SESSION_TARGETS);
     public static final int BODY_SOUNDS = 256;
     public static final int MAX_ANNOUNCE_REPEATS = jp.me1han.sam.api.AnnounceData.MAX_REPEAT_COUNT;
     public static final int MAX_RANGE = 128, MAX_TICKS = 1728000;

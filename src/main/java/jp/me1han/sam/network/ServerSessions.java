@@ -39,6 +39,7 @@ public final class ServerSessions {
         final World world;
         final String key;
         final int priority;
+        long routeRevision;
         long expireTick;
         final Set<EntityPlayerMP> recipients = new HashSet<>();
         Session(long id, TileEntityAnnouncer owner, PacketAnnounce packet) {
@@ -80,10 +81,47 @@ public final class ServerSessions {
         }
         if (session.recipients.isEmpty()) return session.id;
         SESSIONS.put(session.id, session);
-        // One START per player and session. No Speaker list is sent or refreshed.
-        for (EntityPlayerMP player : session.recipients)
+        // One logical START followed by one complete, chunked routing revision.
+        List<PacketSessionSpeakerRoutes> routes = routeSnapshot(session);
+        for (EntityPlayerMP player : session.recipients) {
             delivery.send(copy(packet, new long[0]), player);
+            for (PacketSessionSpeakerRoutes route : routes) delivery.send(route, player);
+        }
         return session.id;
+    }
+
+    private static List<PacketSessionSpeakerRoutes> routeSnapshot(Session session) {
+        List<PacketSessionSpeakerRoutes.Target> targets = new ArrayList<>();
+        for (SpeakerRegistry.Entry speaker : SpeakerRegistry.findByKey(session.world, session.key)) {
+            if (speaker.tile.isInvalid() || !PacketLimits.speaker(speaker.range, speaker.volume)) continue;
+            targets.add(new PacketSessionSpeakerRoutes.Target(
+                SpeakerRegistry.position(speaker.x, speaker.y, speaker.z), speaker.range, speaker.volume));
+        }
+        int chunkCount = (int)Math.max(1L, (targets.size() + (long)PacketLimits.SESSION_TARGETS - 1)
+            / PacketLimits.SESSION_TARGETS);
+        long revision = ++session.routeRevision;
+        List<PacketSessionSpeakerRoutes> packets = new ArrayList<>(chunkCount);
+        for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
+            PacketSessionSpeakerRoutes packet = new PacketSessionSpeakerRoutes(
+                session.id, revision, chunkIndex, chunkCount);
+            int from = chunkIndex * PacketLimits.SESSION_TARGETS;
+            int to = Math.min(targets.size(), from + PacketLimits.SESSION_TARGETS);
+            packet.targets.addAll(targets.subList(from, to));
+            packets.add(packet);
+        }
+        return packets;
+    }
+
+    /** Called only by event-driven server SpeakerRegistry mutations. */
+    public static void speakersChanged(World world, String oldKey, String newKey) {
+        if (world == null || world.isRemote) return;
+        String oldNormalized = oldKey == null ? null : SpeakerRegistry.normalize(oldKey);
+        String newNormalized = newKey == null ? null : SpeakerRegistry.normalize(newKey);
+        for (Session session : new ArrayList<>(SESSIONS.values())) {
+            if (session.world != world) continue;
+            if (!session.key.equals(oldNormalized) && !session.key.equals(newNormalized)) continue;
+            for (PacketSessionSpeakerRoutes packet : routeSnapshot(session)) send(session, packet);
+        }
     }
     private static PacketAnnounce copy(PacketAnnounce source, long[] targets) {
         PacketAnnounce result;

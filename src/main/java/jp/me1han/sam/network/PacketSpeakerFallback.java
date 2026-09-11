@@ -4,7 +4,6 @@ import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
 import java.util.*;
 
-/** Only requested missing TEs. This data expires with the session; it never creates client TEs. */
 /** Legacy bounded wire packet retained for discriminator compatibility. */
 public class PacketSpeakerFallback implements IMessage {
     public static final class Target {
