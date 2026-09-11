@@ -523,10 +523,48 @@ public final class NetworkVerificationTest {
         check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 1,
             "Awareness starts when post-departure interval expires");
 
+        NBTTagCompound pendingSave = new NBTTagCompound();
+        awareness.scheduleAfterDeparture();
+        awareness.writeToNBT(pendingSave);
+        check(!pendingSave.hasKey("pendingDepartureTicks"),
+            "Post-departure pending state is not persisted");
+        check(!((net.minecraft.network.play.server.S35PacketUpdateTileEntity) awareness.getDescriptionPacket())
+            .func_148857_g().hasKey("pendingDepartureTicks"),
+            "Post-departure pending state is not included in the description packet");
+
+        FixtureWorld reloadedWorld = new FixtureWorld();
+        TileEntityAnnouncer reloadedOwner = new TileEntityAnnouncer(); reloadedOwner.setLinkKey("A");
+        reloadedWorld.add(reloadedOwner, 0, 0, 0);
+        TileEntityAwarenessAnnouncer reloaded = new TileEntityAwarenessAnnouncer();
+        pendingSave.setInteger("pendingDepartureTicks", 0); // Legacy world data must be ignored.
+        reloaded.readFromNBT(pendingSave);
+        reloadedWorld.add(reloaded, 1, 0, 0);
+        Speaker reloadedSpeaker = new Speaker(); reloadedSpeaker.linkKey = "A"; reloadedWorld.add(reloadedSpeaker, 2, 0, 0);
+        player(reloadedWorld, 2, 0, 0);
+        out.clear();
+        reloaded.updateEntity(); reloaded.updateEntity(); reloaded.updateEntity();
+        check(out.messages.isEmpty(), "Reload does not revive a legacy post-departure pending event");
+        SamTriggerDispatcher.dispatch(reloadedWorld,
+            new SamTrigger(SamTriggerType.DEPARTURE_FINISHED, "A", 0, 0, 0,
+                SamTriggerSourceType.INTERNAL, SamTrigger.NO_FORMATION));
+        reloaded.updateEntity(); reloaded.updateEntity();
+        check(out.messages.isEmpty(), "A new departure trigger observes the configured delay after reload");
+        reloaded.updateEntity();
+        check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 1,
+            "A new departure trigger schedules Awareness normally after reload");
+
+        NBTTagCompound legacyPositive = (NBTTagCompound) pendingSave.copy();
+        legacyPositive.setInteger("pendingDepartureTicks", 10);
+        TileEntityAwarenessAnnouncer legacyLoaded = new TileEntityAwarenessAnnouncer();
+        legacyLoaded.readFromNBT(legacyPositive);
+        NBTTagCompound rewritten = new NBTTagCompound(); legacyLoaded.writeToNBT(rewritten);
+        check(!rewritten.hasKey("pendingDepartureTicks"), "Positive legacy pending state is ignored and removed on rewrite");
+
         TileEntityAwarenessAnnouncer defaults = new TileEntityAwarenessAnnouncer();
         defaults.readFromNBT(new NBTTagCompound());
         check(defaults.departureDelayTicks == 0, "Missing post-departure interval defaults to zero");
-        ServerSessions.clear(); SpeakerRegistry.clear(world); LoadedSamTiles.clear(world);
+        ServerSessions.clear(); SpeakerRegistry.clear(world); SpeakerRegistry.clear(reloadedWorld);
+        LoadedSamTiles.clear(world); LoadedSamTiles.clear(reloadedWorld);
     }
 
     private static void config() throws Exception {

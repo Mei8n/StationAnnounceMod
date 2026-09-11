@@ -66,7 +66,6 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
     public void scheduleAfterDeparture() {
         if (this.playAfterDeparture) {
             this.pendingDepartureTicks = Math.max(0, this.departureDelayTicks);
-            this.markDirty();
         }
     }
 
@@ -166,7 +165,6 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
         nbt.setBoolean("playAfterDeparture", this.playAfterDeparture);
         nbt.setInteger("departureDelayTicks", this.departureDelayTicks);
         nbt.setInteger("ticksUntilNext", this.ticksUntilNext);
-        nbt.setInteger("pendingDepartureTicks", this.pendingDepartureTicks);
         nbt.setInteger("nextSoundIndex", this.nextSoundIndex);
     }
 
@@ -181,7 +179,9 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
         this.playAfterDeparture = nbt.getBoolean("playAfterDeparture");
         this.departureDelayTicks = nbt.hasKey("departureDelayTicks") ? Math.max(0, nbt.getInteger("departureDelayTicks")) : 0;
         this.ticksUntilNext = nbt.hasKey("ticksUntilNext") ? Math.max(0, nbt.getInteger("ticksUntilNext")) : this.intervalTicks;
-        this.pendingDepartureTicks = nbt.hasKey("pendingDepartureTicks") ? nbt.getInteger("pendingDepartureTicks") : -1;
+        // A pending post-departure announcement belongs only to the live departure event.
+        // Deliberately ignore the legacy NBT key so a save/reload cannot revive it.
+        this.pendingDepartureTicks = -1;
         this.nextSoundIndex = Math.max(0, nbt.getInteger("nextSoundIndex"));
     }
 
