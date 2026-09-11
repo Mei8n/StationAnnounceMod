@@ -32,7 +32,7 @@ public class PacketDepartureSwitchItemConfig implements IMessage {
             final net.minecraft.network.NetHandlerPlayServer connection = ctx.getServerHandler();
             final int slot = message.slot;
             final String modelName = message.modelName;
-            ServerTaskQueue.INSTANCE.enqueue(() -> {
+            ServerTaskQueue.INSTANCE.enqueue(player, () -> {
                 if (player.isDead || player.playerNetServerHandler != connection
                     || !connection.netManager.isChannelOpen() || slot < 0 || slot > 8
                     || player.inventory.currentItem != slot

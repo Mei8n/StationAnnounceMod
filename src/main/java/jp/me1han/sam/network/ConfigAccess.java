@@ -15,7 +15,7 @@ public final class ConfigAccess {
         // Capture identity only. World/TE operations run inside the queue.
         final World expectedWorld = player.worldObj;
         final net.minecraft.network.NetHandlerPlayServer connection = ctx.getServerHandler();
-        ServerTaskQueue.INSTANCE.enqueue(() -> {
+        ServerTaskQueue.INSTANCE.enqueue(player, () -> {
             if (player.isDead || player.worldObj == null || player.worldObj != expectedWorld
                 || player.worldObj.isRemote || player.playerNetServerHandler != connection
                 || !connection.netManager.isChannelOpen()) return;

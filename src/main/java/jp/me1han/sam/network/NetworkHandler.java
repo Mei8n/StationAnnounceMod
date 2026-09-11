@@ -70,7 +70,7 @@ public class NetworkHandler {
     public static class FinishedHandler implements IMessageHandler<PacketSessionFinished, IMessage> {
         @Override public IMessage onMessage(PacketSessionFinished message, MessageContext ctx) {
             final net.minecraft.entity.player.EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-            ServerTaskQueue.INSTANCE.enqueue(() -> ServerSessions.finished(player, message.sessionId));
+            ServerTaskQueue.INSTANCE.enqueue(player, () -> ServerSessions.finished(player, message.sessionId));
             return null;
         }
     }
