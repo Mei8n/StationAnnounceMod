@@ -52,7 +52,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -349,6 +349,112 @@ public final class NetworkVerificationTest {
     private static void expectInvalid(Runnable action) {
         try { action.run(); throw new AssertionError("Malformed input accepted"); }
         catch (DecoderException expected) { checks++; }
+    }
+
+    private static void expectEncodeInvalid(Runnable action) {
+        try { action.run(); throw new AssertionError("Invalid outgoing payload accepted"); }
+        catch (IllegalArgumentException expected) { checks++; }
+    }
+
+    private static void senderReceiverValidation() {
+        ByteBuf buf = Unpooled.buffer();
+        try {
+            String asciiLimit = String.join("", Collections.nCopies(PacketLimits.LINK_KEY, "x"));
+            PacketDebugConfig maxKey = new PacketDebugConfig(1, 2, 3, asciiLimit);
+            maxKey.toBytes(buf);
+            PacketDebugConfig maxKeyRead = new PacketDebugConfig(); maxKeyRead.fromBytes(buf);
+            check(asciiLimit.equals(maxKeyRead.linkKey), "Bounded string accepts exactly the Java character limit");
+            buf.clear();
+            expectEncodeInvalid(() -> new PacketDebugConfig(1, 2, 3, asciiLimit + "x").toBytes(buf));
+
+            String utf8Limit = String.join("", Collections.nCopies(PacketLimits.LINK_KEY, "\u754c"));
+            buf.clear(); new PacketDebugConfig(1, 2, 3, utf8Limit).toBytes(buf);
+            PacketDebugConfig utf8Read = new PacketDebugConfig(); utf8Read.fromBytes(buf);
+            check(utf8Limit.equals(utf8Read.linkKey), "Sender and receiver accept the same multibyte UTF-8 boundary");
+            buf.clear();
+            expectEncodeInvalid(() -> new PacketDebugConfig(1, 2, 3, utf8Limit + "\u754c").toBytes(buf));
+
+            List<TrainTypeCondition> maxConditions = new ArrayList<>();
+            for (int i = 0; i < PacketLimits.CONDITIONS; i++)
+                maxConditions.add(new TrainTypeCondition(String.join("", Collections.nCopies(PacketLimits.NAME, "k")), i % 4));
+            PacketTrainTypeConfig train = new PacketTrainTypeConfig(1, 2, 3, maxConditions, "key", true);
+            buf.clear(); train.toBytes(buf);
+            PacketTrainTypeConfig trainRead = new PacketTrainTypeConfig(); trainRead.fromBytes(buf);
+            check(trainRead.conditions.size() == PacketLimits.CONDITIONS, "Condition count and key length boundaries round trip");
+            maxConditions.add(new TrainTypeCondition("extra", 0));
+            buf.clear(); expectEncodeInvalid(() -> train.toBytes(buf));
+            PacketTrainTypeConfig badType = new PacketTrainTypeConfig(1, 2, 3,
+                Collections.singletonList(new TrainTypeCondition("key", 4)), "key", false);
+            buf.clear(); expectEncodeInvalid(() -> badType.toBytes(buf));
+            buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3).writeInt(1);
+            PacketLimits.writeString(buf, "key", PacketLimits.NAME); buf.writeInt(4);
+            PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY); buf.writeBoolean(false);
+            expectInvalid(() -> new PacketTrainTypeConfig().fromBytes(buf));
+
+            for (int range : new int[] {0, PacketLimits.MAX_RANGE + 1}) {
+                buf.clear(); expectEncodeInvalid(() -> new PacketSpeakerConfig(1, 2, 3, "key", range, 1).toBytes(buf));
+                buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+                PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+                buf.writeInt(range).writeFloat(1);
+                expectInvalid(() -> new PacketSpeakerConfig().fromBytes(buf));
+            }
+            for (float volume : new float[] {-0.1F, 1.1F, Float.NaN, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY}) {
+                buf.clear(); expectEncodeInvalid(() -> new PacketSpeakerConfig(1, 2, 3, "key", 16, volume).toBytes(buf));
+                buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+                PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+                buf.writeInt(16).writeFloat(volume);
+                expectInvalid(() -> new PacketSpeakerConfig().fromBytes(buf));
+            }
+
+            String maxSounds = String.join(",", Collections.nCopies(PacketLimits.SOUNDS, "s"));
+            PacketAwarenessConfig awareness = new PacketAwarenessConfig(1, 2, 3, "key", maxSounds,
+                PacketLimits.MAX_TICKS, true, false, true, PacketLimits.MAX_TICKS);
+            buf.clear(); awareness.toBytes(buf);
+            PacketAwarenessConfig awarenessRead = new PacketAwarenessConfig(); awarenessRead.fromBytes(buf);
+            check(awarenessRead.soundList.equals(maxSounds), "Awareness sound and tick boundaries round trip");
+            buf.clear(); expectEncodeInvalid(() -> new PacketAwarenessConfig(1, 2, 3, "key",
+                maxSounds + ",extra", 20, false, false, false, 0).toBytes(buf));
+            buf.clear(); expectEncodeInvalid(() -> new PacketAwarenessConfig(1, 2, 3, "key", "s",
+                19, false, false, false, 0).toBytes(buf));
+            buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+            PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+            PacketLimits.writeString(buf, maxSounds + ",extra", PacketLimits.SOUND_LIST);
+            buf.writeInt(20).writeBoolean(false).writeBoolean(false).writeBoolean(false).writeInt(0);
+            expectInvalid(() -> new PacketAwarenessConfig().fromBytes(buf));
+
+            PacketDepartureMelodyConfig melody = new PacketDepartureMelodyConfig(1, 2, 3, "key",
+                String.join("", Collections.nCopies(PacketLimits.NAME, "s")),
+                String.join("", Collections.nCopies(PacketLimits.NAME, "j")));
+            buf.clear(); melody.toBytes(buf); new PacketDepartureMelodyConfig().fromBytes(buf);
+            melody.scriptName += "x";
+            buf.clear(); expectEncodeInvalid(() -> melody.toBytes(buf));
+
+            PacketDepartureSwitchConfig invalidOffset = new PacketDepartureSwitchConfig(1, 2, 3,
+                "key", "model", 0, Float.NaN, 0, 0);
+            buf.clear(); expectEncodeInvalid(() -> invalidOffset.toBytes(buf));
+            buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+            PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+            PacketLimits.writeString(buf, "model", PacketLimits.MODEL);
+            buf.writeInt(0).writeFloat(Float.POSITIVE_INFINITY).writeFloat(0).writeFloat(0);
+            expectInvalid(() -> new PacketDepartureSwitchConfig().fromBytes(buf));
+            buf.clear(); expectEncodeInvalid(() -> new PacketDepartureSwitchItemConfig(9, "model").toBytes(buf));
+
+            PacketAnnounce announce = start(901);
+            announce.bodySounds = Collections.singletonList(String.join("", Collections.nCopies(PacketLimits.NAME + 1, "s")));
+            announce.bodyIntervalTicks = Collections.singletonList(0);
+            announce.bodyPartTicks = Collections.singletonList(20);
+            buf.clear(); expectEncodeInvalid(() -> announce.toBytes(buf));
+            PacketDepartureStart departure = departure(902);
+            departure.departure.melodyTicks = PacketAnnounce.MAX_DURATION_TICKS + 1;
+            buf.clear(); expectEncodeInvalid(() -> departure.toBytes(buf));
+
+            PacketSpeakerFallback fallback = new PacketSpeakerFallback(903);
+            fallback.targets.add(new PacketSpeakerFallback.Target(1, 0, 1));
+            buf.clear(); expectEncodeInvalid(() -> fallback.toBytes(buf));
+            PacketSessionSpeakerRoutes routes = new PacketSessionSpeakerRoutes(904, 1, 0, 1);
+            routes.targets.add(new PacketSessionSpeakerRoutes.Target(1, 16, Float.NaN));
+            buf.clear(); expectEncodeInvalid(() -> routes.toBytes(buf));
+        } finally { buf.release(); }
     }
 
     private static PacketAnnounce start(long id) {
@@ -736,6 +842,7 @@ public final class NetworkVerificationTest {
         PacketAnnounce intervalPacket = new PacketAnnounce(new AnnounceData(null,
             Arrays.asList("test:one", "", "test:two"), Arrays.asList(0, 3, 0), null, 1),
             "A", true, 0, 0, 0);
+        intervalPacket.sessionId = 704;
         intervalPacket.resolveTiming(AnnouncePackLoader.soundTicks);
         receiveReady(interval, intervalPacket);
         for (int i = 0; i < 5; i++) interval.tick();

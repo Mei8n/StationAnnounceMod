@@ -67,7 +67,7 @@ public class PacketSessionSpeakerRoutes implements IMessage {
         buf.writeLong(revision);
         buf.writeInt(chunkIndex);
         buf.writeInt(chunkCount);
-        buf.writeInt(targets.size());
+        PacketLimits.writeCount(buf, targets.size(), PacketLimits.SESSION_TARGETS);
         for (Target target : targets) {
             if (target == null || !PacketLimits.speaker(target.range, target.volume))
                 throw new IllegalArgumentException("Invalid SAM route settings");

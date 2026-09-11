@@ -1,6 +1,5 @@
 package jp.me1han.sam.network;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.*;
 import io.netty.buffer.ByteBuf;
 import jp.me1han.sam.item.ItemDepartureSwitch;
@@ -20,10 +19,15 @@ public class PacketDepartureSwitchItemConfig implements IMessage {
     @Override public void fromBytes(ByteBuf buf) {
         slot = buf.readInt();
         modelName = PacketLimits.readString(buf, PacketLimits.MODEL);
+        PacketLimits.requireDecoded(isValidPayload(), "Invalid departure switch item config payload");
+    }
+    public boolean isValidPayload() {
+        return PacketLimits.slot(slot) && PacketLimits.string(PacketLimits.normalize(modelName), PacketLimits.MODEL);
     }
     @Override public void toBytes(ByteBuf buf) {
+        PacketLimits.require(isValidPayload(), "Invalid departure switch item config payload");
         buf.writeInt(slot);
-        ByteBufUtils.writeUTF8String(buf, modelName);
+        PacketLimits.writeString(buf, modelName, PacketLimits.MODEL);
     }
 
     public static class Handler implements IMessageHandler<PacketDepartureSwitchItemConfig, IMessage> {
@@ -34,9 +38,8 @@ public class PacketDepartureSwitchItemConfig implements IMessage {
             final String modelName = message.modelName;
             ServerTaskQueue.INSTANCE.enqueue(player, () -> {
                 if (player.isDead || player.playerNetServerHandler != connection
-                    || !connection.netManager.isChannelOpen() || slot < 0 || slot > 8
-                    || player.inventory.currentItem != slot
-                    || !PacketLimits.string(modelName, PacketLimits.MODEL)) return;
+                    || !connection.netManager.isChannelOpen() || !message.isValidPayload()
+                    || player.inventory.currentItem != slot) return;
                 ItemStack stack = player.inventory.getStackInSlot(slot);
                 if (!ItemDepartureSwitch.isSwitchItem(stack)) return;
                 if (ItemDepartureSwitch.selectModel(stack, modelName)) {

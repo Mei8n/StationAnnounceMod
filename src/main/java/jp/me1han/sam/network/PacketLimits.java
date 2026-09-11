@@ -16,10 +16,24 @@ public final class PacketLimits {
     public static final int MAX_RANGE = 128, MAX_TICKS = 1728000;
     public static final float MAX_VOLUME = 1.0F;
     private PacketLimits() {}
+    public static String normalize(String value) { return value == null ? "" : value; }
     public static void checkCount(int count, int max) {
         if (count < 0 || count > max) throw new IllegalArgumentException("SAM packet count exceeds " + max);
     }
-    public static boolean string(String value, int max) { return value != null && value.length() <= max; }
+    public static boolean string(String value, int max) {
+        return value != null && value.length() <= max
+            && value.getBytes(StandardCharsets.UTF_8).length <= max * 3;
+    }
+    /** Normalize nullable legacy fields, validate exactly as readString(), then encode. */
+    public static void writeString(ByteBuf buf, String value, int max) {
+        String normalized = normalize(value);
+        if (!string(normalized, max)) throw new IllegalArgumentException("SAM string length exceeds " + max);
+        ByteBufUtils.writeUTF8String(buf, normalized);
+    }
+    public static void writeCount(ByteBuf buf, int count, int max) {
+        checkCount(count, max);
+        buf.writeInt(count);
+    }
     /** Check UTF-8 byte length before allocating (Forge uses a two-byte varint). */
     public static String readString(ByteBuf buf, int max) {
         int bytes = ByteBufUtils.readVarInt(buf, 2);
@@ -44,5 +58,16 @@ public final class PacketLimits {
         if (sounds.length > SOUNDS) return false;
         for (String sound : sounds) if (!string(sound.trim(), NAME)) return false;
         return true;
+    }
+    public static boolean ticks(int value, int minimum) {
+        return value >= minimum && value <= MAX_TICKS;
+    }
+    public static boolean finite(float value) { return !Float.isNaN(value) && !Float.isInfinite(value); }
+    public static boolean slot(int value) { return value >= 0 && value <= 8; }
+    public static void require(boolean valid, String message) {
+        if (!valid) throw new IllegalArgumentException(message);
+    }
+    public static void requireDecoded(boolean valid, String message) {
+        if (!valid) throw new DecoderException(message);
     }
 }

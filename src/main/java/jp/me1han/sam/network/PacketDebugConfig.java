@@ -1,6 +1,5 @@
 package jp.me1han.sam.network;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
@@ -23,18 +22,22 @@ public class PacketDebugConfig implements IMessage {
     public void fromBytes(ByteBuf buf) {
         x = buf.readInt(); y = buf.readInt(); z = buf.readInt();
         linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
+        PacketLimits.requireDecoded(isValidPayload(), "Invalid debug config payload");
     }
+
+    public boolean isValidPayload() { return ConfigAccess.key(PacketLimits.normalize(linkKey)); }
 
     @Override
     public void toBytes(ByteBuf buf) {
+        PacketLimits.require(isValidPayload(), "Invalid debug config payload");
         buf.writeInt(x); buf.writeInt(y); buf.writeInt(z);
-        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
+        PacketLimits.writeString(buf, this.linkKey, PacketLimits.LINK_KEY);
     }
 
     public static class Handler implements IMessageHandler<PacketDebugConfig, IMessage> {
         @Override public IMessage onMessage(PacketDebugConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityDebugReceiver.class, tile -> {
-                if (!ConfigAccess.key(m.linkKey)) return;
+                if (!m.isValidPayload()) return;
                 ConfigAccess.change(tile, () -> tile.setLinkKey(m.linkKey));
             }); return null;
         }

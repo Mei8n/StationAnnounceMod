@@ -3,6 +3,7 @@ package jp.me1han.sam.gui;
 import jp.me1han.sam.api.TrainTypeCondition;
 import jp.me1han.sam.network.PacketTrainTypeConfig;
 import jp.me1han.sam.network.NetworkHandler;
+import jp.me1han.sam.network.PacketLimits;
 import jp.me1han.sam.render.TileEntityTrainTypeSelector;
 import jp.me1han.sam.container.ContainerTrainTypeSelector;
 import net.minecraft.client.gui.GuiButton;
@@ -45,7 +46,7 @@ public class GuiTrainTypeSelector extends GuiScreen {
         if (this.linkKeyField == null) {
             this.linkKeyField = new GuiTextField(fontRendererObj, width / 2 - 60, 60, 180, 20);
             this.linkKeyField.setText(tile.getLinkKey());
-            this.linkKeyField.setMaxStringLength(32);
+            this.linkKeyField.setMaxStringLength(PacketLimits.LINK_KEY);
         } else {
             this.linkKeyField.xPosition = width / 2 - 60;
             this.linkKeyField.yPosition = 60;
@@ -73,6 +74,7 @@ public class GuiTrainTypeSelector extends GuiScreen {
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == 50) { // Add Key
+            if (rows.size() >= PacketLimits.CONDITIONS) return;
             rows.add(new ConditionRow("", 0));
             needsRefresh = true;
         } else if (button.id == 51) { // Done
@@ -85,9 +87,11 @@ public class GuiTrainTypeSelector extends GuiScreen {
 
             String keyToSend = this.linkKeyField != null ? this.linkKeyField.getText() : "";
 
-            NetworkHandler.INSTANCE.sendToServer(new PacketTrainTypeConfig(
+            PacketTrainTypeConfig packet = new PacketTrainTypeConfig(
                 tile.xCoord, tile.yCoord, tile.zCoord, newConditions, keyToSend, this.chkControlCar.isChecked()
-            ));
+            );
+            if (!packet.isValidPayload()) return;
+            NetworkHandler.INSTANCE.sendToServer(packet);
 
             this.mc.thePlayer.closeScreen();
 
@@ -176,6 +180,7 @@ public class GuiTrainTypeSelector extends GuiScreen {
         public void setup(int x, int y, int index) {
             if (this.keyField == null) {
                 this.keyField = new GuiTextField(fontRendererObj, x, y, 160, 20);
+                this.keyField.setMaxStringLength(PacketLimits.NAME);
                 this.keyField.setText(tempKey);
             }
             this.keyField.yPosition = y;

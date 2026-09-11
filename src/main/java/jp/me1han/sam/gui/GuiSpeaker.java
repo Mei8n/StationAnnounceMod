@@ -47,8 +47,10 @@ public class GuiSpeaker extends GuiScreen {
                 float vol = Float.parseFloat(volumeField.getText().trim().replace(',', '.'));
                 String normalizedKey = jp.me1han.sam.link.LinkKey.normalize(linkKeyField.getText());
 
-                if (!jp.me1han.sam.network.PacketLimits.speaker(range, vol)) return;
-                NetworkHandler.INSTANCE.sendToServer(new PacketSpeakerConfig(tile.xCoord, tile.yCoord, tile.zCoord, normalizedKey, range, vol));
+                PacketSpeakerConfig packet = new PacketSpeakerConfig(tile.xCoord, tile.yCoord, tile.zCoord,
+                    normalizedKey, range, vol);
+                if (!packet.isValidPayload()) return;
+                NetworkHandler.INSTANCE.sendToServer(packet);
 
 
                 this.mc.thePlayer.closeScreen();

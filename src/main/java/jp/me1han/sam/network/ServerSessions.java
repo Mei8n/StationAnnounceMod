@@ -70,6 +70,15 @@ public final class ServerSessions {
         }
         packet.linkKey = SpeakerRegistry.normalize(packet.linkKey);
         packet.sessionId = ++nextId;
+        try {
+            if (packet instanceof PacketDepartureStart)
+                ((PacketDepartureStart) packet).validateDeparturePayload();
+            else packet.validatePayload();
+        } catch (IllegalArgumentException invalid) {
+            jp.me1han.sam.StationAnnounceModCore.logger.warn(
+                "[SAM] Announcement rejected: " + invalid.getMessage());
+            return 0;
+        }
         Session session = new Session(packet.sessionId, owner, packet);
         // START describes a logical timeline. Routing is resolved from synchronized
         // client Speaker state at each playback boundary, so every current player in

@@ -1,6 +1,5 @@
 package jp.me1han.sam.network;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
 import jp.me1han.sam.api.TrainTypeCondition;
@@ -43,21 +42,33 @@ public class PacketTrainTypeConfig implements IMessage {
 
         this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         this.isControlCar = buf.readBoolean();
+        PacketLimits.requireDecoded(isValidPayload(), "Invalid train type config payload");
+    }
+
+    public boolean isValidPayload() {
+        if (!ConfigAccess.key(PacketLimits.normalize(linkKey)) || conditions == null
+            || conditions.size() > PacketLimits.CONDITIONS) return false;
+        for (TrainTypeCondition condition : conditions) {
+            if (condition == null || !PacketLimits.string(PacketLimits.normalize(condition.key), PacketLimits.NAME)
+                || condition.type < 0 || condition.type > 3) return false;
+        }
+        return true;
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
+        PacketLimits.require(isValidPayload(), "Invalid train type config payload");
         buf.writeInt(this.x);
         buf.writeInt(this.y);
         buf.writeInt(this.z);
 
-        buf.writeInt(this.conditions.size());
+        PacketLimits.writeCount(buf, this.conditions.size(), PacketLimits.CONDITIONS);
         for (TrainTypeCondition cond : this.conditions) {
-            ByteBufUtils.writeUTF8String(buf, cond.key);
+            PacketLimits.writeString(buf, cond.key, PacketLimits.NAME);
             buf.writeInt(cond.type);
         }
 
-        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
+        PacketLimits.writeString(buf, this.linkKey, PacketLimits.LINK_KEY);
         buf.writeBoolean(this.isControlCar);
     }
 }

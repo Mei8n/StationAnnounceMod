@@ -35,7 +35,7 @@ public class GuiDepartureSwitchItem extends GuiScreen {
         top = 62;
         bottom = height - 38;
         search = new GuiTextField(fontRendererObj, left, 34, listWidth, 20);
-        search.setMaxStringLength(128);
+        search.setMaxStringLength(PacketLimits.MODEL);
         search.setText(searchText);
         buttonList.add(new GuiButton(0, width / 2 + 4, height - 28, 100, 20, I18n.format("gui.done")));
         buttonList.add(new GuiButton(1, width / 2 - 104, height - 28, 100, 20, I18n.format("gui.cancel")));
@@ -57,7 +57,9 @@ public class GuiDepartureSwitchItem extends GuiScreen {
 
     @Override protected void actionPerformed(GuiButton button) {
         if (button.id == 0 && SwitchModelRegistry.get(selected) != null) {
-            NetworkHandler.INSTANCE.sendToServer(new PacketDepartureSwitchItemConfig(slot, selected));
+            PacketDepartureSwitchItemConfig packet = new PacketDepartureSwitchItemConfig(slot, selected);
+            if (!packet.isValidPayload()) return;
+            NetworkHandler.INSTANCE.sendToServer(packet);
             mc.thePlayer.closeScreen();
         } else if (button.id == 1) {
             mc.thePlayer.closeScreen();

@@ -26,10 +26,17 @@ public class PacketSpeakerFallback implements IMessage {
             if (!PacketLimits.speaker(range, volume)) throw new io.netty.handler.codec.DecoderException("SAM fallback settings");
             targets.add(new Target(position, range, volume));
         }
+        PacketLimits.requireDecoded(isValidPayload(), "Invalid SAM fallback payload");
+    }
+    public boolean isValidPayload() {
+        if (sessionId <= 0 || targets == null || targets.size() > PacketLimits.SESSION_TARGETS) return false;
+        for (Target target : targets)
+            if (target == null || !PacketLimits.speaker(target.range, target.volume)) return false;
+        return true;
     }
     @Override public void toBytes(ByteBuf buf) {
-        PacketLimits.checkCount(targets.size(), PacketLimits.SESSION_TARGETS);
-        buf.writeLong(sessionId); buf.writeInt(targets.size());
+        PacketLimits.require(isValidPayload(), "Invalid SAM fallback payload");
+        buf.writeLong(sessionId); PacketLimits.writeCount(buf, targets.size(), PacketLimits.SESSION_TARGETS);
         for (Target target : targets) { buf.writeLong(target.position); buf.writeInt(target.range); buf.writeFloat(target.volume); }
     }
 }

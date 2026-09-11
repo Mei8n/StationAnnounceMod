@@ -1,6 +1,5 @@
 package jp.me1han.sam.network;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
 
@@ -22,12 +21,16 @@ public class PacketStartAnnouncerConfig implements IMessage {
         this.z = buf.readInt();
         this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         this.isControlCar = buf.readBoolean();
+        PacketLimits.requireDecoded(isValidPayload(), "Invalid start announcer config payload");
     }
+
+    public boolean isValidPayload() { return ConfigAccess.key(PacketLimits.normalize(linkKey)); }
 
     @Override
     public void toBytes(ByteBuf buf) {
+        PacketLimits.require(isValidPayload(), "Invalid start announcer config payload");
         buf.writeInt(x); buf.writeInt(y); buf.writeInt(z);
-        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
+        PacketLimits.writeString(buf, this.linkKey, PacketLimits.LINK_KEY);
         buf.writeBoolean(isControlCar);
     }
 }

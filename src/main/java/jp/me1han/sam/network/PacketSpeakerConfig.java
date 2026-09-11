@@ -1,6 +1,5 @@
 package jp.me1han.sam.network;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
 
@@ -27,12 +26,18 @@ public class PacketSpeakerConfig implements IMessage {
         this.linkKey = PacketLimits.readString(buf, PacketLimits.LINK_KEY);
         this.range = buf.readInt();
         this.volume = buf.readFloat();
+        PacketLimits.requireDecoded(isValidPayload(), "Invalid speaker config payload");
+    }
+
+    public boolean isValidPayload() {
+        return ConfigAccess.key(PacketLimits.normalize(linkKey)) && PacketLimits.speaker(range, volume);
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
+        PacketLimits.require(isValidPayload(), "Invalid speaker config payload");
         buf.writeInt(x); buf.writeInt(y); buf.writeInt(z);
-        ByteBufUtils.writeUTF8String(buf, this.linkKey != null ? this.linkKey : "");
+        PacketLimits.writeString(buf, this.linkKey, PacketLimits.LINK_KEY);
         buf.writeInt(range);
         buf.writeFloat(volume);
     }

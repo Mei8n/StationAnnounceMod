@@ -2,6 +2,7 @@ package jp.me1han.sam.gui;
 
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketDepartureMelodyConfig;
+import jp.me1han.sam.network.PacketLimits;
 import jp.me1han.sam.render.TileEntityDepartureMelody;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiTextField;
@@ -25,10 +26,10 @@ public class GuiDepartureMelody extends GuiScriptConfig {
         int top = this.height / 2 - 70;
 
         this.linkKeyField = new GuiTextField(this.fontRendererObj, left, top + 20, 220, 20);
-        this.linkKeyField.setMaxStringLength(64);
+        this.linkKeyField.setMaxStringLength(PacketLimits.LINK_KEY);
         this.linkKeyField.setText(this.tile.getLinkKey());
         this.soundIdField = new GuiTextField(this.fontRendererObj, left, top + 60, 220, 20);
-        this.soundIdField.setMaxStringLength(256);
+        this.soundIdField.setMaxStringLength(PacketLimits.NAME);
         this.soundIdField.setText(this.tile.scriptName == null ? "" : this.tile.scriptName);
         this.buttonList.add(new GuiButton(0, left, top + 110, 220, 20, I18n.format("gui.done")));
     }
@@ -38,8 +39,10 @@ public class GuiDepartureMelody extends GuiScriptConfig {
         if (button.id == 0) {
             String linkKey = jp.me1han.sam.link.LinkKey.normalize(this.linkKeyField.getText());
             String soundId = this.soundIdField.getText() == null ? "" : this.soundIdField.getText().trim();
-            NetworkHandler.INSTANCE.sendToServer(new PacketDepartureMelodyConfig(
-                this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, this.tile.soundId, soundId));
+            PacketDepartureMelodyConfig packet = new PacketDepartureMelodyConfig(
+                this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, this.tile.soundId, soundId);
+            if (!packet.isValidPayload()) return;
+            NetworkHandler.INSTANCE.sendToServer(packet);
             this.mc.thePlayer.closeScreen();
         }
     }

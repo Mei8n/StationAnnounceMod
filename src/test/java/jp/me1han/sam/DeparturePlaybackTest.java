@@ -178,7 +178,7 @@ public final class DeparturePlaybackTest {
             "50:stop", "52:test:door", "57:stop", "57:finished");
         ByteBuf buf = Unpooled.buffer();
         try {
-            PacketDepartureStart packet = new PacketDepartureStart(); packet.departure = p;
+            PacketDepartureStart packet = new PacketDepartureStart(); packet.sessionId = 1; packet.departure = p;
             packet.toBytes(buf);
             PacketDepartureStart received = new PacketDepartureStart(); received.fromBytes(buf);
             check(received.departure.doorCloseSounds.equals(p.doorCloseSounds)
@@ -390,6 +390,7 @@ public final class DeparturePlaybackTest {
             buf.clear();
             PacketAnnounce ordinary = new PacketAnnounce(new AnnounceData("test:start", Collections.singletonList("test:body"), "test:loop", 2),
                 "platform-1", true, 1, 2, 3);
+            ordinary.sessionId = 124L;
             Map<String, Integer> ordinaryLengths = new HashMap<>();
             ordinaryLengths.put("test:start", 7); ordinaryLengths.put("test:body", 11); ordinaryLengths.put("test:loop", 13);
             ordinary.resolveTiming(ordinaryLengths);
@@ -403,6 +404,7 @@ public final class DeparturePlaybackTest {
             PacketAnnounce withInterval = new PacketAnnounce(new AnnounceData(null,
                 Arrays.asList("test:body", "", "test:body"), Arrays.asList(0, 5, 0), null, 2),
                 "platform-1", true, 1, 2, 3);
+            withInterval.sessionId = 125L;
             withInterval.resolveTiming(ordinaryLengths);
             withInterval.toBytes(buf);
             PacketAnnounce intervalRead = new PacketAnnounce(); intervalRead.fromBytes(buf);

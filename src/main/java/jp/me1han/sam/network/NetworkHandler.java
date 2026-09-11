@@ -94,9 +94,7 @@ public class NetworkHandler {
     public static class TrainTypeConfigHandler implements IMessageHandler<PacketTrainTypeConfig, IMessage> {
         @Override public IMessage onMessage(PacketTrainTypeConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityTrainTypeSelector.class, tile -> {
-                if (!ConfigAccess.key(m.linkKey) || m.conditions == null || m.conditions.size() > PacketLimits.CONDITIONS) return;
-                for (jp.me1han.sam.api.TrainTypeCondition condition : m.conditions)
-                    if (condition == null || !PacketLimits.string(condition.key, PacketLimits.NAME) || condition.type < 0 || condition.type > 3) return;
+                if (!m.isValidPayload()) return;
                 ConfigAccess.change(tile, () -> {
                     tile.conditions = new java.util.ArrayList<>(m.conditions);
                     tile.setLinkKey(m.linkKey); tile.isControlCar = m.isControlCar;
@@ -107,7 +105,7 @@ public class NetworkHandler {
     public static class StartAnnouncerConfigHandler implements IMessageHandler<PacketStartAnnouncerConfig, IMessage> {
         @Override public IMessage onMessage(PacketStartAnnouncerConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityStartAnnouncer.class, tile -> {
-                if (!ConfigAccess.key(m.linkKey)) return;
+                if (!m.isValidPayload()) return;
                 ConfigAccess.change(tile, () -> { tile.setLinkKey(m.linkKey); tile.isControlCar = m.isControlCar; });
             }); return null;
         }
@@ -115,7 +113,7 @@ public class NetworkHandler {
     public static class StopAnnouncerConfigHandler implements IMessageHandler<PacketStopAnnouncerConfig, IMessage> {
         @Override public IMessage onMessage(PacketStopAnnouncerConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityStopAnnouncer.class, tile -> {
-                if (!ConfigAccess.key(m.linkKey)) return;
+                if (!m.isValidPayload()) return;
                 ConfigAccess.change(tile, () -> { tile.setLinkKey(m.linkKey); tile.isControlCar = m.isControlCar; });
             }); return null;
         }
@@ -123,7 +121,7 @@ public class NetworkHandler {
     public static class SpeakerConfigHandler implements IMessageHandler<PacketSpeakerConfig, IMessage> {
         @Override public IMessage onMessage(PacketSpeakerConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntitySpeaker.class, tile -> {
-                if (!ConfigAccess.key(m.linkKey) || !PacketLimits.speaker(m.range, m.volume)) return;
+                if (!m.isValidPayload()) return;
                 tile.applyConfig(m.linkKey, m.range, m.volume);
             }); return null;
         }
@@ -131,9 +129,7 @@ public class NetworkHandler {
     public static class AwarenessConfigHandler implements IMessageHandler<PacketAwarenessConfig, IMessage> {
         @Override public IMessage onMessage(PacketAwarenessConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityAwarenessAnnouncer.class, tile -> {
-                if (!ConfigAccess.key(m.linkKey) || !PacketLimits.sounds(m.soundList)
-                    || m.intervalTicks < 20 || m.intervalTicks > PacketLimits.MAX_TICKS
-                    || m.departureDelayTicks < 0 || m.departureDelayTicks > PacketLimits.MAX_TICKS) return;
+                if (!m.isValidPayload()) return;
                 String sounds = TileEntityAwarenessAnnouncer.normalizeSoundList(m.soundList);
                 if (ConfigAccess.normalize(m.linkKey).equals(tile.getLinkKey()) && sounds.equals(tile.soundList)
                     && m.intervalTicks == tile.intervalTicks && m.randomOrder == tile.randomOrder
@@ -147,8 +143,7 @@ public class NetworkHandler {
     public static class DepartureMelodyConfigHandler implements IMessageHandler<PacketDepartureMelodyConfig, IMessage> {
         @Override public IMessage onMessage(PacketDepartureMelodyConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityDepartureMelody.class, tile -> {
-                if (!ConfigAccess.key(m.linkKey) || !PacketLimits.string(m.scriptName, PacketLimits.NAME)
-                    || !PacketLimits.string(m.soundId, PacketLimits.NAME)) return;
+                if (!m.isValidPayload()) return;
                 tile.applyConfig(m.linkKey, m.soundId, m.scriptName);
             }); return null;
         }
