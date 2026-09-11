@@ -52,7 +52,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -96,6 +96,67 @@ public final class NetworkVerificationTest {
         }
         SpeakerRegistry.clear(world);
         check(SpeakerRegistry.findByKey(world, "A").isEmpty(), "World unload cleanup");
+    }
+
+    private static void deterministicSpeakerRouting() throws Exception {
+        List<int[]> ascending = new ArrayList<>();
+        for (int i = 0; i < PacketLimits.SESSION_TARGETS + 1; i++)
+            ascending.add(new int[] {i - 256, i % 7, 512 - i});
+        List<int[]> descending = new ArrayList<>(ascending); Collections.reverse(descending);
+        List<int[]> random = new ArrayList<>(ascending); Collections.shuffle(random, new Random(987654321L));
+
+        List<String> expected = routingSignatureFor(ascending, true);
+        check(expected.equals(routingSignatureFor(descending, false)),
+            "Descending Speaker registration preserves deterministic route chunks");
+        check(expected.equals(routingSignatureFor(random, false)),
+            "Random Speaker registration preserves deterministic route chunks");
+    }
+
+    private static List<String> routingSignatureFor(List<int[]> coordinates, boolean verifyReload) throws Exception {
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A"); world.add(owner, -1000, 0, 0);
+        player(world, 0, 0, 0);
+        List<Speaker> speakers = new ArrayList<>();
+        for (int[] coordinate : coordinates) {
+            Speaker speaker = new Speaker(); speaker.linkKey = "A";
+            world.add(speaker, coordinate[0], coordinate[1], coordinate[2]); speakers.add(speaker);
+        }
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        long sessionId = ServerSessions.start(owner, start(0));
+        List<String> signature = routingSignature(out, sessionId);
+        check(signature.size() == PacketLimits.SESSION_TARGETS + 3,
+            "513 deterministic targets retain two chunk headers and every Speaker");
+        check(signature.get(0).equals("0/2") && signature.get(PacketLimits.SESSION_TARGETS + 1).equals("1/2"),
+            "Deterministic 513-Speaker boundary is 512 targets followed by one target");
+
+        if (verifyReload) {
+            for (Speaker speaker : speakers) speaker.onChunkUnload();
+            List<int[]> reloadOrder = new ArrayList<>(coordinates); Collections.shuffle(reloadOrder, new Random(1234L));
+            for (int[] coordinate : reloadOrder) {
+                Speaker speaker = new Speaker(); speaker.linkKey = "A";
+                world.add(speaker, coordinate[0], coordinate[1], coordinate[2]);
+            }
+            out.clear();
+            long reloadedSession = ServerSessions.start(owner, start(0));
+            check(signature.equals(routingSignature(out, reloadedSession)),
+                "Speaker unload and shuffled reload preserve identical route chunks");
+        }
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        return signature;
+    }
+
+    private static List<String> routingSignature(RecordingDelivery out, long sessionId) {
+        List<String> signature = new ArrayList<>();
+        for (IMessage message : out.messages) {
+            if (!(message instanceof PacketSessionSpeakerRoutes)) continue;
+            PacketSessionSpeakerRoutes route = (PacketSessionSpeakerRoutes)message;
+            if (route.sessionId != sessionId) continue;
+            signature.add(route.chunkIndex + "/" + route.chunkCount);
+            for (PacketSessionSpeakerRoutes.Target target : route.targets)
+                signature.add(target.position + ":" + target.range + ":" + target.volume);
+        }
+        return signature;
     }
 
     private static void trainCompat() throws Exception {
