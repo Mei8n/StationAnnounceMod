@@ -33,6 +33,8 @@ public final class ServerSessions {
     private static long nextId;
     private static final Map<Long, Session> SESSIONS = new HashMap<>();
     private static final Map<UUID, Set<Long>> BY_PLAYER = new HashMap<>();
+    /** World identity -> link key -> sessions that existed when that key changed. */
+    private static Map<World, Map<String, Set<Long>>> dirtyRouteKeys = new IdentityHashMap<>();
     private static final class Session {
         final long id;
         final TileEntityAnnouncer owner;
@@ -112,15 +114,35 @@ public final class ServerSessions {
         return packets;
     }
 
-    /** Called only by event-driven server SpeakerRegistry mutations. */
+    /** Record event-driven mutations; complete snapshots are coalesced at tick END. */
     public static void speakersChanged(World world, String oldKey, String newKey) {
         if (world == null || world.isRemote) return;
         String oldNormalized = oldKey == null ? null : SpeakerRegistry.normalize(oldKey);
         String newNormalized = newKey == null ? null : SpeakerRegistry.normalize(newKey);
-        for (Session session : new ArrayList<>(SESSIONS.values())) {
-            if (session.world != world) continue;
+        Map<String, Set<Long>> worldDirty = null;
+        for (Session session : SESSIONS.values()) {
+            if (session.world != world || session.key.isEmpty()) continue;
             if (!session.key.equals(oldNormalized) && !session.key.equals(newNormalized)) continue;
-            for (PacketSessionSpeakerRoutes packet : routeSnapshot(session)) send(session, packet);
+            if (worldDirty == null)
+                worldDirty = dirtyRouteKeys.computeIfAbsent(world, ignored -> new HashMap<>());
+            worldDirty.computeIfAbsent(session.key, ignored -> new HashSet<>()).add(session.id);
+        }
+    }
+
+    private static void flushDirtyRoutes() {
+        if (dirtyRouteKeys.isEmpty()) return;
+        Map<World, Map<String, Set<Long>>> pending = dirtyRouteKeys;
+        dirtyRouteKeys = new IdentityHashMap<>();
+        for (Map.Entry<World, Map<String, Set<Long>>> worldEntry : pending.entrySet()) {
+            World world = worldEntry.getKey();
+            for (Map.Entry<String, Set<Long>> keyEntry : worldEntry.getValue().entrySet()) {
+                String key = keyEntry.getKey();
+                for (Long id : keyEntry.getValue()) {
+                    Session session = SESSIONS.get(id);
+                    if (session == null || session.world != world || !session.key.equals(key)) continue;
+                    for (PacketSessionSpeakerRoutes packet : routeSnapshot(session)) send(session, packet);
+                }
+            }
         }
     }
     private static PacketAnnounce copy(PacketAnnounce source, long[] targets) {
@@ -211,14 +233,18 @@ public final class ServerSessions {
     }
     @SubscribeEvent public void unload(WorldEvent.Unload event) {
         if (event.world.isRemote) return;
+        dirtyRouteKeys.remove(event.world);
         for (Session session : new ArrayList<>(SESSIONS.values())) if (session.world == event.world) stop(session);
         SpeakerRegistry.clear(event.world); jp.me1han.sam.link.SamLinkRegistry.clear(event.world);
         LoadedSamTiles.clear(event.world);
     }
-    public static void clear() { SESSIONS.clear(); BY_PLAYER.clear(); serverTick = 0; }
+    public static void clear() {
+        SESSIONS.clear(); BY_PLAYER.clear(); dirtyRouteKeys.clear(); serverTick = 0;
+    }
 
     @SubscribeEvent public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+        flushDirtyRoutes();
         if (++serverTick % CLEANUP_INTERVAL_TICKS == 0) expireSessions(serverTick);
     }
 

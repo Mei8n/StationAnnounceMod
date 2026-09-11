@@ -52,7 +52,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); serverDescriptorRouting(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); trainCompat(); wireBounds(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); serverDescriptorRouting(); coalescedRouteUpdates(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -939,20 +939,22 @@ public final class NetworkVerificationTest {
         PacketAnnounce bStart = start(0); bStart.linkKey = "B";
         long sessionB = ServerSessions.start(ownerB, bStart);
         out.clear(); changed.applyConfig("B", 24, .5F);
+        check(out.messages.isEmpty(), "Speaker reindex queues routing updates until tick END");
+        endTick();
         PacketSessionSpeakerRoutes updateA = out.routeFor(sessionA);
         PacketSessionSpeakerRoutes updateB = out.routeFor(sessionB);
         check(updateA != null && updateA.revision == 2 && updateA.targets.isEmpty()
                 && updateB != null && updateB.revision == 2 && updateB.targets.size() == 1,
             "A to B reindex removes the route from A and adds it to B");
-        out.clear(); changed.applyConfig("B", 40, .5F);
+        out.clear(); changed.applyConfig("B", 40, .5F); endTick();
         PacketSessionSpeakerRoutes rangeUpdate = out.routeFor(sessionB);
         check(rangeUpdate != null && rangeUpdate.revision == 3 && rangeUpdate.targets.get(0).range == 40,
             "Range changes produce an event-driven authoritative descriptor update");
-        out.clear(); changed.applyConfig("B", 40, .25F);
+        out.clear(); changed.applyConfig("B", 40, .25F); endTick();
         PacketSessionSpeakerRoutes volumeUpdate = out.routeFor(sessionB);
         check(volumeUpdate != null && volumeUpdate.revision == 4 && volumeUpdate.targets.get(0).volume == .25F,
             "Volume changes produce an event-driven authoritative descriptor update");
-        out.clear(); changed.invalidate();
+        out.clear(); changed.invalidate(); endTick();
         PacketSessionSpeakerRoutes removed = out.routeFor(sessionB);
         check(removed != null && removed.revision == 5 && removed.targets.isEmpty(),
             "Server Speaker removal publishes an empty replacement snapshot");
@@ -961,6 +963,178 @@ public final class NetworkVerificationTest {
         for (int i = 0; i < 10; i++) endTick();
         check(out.messages.isEmpty(), "Player movement and part timing produce no routing update packets");
         ServerSessions.clear();
+    }
+
+    private static void coalescedRouteUpdates() throws Exception {
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A"); world.add(owner, -1, 0, 0);
+        player(world, 0, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        long session = ServerSessions.start(owner, start(0));
+        check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 1
+                && out.routeFor(session).revision == 1,
+            "START sends its initial empty revision immediately without waiting for tick END");
+
+        out.clear(); List<Speaker> ten = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, i, 0, 0); ten.add(speaker);
+        }
+        check(out.messages.isEmpty(), "Ten same-key registrations emit no routing packets during mutation");
+        endTick();
+        PacketSessionSpeakerRoutes registered = out.routeFor(session);
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && registered.revision == 2
+                && registered.targets.size() == 10,
+            "Ten same-key registrations coalesce into one final revision containing all Speakers");
+
+        out.clear(); for (Speaker speaker : ten) speaker.onChunkUnload();
+        check(out.messages.isEmpty(), "Chunk-unload-style unregister burst emits no intermediate snapshots");
+        endTick();
+        PacketSessionSpeakerRoutes unregistered = out.routeFor(session);
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && unregistered.revision == 3
+                && unregistered.targets.isEmpty(),
+            "Ten unregisters coalesce into one final empty revision");
+
+        Speaker original = new Speaker(); original.linkKey = "A"; world.add(original, 20, 0, 0); endTick();
+        out.clear(); original.onChunkUnload();
+        Speaker replacement = new Speaker(); replacement.linkKey = "A"; replacement.range = 48; replacement.volume = .75F;
+        world.add(replacement, 20, 0, 0);
+        check(out.messages.isEmpty(), "Unregister and replacement registration retain only dirty state before flush");
+        endTick();
+        PacketSessionSpeakerRoutes replaced = out.routeFor(session);
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && replaced.targets.size() == 1
+                && replaced.targets.get(0).range == 48 && replaced.targets.get(0).volume == .75F,
+            "Same-tick replacement publishes no intermediate empty snapshot");
+
+        Speaker lateOld = new Speaker(); lateOld.linkKey = "A"; world.add(lateOld, 21, 0, 0); endTick();
+        Speaker lateReplacement = new Speaker(); lateReplacement.linkKey = "A"; world.add(lateReplacement, 21, 0, 0); endTick();
+        out.clear(); lateOld.invalidate(); endTick();
+        check(out.messages.isEmpty(), "Late invalidation of a replaced TE creates no unnecessary dirty update");
+        lateReplacement.onChunkUnload(); endTick(); out.clear();
+
+        replacement.applyConfig("A", 32, .75F);
+        replacement.applyConfig("A", 64, .75F);
+        replacement.applyConfig("A", 64, .6F);
+        replacement.applyConfig("A", 64, .5F);
+        check(out.messages.isEmpty(), "Repeated range and volume changes are dirty-only until tick END");
+        endTick();
+        PacketSessionSpeakerRoutes settings = out.routeFor(session);
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && settings.targets.size() == 1
+                && settings.targets.get(0).range == 64 && settings.targets.get(0).volume == .5F,
+            "One coalesced snapshot contains only final range and volume values");
+
+        TileEntityAnnouncer ownerB = new TileEntityAnnouncer(); ownerB.setLinkKey("B"); world.add(ownerB, -2, 0, 0);
+        TileEntityAnnouncer ownerC = new TileEntityAnnouncer(); ownerC.setLinkKey("C"); world.add(ownerC, -3, 0, 0);
+        PacketAnnounce startB = start(0); startB.linkKey = "B";
+        PacketAnnounce startC = start(0); startC.linkKey = "C";
+        long sessionB = ServerSessions.start(ownerB, startB);
+        long sessionC = ServerSessions.start(ownerC, startC);
+        out.clear();
+        replacement.applyConfig("B", 64, .5F);
+        replacement.applyConfig("C", 64, .5F);
+        replacement.applyConfig("A", 64, .5F);
+        check(out.messages.isEmpty(), "A to B to C to A reindexes produce no intermediate snapshots");
+        endTick();
+        check(out.count(PacketSessionSpeakerRoutes.class) == 3
+                && out.routeFor(session).targets.size() == 1
+                && out.routeFor(sessionB).targets.isEmpty() && out.routeFor(sessionC).targets.isEmpty(),
+            "A, B and C dirty keys flush independently once with their final state");
+
+        FixtureWorld otherWorld = new FixtureWorld();
+        TileEntityAnnouncer otherOwner = new TileEntityAnnouncer(); otherOwner.setLinkKey("A"); otherWorld.add(otherOwner, -1, 0, 0);
+        player(otherWorld, 0, 0, 0);
+        long otherSession = ServerSessions.start(otherOwner, start(0));
+        out.clear();
+        Speaker worldOne = new Speaker(); worldOne.linkKey = "A"; world.add(worldOne, 30, 0, 0);
+        Speaker worldTwo = new Speaker(); worldTwo.linkKey = "A"; otherWorld.add(worldTwo, 0, 0, 0);
+        check(dirtyWorlds() == 2, "Dirty routing state isolates distinct World identities");
+        endTick();
+        check(out.routeFor(session) != null && out.routeFor(otherSession) != null,
+            "Distinct Worlds flush only their own active sessions");
+
+        PacketAnnounce startD = start(0); startD.linkKey = "D";
+        TileEntityAnnouncer ownerD = new TileEntityAnnouncer(); ownerD.setLinkKey("D"); world.add(ownerD, -4, 0, 0);
+        long sessionD = ServerSessions.start(ownerD, startD); out.clear();
+        Speaker dirtyD = new Speaker(); dirtyD.linkKey = "D"; world.add(dirtyD, 40, 0, 0);
+        ServerSessions.stopKey(world, "D");
+        check(out.count(PacketAnnounceStop.class) == 1, "Dirty session can stop before route flush");
+        out.clear(); endTick();
+        check(out.routeFor(sessionD) == null, "Flush sends no route packet to a stopped session");
+
+        FixtureWorld unloading = new FixtureWorld();
+        TileEntityAnnouncer unloadingOwner = new TileEntityAnnouncer(); unloadingOwner.setLinkKey("A"); unloading.add(unloadingOwner, -1, 0, 0);
+        player(unloading, 0, 0, 0);
+        long unloadingSession = ServerSessions.start(unloadingOwner, start(0)); out.clear();
+        Speaker unloadingSpeaker = new Speaker(); unloadingSpeaker.linkKey = "A"; unloading.add(unloadingSpeaker, 0, 0, 0);
+        check(dirtyContains(unloading), "World has pending dirty routing state before unload");
+        ServerSessions.INSTANCE.unload(new net.minecraftforge.event.world.WorldEvent.Unload(unloading));
+        check(!dirtyContains(unloading), "World unload removes its dirty World reference");
+        out.clear(); endTick();
+        check(out.routeFor(unloadingSession) == null, "World unload prevents pending route transmission");
+
+        Speaker pending = new Speaker(); pending.linkKey = "A"; world.add(pending, 50, 0, 0);
+        check(dirtyWorlds() > 0, "Speaker mutation creates pending dirty state");
+        ServerSessions.clear(); out.clear(); endTick();
+        check(dirtyWorlds() == 0 && out.messages.isEmpty(), "ServerSessions.clear removes all pending route state");
+        out.clear(); endTick();
+        check(out.messages.isEmpty(), "A server tick with no dirty keys emits no routing packets");
+
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        FixtureWorld reentrantWorld = new FixtureWorld();
+        TileEntityAnnouncer reentrantOwner = new TileEntityAnnouncer(); reentrantOwner.setLinkKey("A");
+        reentrantWorld.add(reentrantOwner, -1, 0, 0); player(reentrantWorld, 0, 0, 0);
+        ReentrantDelivery reentrant = new ReentrantDelivery(reentrantWorld); ServerSessions.delivery = reentrant;
+        long reentrantSession = ServerSessions.start(reentrantOwner, start(0)); reentrant.clear();
+        Speaker firstMutation = new Speaker(); firstMutation.linkKey = "A"; reentrantWorld.add(firstMutation, 0, 0, 0);
+        reentrant.armed = true; endTick();
+        check(reentrant.routeFor(reentrantSession).targets.size() == 1 && dirtyContains(reentrantWorld),
+            "Mutation during flush is retained for the next tick, not the active dirty batch");
+        reentrant.clear(); endTick();
+        check(reentrant.routeFor(reentrantSession).targets.size() == 2
+                && reentrant.routeFor(reentrantSession).revision == 3,
+            "Mutation raised during flush publishes one complete revision on the next tick");
+
+        ServerSessions.clear(); SpeakerRegistry.clear(); ServerSessions.delivery = out;
+        FixtureWorld denseWorld = new FixtureWorld();
+        TileEntityAnnouncer denseOwner = new TileEntityAnnouncer(); denseOwner.setLinkKey("A"); denseWorld.add(denseOwner, -1, 0, 0);
+        player(denseWorld, 0, 0, 0);
+        long denseSession = ServerSessions.start(denseOwner, start(0)); out.clear();
+        List<Speaker> dense = new ArrayList<>();
+        for (int i = 0; i < PacketLimits.SESSION_TARGETS + 1; i++) {
+            Speaker speaker = new Speaker(); speaker.linkKey = "A"; denseWorld.add(speaker, i, 0, 0); dense.add(speaker);
+        }
+        check(out.messages.isEmpty(), "A 513-Speaker load burst sends nothing before END flush");
+        endTick();
+        int total = 0; long denseRevision = -1;
+        for (IMessage message : out.messages) if (message instanceof PacketSessionSpeakerRoutes) {
+            PacketSessionSpeakerRoutes route = (PacketSessionSpeakerRoutes)message;
+            if (route.sessionId == denseSession) {
+                total += route.targets.size();
+                if (denseRevision < 0) denseRevision = route.revision;
+                else check(denseRevision == route.revision, "All split chunks share one coalesced revision");
+            }
+        }
+        check(out.count(PacketSessionSpeakerRoutes.class) == 2 && total == PacketLimits.SESSION_TARGETS + 1
+                && denseRevision == 2,
+            "Coalesced 513-Speaker snapshot remains split without truncation");
+
+        out.clear(); for (Speaker speaker : dense) speaker.onChunkUnload();
+        check(out.messages.isEmpty(), "A 513-Speaker movement-style unload has no per-Speaker packet burst");
+        endTick();
+        check(out.count(PacketSessionSpeakerRoutes.class) == 1 && out.routeFor(denseSession).targets.isEmpty()
+                && out.routeFor(denseSession).revision == 3,
+            "A 513-Speaker unload coalesces to one final snapshot revision");
+        ServerSessions.clear(); SpeakerRegistry.clear();
+    }
+
+    private static int dirtyWorlds() throws Exception {
+        Field field = ServerSessions.class.getDeclaredField("dirtyRouteKeys"); field.setAccessible(true);
+        return ((Map<?, ?>)field.get(null)).size();
+    }
+
+    private static boolean dirtyContains(World world) throws Exception {
+        Field field = ServerSessions.class.getDeclaredField("dirtyRouteKeys"); field.setAccessible(true);
+        return ((Map<?, ?>)field.get(null)).containsKey(world);
     }
 
     private static int sessions() throws Exception {
@@ -1280,6 +1454,18 @@ public final class NetworkVerificationTest {
             return found;
         }
         void clear() { messages.clear(); players.clear(); }
+    }
+    private static class ReentrantDelivery extends RecordingDelivery {
+        final FixtureWorld world;
+        boolean armed, mutated;
+        ReentrantDelivery(FixtureWorld world) { this.world = world; }
+        @Override public void send(IMessage packet, EntityPlayerMP player) {
+            super.send(packet, player);
+            if (armed && !mutated && packet instanceof PacketSessionSpeakerRoutes) {
+                mutated = true;
+                Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 10, 0, 0);
+            }
+        }
     }
     private static class TestClient extends AnnounceManager {
         World world; int worldReads, ticks;
