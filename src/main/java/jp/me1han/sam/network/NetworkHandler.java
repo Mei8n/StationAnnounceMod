@@ -137,13 +137,19 @@ public class NetworkHandler {
         @Override public IMessage onMessage(PacketAwarenessConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityAwarenessAnnouncer.class, tile -> {
                 if (!m.isValidPayload()) return;
+                jp.me1han.sam.api.AwarenessMode mode = jp.me1han.sam.api.AwarenessMode.fromId(m.mode);
+                String scriptName = m.scriptName == null ? "" : m.scriptName.trim();
+                if (mode == jp.me1han.sam.api.AwarenessMode.SCRIPT
+                    && !jp.me1han.sam.AnnouncePackLoader.validateScript(scriptName,
+                        jp.me1han.sam.api.ScriptType.AWARENESS)) return;
                 String sounds = TileEntityAwarenessAnnouncer.normalizeSoundList(m.soundList);
                 if (ConfigAccess.normalize(m.linkKey).equals(tile.getLinkKey()) && sounds.equals(tile.soundList)
+                    && mode == tile.mode && scriptName.equals(tile.scriptName)
                     && m.intervalTicks == tile.intervalTicks && m.randomOrder == tile.randomOrder
                     && m.allowOverlap == tile.allowOverlap && m.playAfterDeparture == tile.playAfterDeparture
                     && m.departureDelayTicks == tile.departureDelayTicks) return;
-                ConfigAccess.change(tile, () -> tile.applyConfig(m.linkKey, sounds, m.intervalTicks,
-                    m.randomOrder, m.allowOverlap, m.playAfterDeparture, m.departureDelayTicks));
+                ConfigAccess.change(tile, () -> tile.applyConfig(mode, m.linkKey, sounds, scriptName,
+                    m.intervalTicks, m.randomOrder, m.allowOverlap, m.playAfterDeparture, m.departureDelayTicks));
             }); return null;
         }
     }

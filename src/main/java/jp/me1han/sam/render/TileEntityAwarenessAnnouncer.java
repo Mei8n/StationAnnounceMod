@@ -1,5 +1,9 @@
 package jp.me1han.sam.render;
 
+import jp.me1han.sam.AnnouncePackLoader;
+import jp.me1han.sam.api.AnnounceData;
+import jp.me1han.sam.api.AwarenessMode;
+import jp.me1han.sam.api.ScriptType;
 import jp.me1han.sam.network.PacketAnnounce;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -12,7 +16,9 @@ import jp.me1han.sam.link.SamLinkRegistry;
 
 public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
     private String linkKey = "";
+    public AwarenessMode mode = AwarenessMode.DIRECT;
     public String soundList = "";
+    public String scriptName = "";
     public int intervalTicks = 1200;
     public boolean randomOrder = false;
     public boolean allowOverlap = false;
@@ -51,8 +57,17 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
 
     public void applyConfig(String linkKey, String soundList, int intervalTicks, boolean randomOrder,
                             boolean allowOverlap, boolean playAfterDeparture, int departureDelayTicks) {
+        applyConfig(AwarenessMode.DIRECT, linkKey, soundList, this.scriptName, intervalTicks, randomOrder,
+            allowOverlap, playAfterDeparture, departureDelayTicks);
+    }
+
+    public void applyConfig(AwarenessMode mode, String linkKey, String soundList, String scriptName,
+                            int intervalTicks, boolean randomOrder, boolean allowOverlap,
+                            boolean playAfterDeparture, int departureDelayTicks) {
+        this.mode = mode == null ? AwarenessMode.DIRECT : mode;
         this.setLinkKey(linkKey);
         this.soundList = normalizeSoundList(soundList);
+        this.scriptName = scriptName == null ? "" : scriptName.trim();
         this.intervalTicks = Math.max(20, intervalTicks);
         this.randomOrder = randomOrder;
         this.allowOverlap = allowOverlap;
@@ -80,15 +95,22 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
     }
 
     private boolean playNextSound() {
-        List<String> sounds = getSounds();
-        if (sounds.isEmpty()) {
-            return false;
-        }
-
         TileEntityAnnouncer parent = findParent();
         if (parent == null) {
             return false;
         }
+
+        if (this.mode == AwarenessMode.SCRIPT) {
+            String name = this.scriptName == null ? "" : this.scriptName.trim();
+            if (name.isEmpty()) return false;
+            AnnounceData data = AnnouncePackLoader.runAnnounceScript(name, parent, ScriptType.AWARENESS);
+            if (data == null) return false;
+            parent.startAnnouncement(data, PacketAnnounce.PRIORITY_AWARENESS, this.allowOverlap);
+            return true;
+        }
+
+        List<String> sounds = getSounds();
+        if (sounds.isEmpty()) return false;
 
         int index;
         if (this.randomOrder && sounds.size() > 1) {
@@ -158,7 +180,9 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
         nbt.setString("linkKey", this.getLinkKey());
+        nbt.setInteger("mode", this.mode.id);
         nbt.setString("soundList", this.soundList == null ? "" : this.soundList);
+        nbt.setString("scriptName", this.scriptName == null ? "" : this.scriptName);
         nbt.setInteger("intervalTicks", this.intervalTicks);
         nbt.setBoolean("randomOrder", this.randomOrder);
         nbt.setBoolean("allowOverlap", this.allowOverlap);
@@ -172,7 +196,10 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
         this.setLinkKey(nbt.getString("linkKey"));
+        AwarenessMode storedMode = nbt.hasKey("mode") ? AwarenessMode.fromId(nbt.getInteger("mode")) : AwarenessMode.DIRECT;
+        this.mode = storedMode == null ? AwarenessMode.DIRECT : storedMode;
         this.soundList = nbt.getString("soundList");
+        this.scriptName = nbt.getString("scriptName");
         this.intervalTicks = nbt.hasKey("intervalTicks") ? Math.max(20, nbt.getInteger("intervalTicks")) : 1200;
         this.randomOrder = nbt.getBoolean("randomOrder");
         this.allowOverlap = nbt.getBoolean("allowOverlap");

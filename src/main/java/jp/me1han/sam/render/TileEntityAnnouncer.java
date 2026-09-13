@@ -61,6 +61,11 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
 
         String normalizedSound = soundId.trim();
         AnnounceData data = new AnnounceData("", Collections.singletonList(normalizedSound), "");
+        startAnnouncement(data, priority, allowOverlap);
+    }
+
+    public void startAnnouncement(AnnounceData data, int priority, boolean allowOverlap) {
+        if (this.worldObj == null || this.worldObj.isRemote || data == null) return;
         PacketAnnounce packet = new PacketAnnounce(data, getLinkKey(), playLocalSound, xCoord, yCoord, zCoord);
         packet.priority = priority; packet.allowOverlap = allowOverlap;
         sendStart(packet);

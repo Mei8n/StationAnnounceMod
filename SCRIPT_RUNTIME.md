@@ -24,7 +24,7 @@ scriptへ渡す`tile`は実際のMinecraft `TileEntity`ではなく、呼び出�
 - `getDisplayName()`: 任意。設定画面用の名前を返します。省略時またはエラー時はscript filenameを使用します。最大256文字です。
 - `samMain(tile)`: 必須。放送開始時に呼ばれます。
 
-通常放送の`samMain`は`sam.build(startmelo, sounds, arrmelo[, repeatCount])`が返す`AnnounceData`を返す必要があります。発車放送では`sam.build(melody, sounds, mode)`が返す`DepartureProgram`を返す必要があります。関数の欠落、`null`、異なる型、runtime error、不正またはpacket化できない出力はfail closedとなり、放送を開始しません。logにはscript名、`load` / `getDisplayName` / `samMain` phase、原因が記録されます。
+通常放送とSCRIPTモードの啓発放送の`samMain`は`sam.build(startmelo, sounds, arrmelo[, repeatCount])`が返す`AnnounceData`を返す必要があります。啓発放送では親放送装置のread-only contextが渡され、`getScriptType()`は`AWARENESS` (4) または未宣言の`UNKNOWN`である必要があります。発車放送では`sam.build(melody, sounds, mode)`が返す`DepartureProgram`を返す必要があります。関数の欠落、`null`、異なる型、runtime error、不正またはpacket化できない出力はfail closedとなり、放送を開始しません。logにはscript名、`load` / `getDisplayName` / `samMain` phase、原因が記録されます。
 
 正式にサポートする`sam` APIは次のとおりです。
 

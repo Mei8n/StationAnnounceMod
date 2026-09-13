@@ -193,10 +193,14 @@ public class AnnouncePackLoader {
     private static String normalizeScriptName(String name) { return name == null ? "" : name.trim(); }
 
     public static AnnounceData runScript(String name, TileEntityAnnouncer tile) {
+        return runAnnounceScript(name, tile, ScriptType.APPROACH);
+    }
+
+    public static AnnounceData runAnnounceScript(String name, TileEntityAnnouncer tile, ScriptType requiredType) {
         String scriptName = normalizeScriptName(name);
-        if (!canUseScript(scriptName, ScriptType.APPROACH)) {
+        if (!canUseScript(scriptName, requiredType)) {
             logScriptFailure(scriptName, "script type",
-                new IllegalArgumentException(compatibilityError(scriptName, ScriptType.APPROACH)));
+                new IllegalArgumentException(compatibilityError(scriptName, requiredType)));
             return null;
         }
         try {

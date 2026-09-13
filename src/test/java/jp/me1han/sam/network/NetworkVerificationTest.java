@@ -20,6 +20,7 @@ import jp.me1han.sam.compat.TrainCompatRegistry;
 import jp.me1han.sam.compat.TrainDetectionManager;
 import jp.me1han.sam.compat.TrainSnapshot;
 import jp.me1han.sam.render.*;
+import jp.me1han.sam.script.AnnounceScriptContext;
 import jp.me1han.sam.link.LinkKey;
 import jp.me1han.sam.link.SamLinkRegistry;
 import jp.me1han.sam.trigger.*;
@@ -53,7 +54,8 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        AnnouncePackLoader.soundTicks.put("test:b", 20);
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); awarenessScriptMode(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -551,7 +553,29 @@ public final class NetworkVerificationTest {
                 PacketLimits.MAX_TICKS, true, false, true, PacketLimits.MAX_TICKS);
             buf.clear(); awareness.toBytes(buf);
             PacketAwarenessConfig awarenessRead = new PacketAwarenessConfig(); awarenessRead.fromBytes(buf);
-            check(awarenessRead.soundList.equals(maxSounds), "Awareness sound and tick boundaries round trip");
+            check(awarenessRead.soundList.equals(maxSounds) && awarenessRead.mode == AwarenessMode.DIRECT.id
+                    && awarenessRead.scriptName.isEmpty(),
+                "Awareness sound, mode and tick boundaries round trip");
+
+            PacketAwarenessConfig scriptAwareness = new PacketAwarenessConfig(1, 2, 3, "key", maxSounds,
+                AwarenessMode.SCRIPT, "awareness.js", 20, false, true, false, 0);
+            buf.clear(); scriptAwareness.toBytes(buf);
+            PacketAwarenessConfig scriptAwarenessRead = new PacketAwarenessConfig(); scriptAwarenessRead.fromBytes(buf);
+            check(scriptAwarenessRead.mode == AwarenessMode.SCRIPT.id
+                    && "awareness.js".equals(scriptAwarenessRead.scriptName) && buf.readableBytes() == 0,
+                "Awareness SCRIPT mode and script name round trip");
+            scriptAwareness.mode = 99;
+            buf.clear(); expectEncodeInvalid(() -> scriptAwareness.toBytes(buf));
+            scriptAwareness.mode = AwarenessMode.SCRIPT.id;
+            scriptAwareness.scriptName = String.join("", Collections.nCopies(PacketLimits.NAME + 1, "x"));
+            buf.clear(); expectEncodeInvalid(() -> scriptAwareness.toBytes(buf));
+            buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+            PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+            PacketLimits.writeString(buf, "sound", PacketLimits.SOUND_LIST);
+            buf.writeInt(99);
+            PacketLimits.writeString(buf, "script.js", PacketLimits.NAME);
+            buf.writeInt(20).writeBoolean(false).writeBoolean(false).writeBoolean(false).writeInt(0);
+            expectInvalid(() -> new PacketAwarenessConfig().fromBytes(buf));
 
             String wireSoundId = String.join("", Collections.nCopies(21, "\u754c"));
             List<String> wireSounds = new ArrayList<>(Collections.nCopies(PacketLimits.SOUNDS, wireSoundId));
@@ -588,6 +612,8 @@ public final class NetworkVerificationTest {
             buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
             PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
             PacketLimits.writeString(buf, maxSounds + ",extra", PacketLimits.SOUND_LIST);
+            buf.writeInt(AwarenessMode.DIRECT.id);
+            PacketLimits.writeString(buf, "", PacketLimits.NAME);
             buf.writeInt(20).writeBoolean(false).writeBoolean(false).writeBoolean(false).writeInt(0);
             expectInvalid(() -> new PacketAwarenessConfig().fromBytes(buf));
 
@@ -1006,6 +1032,188 @@ public final class NetworkVerificationTest {
         AnnouncePackLoader.availableScripts.removeIf(info -> info.fileName.equals(name));
         AnnouncePackLoader.availableScripts.add(new AnnounceScriptInfo(name, name, type));
         return engine;
+    }
+
+    private static void awarenessScriptMode() throws Exception {
+        String awarenessName = "awareness-mode.js";
+        String legacyName = "awareness-legacy.js";
+        String approachName = "awareness-wrong-approach.js";
+        String departureName = "awareness-wrong-departure.js";
+        String failureName = "awareness-failure.js";
+        String invalidReturnName = "awareness-invalid-return.js";
+        String invalidTimingName = "awareness-invalid-timing.js";
+        ScriptEngine awarenessEngine = registerScript(awarenessName, ScriptType.AWARENESS,
+            "var calls=0; var seenKey=''; var seenDestination='';"
+            + "function samMain(tile){calls++; seenKey=tile.getLinkKey(); seenDestination=tile.getReceivedData().get('destination');"
+            + "return sam.build('', ['test:a',sam.interval(1.0),'test:b'], '', 2);}");
+        registerScript(legacyName, ScriptType.UNKNOWN,
+            "function samMain(tile){return sam.build('', ['test:a'], '');}");
+        ScriptEngine approachEngine = registerScript(approachName, ScriptType.APPROACH,
+            "var calls=0; function samMain(tile){calls++; return sam.build('', ['test:a'], '');}");
+        registerScript(departureName, ScriptType.DEPARTURE_MELODY,
+            "function samMain(tile){return sam.build('test:m', [], sam.push());}");
+        ScriptEngine failureEngine = registerScript(failureName, ScriptType.AWARENESS,
+            "var calls=0; function samMain(tile){calls++; throw 'broken awareness';}");
+        registerScript(invalidReturnName, ScriptType.AWARENESS,
+            "function samMain(tile){return 'not announcement data';}");
+        registerScript(invalidTimingName, ScriptType.AWARENESS,
+            "function samMain(tile){return sam.build('', ['test:no-duration'], '');}");
+
+        TileEntityAwarenessAnnouncer legacy = new TileEntityAwarenessAnnouncer();
+        NBTTagCompound oldNbt = new NBTTagCompound(); oldNbt.setString("soundList", "test:a,test:b");
+        legacy.readFromNBT(oldNbt);
+        check(legacy.mode == AwarenessMode.DIRECT, "Awareness NBT without a mode remains DIRECT");
+
+        legacy.applyConfig(AwarenessMode.SCRIPT, "A", "test:a,test:b", awarenessName,
+            20, true, true, true, 4);
+        legacy.applyConfig(AwarenessMode.DIRECT, "A", "test:a,test:b", awarenessName,
+            20, true, true, true, 4);
+        check("test:a,test:b".equals(legacy.soundList) && awarenessName.equals(legacy.scriptName),
+            "Mode changes preserve both DIRECT and SCRIPT settings");
+        legacy.mode = AwarenessMode.SCRIPT;
+        NBTTagCompound saved = new NBTTagCompound(); legacy.writeToNBT(saved);
+        TileEntityAwarenessAnnouncer restored = new TileEntityAwarenessAnnouncer(); restored.readFromNBT(saved);
+        check(restored.mode == AwarenessMode.SCRIPT && awarenessName.equals(restored.scriptName)
+                && "test:a,test:b".equals(restored.soundList),
+            "Awareness mode and both mode-specific values survive NBT round trip");
+
+        check(AnnouncePackLoader.canUseScript(awarenessName, ScriptType.AWARENESS)
+                && AnnouncePackLoader.canUseScript(legacyName, ScriptType.AWARENESS),
+            "AWARENESS and UNKNOWN scripts are compatible with Awareness devices");
+        check(!AnnouncePackLoader.canUseScript(approachName, ScriptType.AWARENESS)
+                && !AnnouncePackLoader.canUseScript(departureName, ScriptType.AWARENESS),
+            "Known non-Awareness script types are excluded from Awareness candidates");
+
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer parent = new TileEntityAnnouncer(); parent.setLinkKey("A");
+        parent.receivedData.put("destination", "Tokyo"); world.add(parent, 0, 0, 0);
+        TileEntityAwarenessAnnouncer tile = new TileEntityAwarenessAnnouncer(); world.add(tile, 1, 0, 0);
+        Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 2, 0, 0);
+        Player player = player(world, 1, 0, 0); MessageContext context = context(player);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        NetworkHandler.AwarenessConfigHandler handler = new NetworkHandler.AwarenessConfigHandler();
+
+        PacketAwarenessConfig typedConfig = new PacketAwarenessConfig(1, 0, 0, "A", "test:a,test:b",
+            AwarenessMode.SCRIPT, awarenessName, 20, true, true, true, 4);
+        handler.onMessage(typedConfig, context); serverTick();
+        check(tile.mode == AwarenessMode.SCRIPT && awarenessName.equals(tile.scriptName),
+            "Server accepts an AWARENESS script in SCRIPT mode");
+        int unchangedUpdates = world.updates;
+        handler.onMessage(typedConfig, context); serverTick();
+        check(world.updates == unchangedUpdates,
+            "Identical SCRIPT mode and script name do not reset the Tile or emit an update");
+        handler.onMessage(new PacketAwarenessConfig(1, 0, 0, "A", "test:a,test:b",
+            AwarenessMode.SCRIPT, legacyName, 20, false, false, false, 0), context); serverTick();
+        check(legacyName.equals(tile.scriptName), "Server accepts an UNKNOWN script in SCRIPT mode");
+        check(AnnouncePackLoader.runAnnounceScript(legacyName, parent, ScriptType.AWARENESS) != null,
+            "A legacy script without getScriptType remains executable as Awareness");
+        for (String rejected : Arrays.asList(approachName, departureName, "missing-awareness.js")) {
+            handler.onMessage(new PacketAwarenessConfig(1, 0, 0, "A", "test:a",
+                AwarenessMode.SCRIPT, rejected, 20, false, false, false, 0), context); serverTick();
+            check(legacyName.equals(tile.scriptName), "Server rejects an unavailable or mismatched SCRIPT config");
+        }
+        handler.onMessage(new PacketAwarenessConfig(1, 0, 0, "A", "test:b",
+            AwarenessMode.DIRECT, "deleted-inactive.js", 20, false, false, false, 0), context); serverTick();
+        check(tile.mode == AwarenessMode.DIRECT && "deleted-inactive.js".equals(tile.scriptName),
+            "DIRECT saves without validating its inactive script setting");
+        handler.onMessage(new PacketAwarenessConfig(1, 0, 0, "A", "test:b",
+            AwarenessMode.SCRIPT, "", 20, false, false, false, 0), context); serverTick();
+        check(tile.mode == AwarenessMode.SCRIPT && tile.scriptName.isEmpty(),
+            "An empty script name is a valid silent SCRIPT configuration");
+        out.clear(); for (int i = 0; i <= 20; i++) tile.updateEntity();
+        check(out.messages.isEmpty(), "An empty SCRIPT trigger is silent");
+
+        tile.applyConfig(AwarenessMode.SCRIPT, "A", "test:b", awarenessName,
+            20, true, true, false, 0);
+        out.clear(); ServerSessions.clear();
+        for (int i = 0; i <= 20; i++) tile.updateEntity();
+        PacketAnnounce announced = null;
+        for (IMessage message : out.messages) if (message instanceof PacketAnnounce) announced = (PacketAnnounce)message;
+        check(((Number)awarenessEngine.eval("calls")).intValue() == 1,
+            "One SCRIPT trigger invokes samMain exactly once");
+        check(announced != null && announced.priority == PacketAnnounce.PRIORITY_AWARENESS
+                && announced.allowOverlap && announced.repeatCount == 2,
+            "SCRIPT output uses the Awareness priority and Tile overlap setting");
+        check(announced.bodySounds.equals(Arrays.asList("test:a", "", "test:b"))
+                && announced.bodyPartTicks.get(1) == 20,
+            "SCRIPT AnnounceData parts, interval and repeat survive the common send path");
+        check("A".equals(awarenessEngine.eval("seenKey"))
+                && "Tokyo".equals(awarenessEngine.eval("seenDestination")),
+            "SCRIPT receives the parent Announcer link key and received-data snapshot");
+        check(!TileEntity.class.isAssignableFrom(AnnounceScriptContext.class)
+                && AnnounceScriptContext.class.getMethod("getReceivedData") != null,
+            "SCRIPT context is the read-only snapshot type rather than a live TileEntity");
+        try {
+            AnnounceScriptContext.snapshot(parent).getReceivedData().put("destination", "Changed");
+            check(false, "Received-data snapshot must be immutable");
+        } catch (UnsupportedOperationException expected) {
+            check("Tokyo".equals(parent.receivedData.get("destination")),
+                "SCRIPT cannot mutate the parent Announcer's received data");
+        }
+        tile.updateEntity();
+        check(((Number)awarenessEngine.eval("calls")).intValue() == 1,
+            "SCRIPT is not reevaluated on every server tick");
+
+        ServerSessions.clear(); out.clear();
+        tile.applyConfig(AwarenessMode.SCRIPT, "A", "test:a", awarenessName,
+            20, true, false, true, 2);
+        int callsBeforeDeparture = ((Number)awarenessEngine.eval("calls")).intValue();
+        tile.scheduleAfterDeparture(); tile.updateEntity(); tile.updateEntity();
+        check(((Number)awarenessEngine.eval("calls")).intValue() == callsBeforeDeparture + 1
+                && out.count(PacketAnnounce.class) == 1,
+            "Departure-finished scheduling invokes one SCRIPT trigger after the configured delay");
+
+        ServerSessions.clear(); out.clear();
+        tile.applyConfig(AwarenessMode.SCRIPT, "A", "test:a", approachName,
+            20, false, false, false, 0);
+        for (int i = 0; i <= 20; i++) tile.updateEntity();
+        check(((Number)approachEngine.eval("calls")).intValue() == 0 && out.messages.isEmpty(),
+            "Runtime ScriptType guard rejects mismatched NBT-style Awareness state");
+
+        tile.applyConfig(AwarenessMode.SCRIPT, "A", "test:a", failureName,
+            20, false, false, false, 0);
+        for (int i = 0; i <= 20; i++) tile.updateEntity();
+        tile.updateEntity();
+        check(((Number)failureEngine.eval("calls")).intValue() == 1 && out.messages.isEmpty(),
+            "A failing SCRIPT trigger stays silent and waits for the next interval");
+        tile.applyConfig(AwarenessMode.SCRIPT, "A", "test:a", invalidReturnName,
+            20, false, false, false, 0);
+        for (int i = 0; i <= 20; i++) tile.updateEntity();
+        check(out.messages.isEmpty(), "Invalid SCRIPT return values do not create sessions");
+        tile.applyConfig(AwarenessMode.SCRIPT, "A", "test:a", invalidTimingName,
+            20, false, false, false, 0);
+        for (int i = 0; i <= 20; i++) tile.updateEntity();
+        check(out.messages.isEmpty(), "SCRIPT timing validation rejects sounds absent from server metadata");
+
+        tile.applyConfig(AwarenessMode.DIRECT, "A", "test:a,test:b", awarenessName,
+            20, false, false, false, 0);
+        for (int i = 0; i <= 20; i++) tile.updateEntity();
+        PacketAnnounce direct = null;
+        for (IMessage message : out.messages) if (message instanceof PacketAnnounce) direct = (PacketAnnounce)message;
+        check(direct != null && direct.priority == PacketAnnounce.PRIORITY_AWARENESS
+                && !direct.allowOverlap && direct.bodySounds.size() == 1
+                && "test:a".equals(direct.bodySounds.get(0)),
+            "DIRECT sequential playback retains its priority, overlap and first-sound behavior");
+        check(((Number)awarenessEngine.eval("calls")).intValue() == callsBeforeDeparture + 1,
+            "DIRECT mode does not execute the inactive script setting");
+
+        ServerSessions.clear(); out.clear();
+        tile.applyConfig(AwarenessMode.DIRECT, "A", "test:a,test:b", awarenessName,
+            20, true, false, false, 0);
+        for (int i = 0; i <= 20; i++) tile.updateEntity();
+        PacketAnnounce randomDirect = null;
+        for (IMessage message : out.messages) if (message instanceof PacketAnnounce) randomDirect = (PacketAnnounce)message;
+        NBTTagCompound randomState = new NBTTagCompound(); tile.writeToNBT(randomState);
+        check(randomDirect != null && ("test:a".equals(randomDirect.bodySounds.get(0))
+                || "test:b".equals(randomDirect.bodySounds.get(0))) && randomState.getInteger("nextSoundIndex") == 0,
+            "DIRECT randomOrder selects a configured sound without advancing sequential state");
+
+        for (String name : Arrays.asList(awarenessName, legacyName, approachName, departureName,
+                failureName, invalidReturnName, invalidTimingName)) {
+            AnnouncePackLoader.scriptEngines.remove(name);
+            AnnouncePackLoader.availableScripts.removeIf(info -> info.fileName.equals(name));
+        }
+        ServerSessions.clear(); SpeakerRegistry.clear(world); SamLinkRegistry.clear(world); LoadedSamTiles.clear(world);
     }
     private static void serverTick() { ServerTaskQueue.INSTANCE.onServerTick(new TickEvent.ServerTickEvent(TickEvent.Phase.START)); }
 
@@ -2344,7 +2552,7 @@ public final class NetworkVerificationTest {
 
     private static void limitsAndExpiry() throws Exception {
         cpw.mods.fml.common.Mod mod = StationAnnounceModCore.class.getAnnotation(cpw.mods.fml.common.Mod.class);
-        check("0.2.4-beta".equals(StationAnnounceModCore.VERSION), "Wire protocol change bumps the SAM version");
+        check("0.2.5-beta".equals(StationAnnounceModCore.VERSION), "Wire protocol change bumps the SAM version");
         check(("[" + StationAnnounceModCore.VERSION + "]").equals(mod.acceptableRemoteVersions()),
             "Forge exact remote version gate follows SAM version");
         ByteBuf buf = Unpooled.buffer();
