@@ -53,7 +53,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); awarenessPauseLifetime(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -1760,6 +1760,50 @@ public final class NetworkVerificationTest {
         while (client.played.isEmpty() && client.ticks <= expectedClientTick) client.tick();
         check(soundNames(client).equals(Collections.singletonList("test:boundary-c"))
                 && client.playedAtTicks.get(0) == expectedClientTick, message);
+    }
+
+    private static void awarenessPauseLifetime() throws Exception {
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        FixtureWorld serverWorld = new FixtureWorld();
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A");
+        serverWorld.add(owner, 0, 0, 0);
+        Player existing = player(serverWorld, 0, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+
+        PacketAnnounce awareness = start(0);
+        awareness.priority = PacketAnnounce.PRIORITY_AWARENESS;
+        awareness.allowOverlap = false;
+        long awarenessId = ServerSessions.start(owner, awareness);
+        out.clear();
+
+        FixtureWorld clientWorld = new FixtureWorld(); clientWorld.isRemote = true;
+        TestClient client = new TestClient(); client.world = clientWorld;
+        PacketAnnounce high = new PacketAnnounce(new AnnounceData("",
+            Collections.singletonList("test:high-30"), ""), "A", false, 0, 0, 0);
+        high.sessionId = 55000;
+        high.priority = PacketAnnounce.PRIORITY_ANNOUNCE;
+        high.resolveTiming(Collections.singletonMap("test:high-30", 30));
+        receiveReady(client, high, route(0, 16, 1));
+        receiveReady(client, awareness, route(0, 16, 1));
+        for (int i = 0; i < 25; i++) { client.tick(); endTick(); }
+
+        check(!soundNames(client).contains("test:body") && sessions() == 1
+                && recipientCount(awarenessId) == 1,
+            "A blocked Awareness remains paused and server-managed past its nominal logical end");
+
+        Player late = player(serverWorld, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(late));
+        check(out.messages.isEmpty() && sessions() == 1 && recipientCount(awarenessId) == 1,
+            "Late join after nominal end receives nothing without deleting the paused recipient session");
+
+        client.receive(new PacketAnnounceStop(high.sessionId));
+        for (int i = 0; i < 30 && !client.ended.contains(awarenessId); i++) client.tick();
+        check(soundNames(client).contains("test:body") && client.ended.contains(awarenessId),
+            "Awareness resumes after the higher-priority session and completes normally");
+        ServerSessions.finished(existing, awarenessId);
+        check(sessions() == 0,
+            "The final recipient ACK removes an unobserved Awareness after its logical end");
+        ServerSessions.clear(); SpeakerRegistry.clear(serverWorld);
     }
 
     private static void serverLogicalCompletion() throws Exception {
