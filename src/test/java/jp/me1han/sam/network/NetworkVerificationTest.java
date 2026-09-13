@@ -53,7 +53,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -469,8 +469,10 @@ public final class NetworkVerificationTest {
             check(buf.readableBytes() == 8, "STOP is exactly 8 payload bytes");
             PacketAnnounceStop stop = new PacketAnnounceStop(); stop.fromBytes(buf);
             check(stop.sessionId == 15L, "STOP round trip");
-            buf.clear(); new PacketDepartureControl(16L, false).toBytes(buf);
+            buf.clear(); new PacketDepartureControl(16L, PacketDepartureControl.Action.RELEASE).toBytes(buf);
             check(buf.readableBytes() == 9, "Departure control is exactly 9 payload bytes");
+            buf.clear(); buf.writeLong(16L).writeByte(3);
+            expectInvalid(() -> new PacketDepartureControl().fromBytes(buf));
             PacketSessionSpeakerRoutes routes = new PacketSessionSpeakerRoutes(17, 2, 0, 1);
             for (int i = 0; i < PacketLimits.SESSION_TARGETS; i++) routes.targets.add(route(i, 128, 1));
             buf.clear(); routes.toBytes(buf);
@@ -699,23 +701,25 @@ public final class NetworkVerificationTest {
         check(out.messages.isEmpty(), "STOP releases session recipients");
         nearby.get(0).posX = 0;
         long first = ServerSessions.start(owner, departure(0));
-        out.clear(); ServerSessions.control(first, false);
-        check(out.messages.size() == 13 && !((PacketDepartureControl)out.messages.get(0)).cancel, "OFF reaches original recipients");
+        out.clear(); ServerSessions.control(first, PacketDepartureControl.Action.RELEASE);
+        check(out.messages.size() == 13
+            && ((PacketDepartureControl)out.messages.get(0)).action == PacketDepartureControl.Action.RELEASE,
+            "OFF reaches original recipients");
         long second = ServerSessions.start(owner, departure(0));
         check(first != second, "Every start gets unique ID");
-        out.clear(); ServerSessions.control(first, true);
+        out.clear(); ServerSessions.control(first, PacketDepartureControl.Action.CANCEL);
         check(out.messages.size() == 13 && ((PacketDepartureControl)out.messages.get(0)).sessionId == first, "Old CANCEL names only old session");
-        out.clear(); ServerSessions.control(second, false);
+        out.clear(); ServerSessions.control(second, PacketDepartureControl.Action.RELEASE);
         check(out.messages.size() == 13, "New session survives old CANCEL");
         ServerSessions.INSTANCE.logout(new PlayerEvent.PlayerLoggedOutEvent(nearby.get(0)));
-        out.clear(); ServerSessions.control(second, false);
+        out.clear(); ServerSessions.control(second, PacketDepartureControl.Action.RELEASE);
         check(out.messages.size() == 12, "Logout removes original recipient");
         nearby.get(1).worldObj = new FixtureWorld();
         ServerSessions.INSTANCE.changedWorld(new PlayerEvent.PlayerChangedDimensionEvent(nearby.get(1), 0, 1));
-        out.clear(); ServerSessions.control(second, false);
+        out.clear(); ServerSessions.control(second, PacketDepartureControl.Action.RELEASE);
         check(out.messages.size() == 11, "World change cleans recipient");
         ServerSessions.finished(nearby.get(2), second);
-        out.clear(); ServerSessions.control(second, false);
+        out.clear(); ServerSessions.control(second, PacketDepartureControl.Action.RELEASE);
         check(out.messages.size() == 10, "Completion releases only that recipient");
         ServerSessions.stopKey(world, "A");
         SpeakerRegistry.clear(world);
@@ -1029,18 +1033,24 @@ public final class NetworkVerificationTest {
         check(client.live.isEmpty(), "Matching STOP stops sound");
         PacketDepartureStart dep = departure(200); dep.targets = packet.targets;
         int departureFirst = client.played.size();
-        receiveReady(client, dep, route(0, 16, 1)); client.receive(new PacketDepartureControl(200, false)); client.tick();
+        receiveReady(client, dep, route(0, 16, 1)); client.receive(new PacketDepartureControl(200, PacketDepartureControl.Action.RELEASE)); client.tick();
         check(client.played.get(departureFirst).getPositionedSoundLocation().toString().equals("test:m"), "START initializes melody before same-tick OFF");
-        client.receive(new PacketDepartureControl(199, true)); client.tick();
+        client.receive(new PacketDepartureControl(200, PacketDepartureControl.Action.REENGAGE)); client.tick();
+        check(client.live.size() == 2 && liveSounds(client).contains("test:m") && liveSounds(client).contains("test:d"),
+            "Client REENGAGE starts melody without stopping the active door-close channel");
+        client.receive(new PacketDepartureControl(200, PacketDepartureControl.Action.RELEASE)); client.tick();
+        check(client.live.size() == 1 && liveSounds(client).contains("test:d"),
+            "A repeated client RELEASE stops melody without restarting or stopping the existing tail");
+        client.receive(new PacketDepartureControl(199, PacketDepartureControl.Action.CANCEL)); client.tick();
         check(!client.ended.contains(200L), "Stale departure CANCEL ignored");
-        client.receive(new PacketDepartureControl(200, true)); client.tick();
+        client.receive(new PacketDepartureControl(200, PacketDepartureControl.Action.CANCEL)); client.tick();
         check(client.live.isEmpty(), "Departure CANCEL stops only its channels");
         PacketDepartureStart high = departure(300); high.targets = packet.targets;
         PacketAnnounce awareness = start(301); awareness.priority = PacketAnnounce.PRIORITY_AWARENESS; awareness.targets = packet.targets;
         int before = client.played.size();
         receiveReady(client, high, route(0, 16, 1)); receiveReady(client, awareness, route(0, 16, 1)); client.tick();
         check(client.played.size() == before+1, "Awareness waits behind departure priority");
-        client.receive(new PacketDepartureControl(300, true)); client.tick();
+        client.receive(new PacketDepartureControl(300, PacketDepartureControl.Action.CANCEL)); client.tick();
         check(client.played.size() == before+2, "Waiting Awareness resumes after departure CANCEL");
         client.receive(new PacketAnnounceStop(0)); client.tick();
         PacketDepartureStart overlapHigh = departure(400); overlapHigh.targets = packet.targets;
@@ -1162,6 +1172,12 @@ public final class NetworkVerificationTest {
         return result;
     }
 
+    private static Set<String> liveSounds(TestClient client) {
+        Set<String> names = new HashSet<>();
+        for (ISound sound : client.live) names.add(sound.getPositionedSoundLocation().toString());
+        return names;
+    }
+
     private static void receiveReady(TestClient client, PacketAnnounce packet,
         PacketSessionSpeakerRoutes.Target... targets) {
         client.receive(packet);
@@ -1251,7 +1267,7 @@ public final class NetworkVerificationTest {
         PacketDepartureStart departure = departure(1005);
         receiveReady(departureClient, departure, route(0, 10, 1), route(100, 10, 1)); departureClient.tick();
         departureClient.px = 100;
-        departureClient.receive(new PacketDepartureControl(1005, false)); departureClient.tick();
+        departureClient.receive(new PacketDepartureControl(1005, PacketDepartureControl.Action.RELEASE)); departureClient.tick();
         check(soundNames(departureClient).equals(Arrays.asList("test:m", "test:d"))
                 && departureClient.played.get(0).getXPosF() == .5F
                 && departureClient.played.get(1).getXPosF() == 100.5F,
@@ -1326,7 +1342,7 @@ public final class NetworkVerificationTest {
 
         RoutingClient earlyOff = new RoutingClient(); earlyOff.world = world; earlyOff.px = 0;
         earlyOff.receive(departure(1205));
-        earlyOff.receive(new PacketDepartureControl(1205, false)); earlyOff.tick();
+        earlyOff.receive(new PacketDepartureControl(1205, PacketDepartureControl.Action.RELEASE)); earlyOff.tick();
         check(earlyOff.played.isEmpty(), "Early departure OFF records state without pre-route playback");
         earlyOff.receive(routes(1205, 1, 0, 1, route(0, 2, 1))); earlyOff.tick();
         check(soundNames(earlyOff).equals(Arrays.asList("test:m", "test:d")),
@@ -1693,7 +1709,7 @@ public final class NetworkVerificationTest {
         client.receive(departure);
         client.receive(new PacketSessionTimeline(52000, 0, -1));
         client.receive(routes(52000, 1, 0, 1, route(0, 16, 1)));
-        client.receive(new PacketDepartureControl(52000, true));
+        client.receive(new PacketDepartureControl(52000, PacketDepartureControl.Action.CANCEL));
         client.tick();
         check(client.pendingCount() == 4 && client.played.isEmpty(),
             "A budget boundary retains START, timeline, route and control in FIFO order");
@@ -1770,7 +1786,7 @@ public final class NetworkVerificationTest {
         check(soundNames(onClient).equals(Collections.singletonList("test:m")),
             "Continuing toggle joins at the next server-timeline chorus boundary");
 
-        ServerSessions.control(toggleId, false);
+        ServerSessions.control(toggleId, PacketDepartureControl.Action.RELEASE);
         for (int i = 0; i < 2; i++) endTick();
         Player releasedJoin = player(world, 0, 0, 0); out.clear();
         ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(releasedJoin));
@@ -1805,6 +1821,98 @@ public final class NetworkVerificationTest {
                 && recipientCount(otherId) == 1,
             "Respawn stops the old client state and reattaches once");
         ServerSessions.clear(); SpeakerRegistry.clear(world); SpeakerRegistry.clear(other);
+    }
+
+    private static void departureRetriggerLateJoin() throws Exception {
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A"); world.add(owner, 0, 0, 0);
+        Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 1, 0, 0);
+        player(world, 0, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        PacketDepartureStart start = departure(0);
+        start.departure.melodyTicks = 10;
+        start.departure.intervalTicks = 4;
+        start.departure.doorCloseDurations.clear();
+        start.departure.doorCloseDurations.add(6);
+        start.departure.doorCloseTicks = 6;
+        long id = ServerSessions.start(owner, start);
+        DepartureSequence server = new DepartureSequence(start.departure, silentDepartureOutput());
+        ServerSessions.bindDepartureSequence(id, server);
+        for (int i = 0; i < 3; i++) { server.tick(); endTick(); }
+        server.release(); ServerSessions.control(id, PacketDepartureControl.Action.RELEASE);
+        for (int i = 0; i < 2; i++) { server.tick(i == 0); endTick(); }
+        server.reengage(); ServerSessions.control(id, PacketDepartureControl.Action.REENGAGE);
+        for (int i = 0; i < 3; i++) { server.tick(); endTick(); }
+        check(server.isOn() && server.isMelodyPlaying()
+                && server.getTailPhase() == DepartureSequence.TailPhase.DOOR_CLOSE,
+            "Server retrigger state keeps melody ON while the first door-close tail advances");
+        int firstTailRemaining = server.getClosingRemaining();
+        server.release(); ServerSessions.control(id, PacketDepartureControl.Action.RELEASE);
+        server.tick(true); endTick();
+        server.reengage(); ServerSessions.control(id, PacketDepartureControl.Action.REENGAGE);
+        server.tick(); endTick();
+        check(server.isOn() && server.getTailPhase() == DepartureSequence.TailPhase.DOOR_CLOSE
+                && server.getClosingRemaining() == firstTailRemaining - 1,
+            "Repeated OFF to ON controls preserve and advance the original tail without duplication");
+
+        Player late = player(world, 0, 0, 0); out.clear();
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(late));
+        PacketSessionTimeline timeline = timelineFor(out, id);
+        check(timeline != null && timeline.hasDepartureSnapshot
+                && sameDepartureState(server.snapshot(), timeline.departureSnapshot()),
+            "Late join receives the authoritative state after repeated OFF to ON retriggering");
+        TestClient client = new TestClient(); FixtureWorld clientWorld = new FixtureWorld(); clientWorld.isRemote = true;
+        client.world = clientWorld;
+        client.receive(startFor(out, id)); client.receive(timeline); client.receive(out.routeFor(id)); client.tick();
+        DepartureSequence.Snapshot restored = clientDepartureState(client, id);
+        check(sameDepartureState(server.snapshot(), restored),
+            "Late-join client restores melody and tail positions from the same bounded snapshot: server="
+                + departureState(server.snapshot()) + " client=" + departureState(restored));
+
+        out.clear();
+        server.release(); ServerSessions.control(id, PacketDepartureControl.Action.RELEASE);
+        PacketDepartureControl release = null;
+        for (IMessage message : out.messages) if (message instanceof PacketDepartureControl) {
+            release = (PacketDepartureControl)message; break;
+        }
+        check(release != null && release.action == PacketDepartureControl.Action.RELEASE,
+            "The next OFF remains an explicit RELEASE action on the same session");
+        client.receive(release); client.tick(); server.tick(true);
+        check(sameDepartureState(server.snapshot(), clientDepartureState(client, id)),
+            "Client and server apply the post-retrigger OFF through the shared sequence transition");
+        ServerSessions.clear(); SpeakerRegistry.clear(world);
+    }
+
+    private static DepartureSequence.Output silentDepartureOutput() {
+        return new DepartureSequence.Output() {
+            public void play(DepartureSequence.Channel channel, String sound) {}
+            public void stop(DepartureSequence.Channel channel) {}
+            public void finished() {}
+        };
+    }
+
+    private static boolean sameDepartureState(DepartureSequence.Snapshot a, DepartureSequence.Snapshot b) {
+        return a != null && b != null && a.on == b.on && a.melodyPlaying == b.melodyPlaying
+            && a.melodyRemaining == b.melodyRemaining && a.tailPhase == b.tailPhase
+            && a.closingIndex == b.closingIndex && a.closingRemaining == b.closingRemaining;
+    }
+
+    private static String departureState(DepartureSequence.Snapshot state) {
+        return state == null ? "null" : state.on + "/" + state.melodyPlaying + "/"
+            + state.melodyRemaining + "/" + state.tailPhase + "/" + state.closingIndex
+            + "/" + state.closingRemaining;
+    }
+
+    private static DepartureSequence.Snapshot clientDepartureState(AnnounceManager manager, long id) throws Exception {
+        Field sessionsField = AnnounceManager.class.getDeclaredField("activeSessions");
+        sessionsField.setAccessible(true);
+        Object session = ((Map<?, ?>)sessionsField.get(manager)).get(id);
+        if (session == null) return null;
+        Field sequenceField = session.getClass().getDeclaredField("sequence");
+        sequenceField.setAccessible(true);
+        DepartureSequence sequence = (DepartureSequence)sequenceField.get(session);
+        return sequence == null ? null : sequence.snapshot();
     }
 
     private static void clientTimelineResyncBoundaries() {
@@ -2055,7 +2163,7 @@ public final class NetworkVerificationTest {
             public void finished() { ServerSessions.complete(departureId); }
         });
         serverSequence.release();
-        ServerSessions.control(departureId, false);
+        ServerSessions.control(departureId, PacketDepartureControl.Action.RELEASE);
         for (int i = 0; i < 10; i++) serverSequence.tick(i == 0);
         check(sessions() == 1, "Released departure remains active through interval and door-close");
         serverSequence.tick();
@@ -2236,7 +2344,7 @@ public final class NetworkVerificationTest {
 
     private static void limitsAndExpiry() throws Exception {
         cpw.mods.fml.common.Mod mod = StationAnnounceModCore.class.getAnnotation(cpw.mods.fml.common.Mod.class);
-        check("0.2.3-beta".equals(StationAnnounceModCore.VERSION), "Wire protocol change bumps the SAM version");
+        check("0.2.4-beta".equals(StationAnnounceModCore.VERSION), "Wire protocol change bumps the SAM version");
         check(("[" + StationAnnounceModCore.VERSION + "]").equals(mod.acceptableRemoteVersions()),
             "Forge exact remote version gate follows SAM version");
         ByteBuf buf = Unpooled.buffer();
@@ -2297,13 +2405,19 @@ public final class NetworkVerificationTest {
             PacketSpeakerFallback maxFallback = new PacketSpeakerFallback(1);
             for (int i = 0; i < PacketLimits.SESSION_TARGETS; i++) maxFallback.targets.add(new PacketSpeakerFallback.Target(i, 16, 1));
             buf.clear(); maxFallback.toBytes(buf); check(buf.readableBytes() == 8204, "Fallback payload capped at 8204 bytes");
-            PacketSessionTimeline timeline = new PacketSessionTimeline(7, 40, 12);
+            DepartureSequence.Snapshot departureState = new DepartureSequence.Snapshot(true, true, 9,
+                DepartureSequence.TailPhase.DOOR_CLOSE, 1, 4);
+            PacketSessionTimeline timeline = new PacketSessionTimeline(7, 40, departureState);
             buf.clear(); timeline.toBytes(buf); PacketSessionTimeline decodedTimeline = new PacketSessionTimeline();
             decodedTimeline.fromBytes(buf);
             check(decodedTimeline.sessionId == 7 && decodedTimeline.elapsedTicks == 40
-                    && decodedTimeline.releaseElapsedTicks == 12,
-                "Session timeline round trip preserves server elapsed and release ticks");
-            buf.clear(); buf.writeLong(7).writeLong(4).writeLong(5);
+                    && sameDepartureState(departureState, decodedTimeline.departureSnapshot()),
+                "Session timeline round trip preserves the bounded departure state snapshot");
+            buf.clear(); buf.writeLong(7).writeLong(4).writeLong(5).writeBoolean(false);
+            expectInvalid(() -> new PacketSessionTimeline().fromBytes(buf));
+            buf.clear();
+            buf.writeLong(7).writeLong(4).writeLong(-1).writeBoolean(true)
+                .writeBoolean(true).writeBoolean(true).writeInt(1).writeByte(4).writeInt(0).writeInt(1);
             expectInvalid(() -> new PacketSessionTimeline().fromBytes(buf));
         } finally { buf.release(); }
 
@@ -2337,7 +2451,7 @@ public final class NetworkVerificationTest {
         clock.setLong(null, ServerSessions.SESSION_TTL_TICKS-1); endTick();
         check(sessions() == 1 && out.messages.size() == 1 && ((PacketAnnounceStop)out.messages.get(0)).sessionId == expired,
             "Periodic sweep stops only expired session when ACK is absent");
-        ServerSessions.control(surviving, false);
+        ServerSessions.control(surviving, PacketDepartureControl.Action.RELEASE);
         ServerSessions.expireSessions(ServerSessions.SESSION_TTL_TICKS+1);
         check(sessions() == 1, "OFF extends TTL for remaining chorus/door close");
         ServerSessions.expireSessions(2*ServerSessions.SESSION_TTL_TICKS);

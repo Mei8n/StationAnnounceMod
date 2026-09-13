@@ -108,7 +108,10 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
                     if (button != null) {
                         button.setControlOn(true, this);
                     } else redstoneOn = true;
-                    if (!isOn()) begin(parent, candidate);
+                    if (!isOn()) {
+                        if (isPlaying()) reengage();
+                        else begin(parent, candidate);
+                    }
                 }
             } else if (physicalOn && !isPlaying()) {
                 begin(parent, candidate);
@@ -147,6 +150,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
                 parent.notifyDepartureMelodyFinished();
             }
         });
+        jp.me1han.sam.network.ServerSessions.bindDepartureSequence(sessionId, sequence);
     }
 
     /** Event-driven update from a linked switch's logical control state. */
@@ -177,7 +181,15 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
         if (sequence == null || !sequence.isOn()) return;
         sequence.release();
         releasedTick = worldObj.getTotalWorldTime();
-        sendControl(false);
+        sendControl(PacketDepartureControl.Action.RELEASE);
+        sync();
+    }
+
+    private void reengage() {
+        if (sequence == null || sequence.isOn() || sequence.isFinished()) return;
+        boolean restarted = sequence.reengage();
+        if (restarted) phaseStartedTick = worldObj.getTotalWorldTime();
+        sendControl(PacketDepartureControl.Action.REENGAGE);
         sync();
     }
 
@@ -206,21 +218,20 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
         stopSequence();
     }
 
-    /** Replacing an OFF tail with a new ON sequence must retain the current input sources. */
     private void stopSequence() {
         if (sequence == null) return;
         sequence.cancel();
         sequence = null;
         activeParent = null;
         if (worldObj != null && !worldObj.isRemote) {
-            sendControl(true);
+            sendControl(PacketDepartureControl.Action.CANCEL);
             sync();
         }
     }
 
-    protected void sendControl(boolean cancel) {
-        jp.me1han.sam.network.ServerSessions.control(sessionId, cancel);
-        if (cancel) sessionId = 0;
+    protected void sendControl(PacketDepartureControl.Action action) {
+        jp.me1han.sam.network.ServerSessions.control(sessionId, action);
+        if (action == PacketDepartureControl.Action.CANCEL) sessionId = 0;
     }
 
     public static void cancelLinked(World world, String key) {

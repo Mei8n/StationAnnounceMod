@@ -113,6 +113,7 @@ public final class DeparturePlaybackTest {
         tachikawa.ticks(16);
         tachikawa.expect("0:test:melody", "15:test:door", "20:stop", "20:stop", "20:finished");
         verifyTachikawa();
+        verifyRetrigger();
         verifyIntervalPrecision();
 
         Timeline sameTickOff = new Timeline(program(true).interval(0));
@@ -176,6 +177,90 @@ public final class DeparturePlaybackTest {
         verifyPackScripts();
         verifyPackets();
         System.out.println("Departure playback: " + checks + " checks passed");
+    }
+
+    private static void verifyRetrigger() {
+        Map<String, Integer> shortLengths = lengths(10, 6);
+        Timeline sequence = new Timeline(program(true).interval(0.25), shortLengths);
+        sequence.ticks(3);
+        check(sequence.sequence.release() && !sequence.sequence.isOn(),
+            "First OFF releases an alternate sequence");
+        sequence.ticks(2);
+        int intervalRemaining = sequence.sequence.getClosingRemaining();
+        check(sequence.sequence.reengage() && sequence.sequence.isOn()
+                && sequence.sequence.getClosingRemaining() == intervalRemaining,
+            "Re-ON restarts a stopped melody without rewinding the active interval");
+        check(sequence.events.equals(Arrays.asList("0:test:melody", "3:stop", "5:test:melody")),
+            "finishChorus=false restarts the melody from its beginning on re-ON");
+        sequence.ticks(intervalRemaining);
+        check(sequence.sequence.getTailPhase() == DepartureSequence.TailPhase.DOOR_CLOSE
+                && sequence.sequence.isMelodyPlaying()
+                && sequence.playing.containsKey(DepartureSequence.Channel.MELODY)
+                && sequence.playing.containsKey(DepartureSequence.Channel.DOOR_CLOSE),
+            "Door-close and melody channels play concurrently after re-ON");
+        int doorRemaining = sequence.sequence.getClosingRemaining();
+        check(sequence.sequence.release()
+                && sequence.sequence.getClosingRemaining() == doorRemaining
+                && sequence.sequence.getClosingIndex() == 0,
+            "A second OFF does not duplicate or restart an active door-close tail");
+        sequence.ticks(doorRemaining);
+        check(sequence.sequence.isFinished(), "The final OFF completes after both channels finish");
+        check(sequence.events.stream().filter(e -> e.endsWith(":finished")).count() == 1,
+            "Retriggered sequence emits normal completion exactly once");
+
+        Timeline retained = new Timeline(program(true).interval(0.1), shortLengths);
+        retained.ticks(1); retained.sequence.release(); retained.ticks(1); retained.sequence.reengage();
+        retained.ticks(7);
+        check(retained.sequence.getTailPhase() == DepartureSequence.TailPhase.DONE
+                && retained.sequence.isOn() && !retained.sequence.isFinished(),
+            "A completed first tail cannot finish a reengaged melody session");
+        retained.sequence.release();
+        check(retained.sequence.getTailPhase() == DepartureSequence.TailPhase.INTERVAL
+                && retained.sequence.getClosingRemaining() == 2,
+            "OFF after the previous tail completed starts a fresh interval and tail");
+        retained.ticks(8);
+        check(retained.sequence.isFinished()
+                && retained.events.stream().filter(e -> e.endsWith(":test:door")).count() == 2,
+            "A fresh post-retrigger OFF plays a second door-close tail and completes");
+
+        Timeline chorus = new Timeline(program(true).tachikawa(true).interval(0.25), shortLengths);
+        chorus.ticks(3); chorus.sequence.release(); chorus.ticks(2);
+        int eventsBefore = chorus.events.size();
+        int melodyBefore = chorus.sequence.getMelodyRemaining();
+        check(!chorus.sequence.reengage() && chorus.sequence.isOn()
+                && chorus.sequence.getMelodyRemaining() == melodyBefore
+                && chorus.events.size() == eventsBefore,
+            "finishChorus re-ON continues the current chorus without duplicate playback or restart");
+        chorus.ticks(melodyBefore);
+        check(chorus.events.stream().filter(e -> e.endsWith(":test:melody")).count() == 2,
+            "The continued chorus loops normally once its boundary is reached");
+
+        DepartureSequence.Snapshot snapshot = chorus.sequence.snapshot();
+        final int[] restoredEvents = {0};
+        DepartureSequence restored = new DepartureSequence(program(true).tachikawa(true).interval(0.25)
+            .resolve(shortLengths), new DepartureSequence.Output() {
+                public void play(DepartureSequence.Channel channel, String sound) { restoredEvents[0]++; }
+                public void stop(DepartureSequence.Channel channel) { restoredEvents[0]++; }
+                public void finished() { restoredEvents[0]++; }
+            }, snapshot, 0);
+        check(restoredEvents[0] == 0 && sameState(snapshot, restored.snapshot()),
+            "Late join restores the current OFF/ON and independent tail state without replaying in-progress sounds");
+        for (int i = 0; i < 4; i++) { chorus.sequence.tick(); restored.tick(); }
+        check(sameState(chorus.sequence.snapshot(), restored.snapshot()),
+            "Client and server sequences remain aligned after restoring multiple control transitions");
+
+        Timeline rapid = new Timeline(program(true).interval(0), shortLengths);
+        rapid.sequence.release(); rapid.sequence.reengage(); rapid.sequence.release(); rapid.sequence.reengage();
+        rapid.sequence.cancel(); rapid.ticks(50);
+        check(rapid.sequence.isFinished() && rapid.playing.isEmpty()
+                && rapid.events.stream().noneMatch(e -> e.endsWith(":finished")),
+            "Rapid controls followed by CANCEL stop both channels without a leaked completion");
+    }
+
+    private static boolean sameState(DepartureSequence.Snapshot a, DepartureSequence.Snapshot b) {
+        return a.on == b.on && a.melodyPlaying == b.melodyPlaying
+            && a.melodyRemaining == b.melodyRemaining && a.tailPhase == b.tailPhase
+            && a.closingIndex == b.closingIndex && a.closingRemaining == b.closingRemaining;
     }
 
     private static void verifyJavaScriptRuntime() throws Exception {
@@ -570,10 +655,13 @@ public final class DeparturePlaybackTest {
                 && intervalRead.bodyPartTicks.equals(Arrays.asList(11, 5, 11))
                 && intervalRead.repeatCount == 2 && buf.readableBytes() == 0,
                 "Ordinary interval positions and repeat count round trip");
-            buf.clear();
-            PacketDepartureControl control = new PacketDepartureControl(123L, true); control.toBytes(buf);
-            PacketDepartureControl decoded = new PacketDepartureControl(); decoded.fromBytes(buf);
-            check(decoded.cancel && decoded.sessionId == 123L, "Scoped cancellation serialized");
+            for (PacketDepartureControl.Action action : PacketDepartureControl.Action.values()) {
+                buf.clear();
+                PacketDepartureControl control = new PacketDepartureControl(123L, action); control.toBytes(buf);
+                PacketDepartureControl decoded = new PacketDepartureControl(); decoded.fromBytes(buf);
+                check(decoded.action == action && decoded.sessionId == 123L,
+                    "Scoped departure action serialized: " + action);
+            }
             buf.clear();
             PacketDepartureMelodyConfig config = new PacketDepartureMelodyConfig(1, 2, 3, "platform-1", "legacy", "departure_tachikawa.js"); config.toBytes(buf);
             PacketDepartureMelodyConfig configRead = new PacketDepartureMelodyConfig(); configRead.fromBytes(buf);

@@ -65,15 +65,21 @@ public class AnnounceManager {
             long key = packet.sessionId;
             AnnounceSession session = activeSessions.get(key);
             if (session == null || session.departure == null) return;
-            if (packet.cancel) {
+            if (packet.action == jp.me1han.sam.network.PacketDepartureControl.Action.CANCEL) {
                 session.stop();
                 activeSessions.remove(key);
-            } else {
-                // Preserve an early OFF, but do not initialize playback until the
-                // authoritative initial routing snapshot is complete.
-                session.departureReleased = true;
+            } else if (packet.action == jp.me1han.sam.network.PacketDepartureControl.Action.RELEASE) {
+                session.departureOn = false;
+                if (session.sequence == null) {
+                    session.pendingDepartureRelease = true;
+                    initializeDeparture(session);
+                } else if (session.sequence.release()) {
+                    session.releasedThisTick = true;
+                }
+            } else if (packet.action == jp.me1han.sam.network.PacketDepartureControl.Action.REENGAGE) {
+                session.departureOn = true;
                 initializeDeparture(session);
-                releaseDeparture(session);
+                reengageDeparture(session);
             }
         });
     }
@@ -113,7 +119,8 @@ public class AnnounceManager {
     public void receive(final jp.me1han.sam.network.PacketSessionTimeline packet) {
         enqueueClientAction(() -> {
             AnnounceSession session = activeSessions.get(packet.sessionId);
-            if (session != null) session.synchronize(packet.elapsedTicks, packet.releaseElapsedTicks);
+            if (session != null) session.synchronize(packet.elapsedTicks, packet.releaseElapsedTicks,
+                packet.departureSnapshot());
         });
     }
 
@@ -150,7 +157,10 @@ public class AnnounceManager {
         long audibleTick = Long.MIN_VALUE;
         boolean audibleThisTick;
         boolean priorityArbitrated;
-        boolean departureReleased;
+        boolean departureOn = true;
+        boolean pendingDepartureRelease;
+        jp.me1han.sam.api.DepartureSequence.Snapshot synchronizedDepartureSnapshot;
+        long synchronizedDepartureSnapshotElapsed;
         long synchronizedElapsed;
         long synchronizedRelease = -1;
         long synchronizedAtClientTick;
@@ -203,7 +213,7 @@ public class AnnounceManager {
             audibleTick = Long.MIN_VALUE;
             if (timelineReceived && !timelineAdjustedForRoutes) {
                 long routingDelay = Math.max(0, clientTick - synchronizedAtClientTick);
-                synchronize(synchronizedElapsed + routingDelay, synchronizedRelease);
+                synchronize(synchronizedElapsed + routingDelay, synchronizedRelease, synchronizedDepartureSnapshot);
                 timelineAdjustedForRoutes = true;
             }
             if (!priorityArbitrated) arbitrateInitialPriority(this);
@@ -239,13 +249,17 @@ public class AnnounceManager {
             this.loopTicks = msg.arrMeloTicks;
         }
 
-        void synchronize(long elapsed, long releaseElapsed) {
+        void synchronize(long elapsed, long releaseElapsed,
+                jp.me1han.sam.api.DepartureSequence.Snapshot departureSnapshot) {
             if (!timelineReceived) synchronizedAtClientTick = clientTick;
             timelineReceived = true;
             synchronizedElapsed = Math.max(0, elapsed);
             synchronizedRelease = releaseElapsed;
+            if (departureSnapshot != null && synchronizedDepartureSnapshot == null)
+                synchronizedDepartureSnapshotElapsed = Math.max(0, elapsed);
+            synchronizedDepartureSnapshot = departureSnapshot;
             if (departure != null) {
-                departureReleased = releaseElapsed >= 0;
+                departureOn = departureSnapshot != null ? departureSnapshot.on : releaseElapsed < 0;
                 return;
             }
             queue.clear();
@@ -467,18 +481,24 @@ public class AnnounceManager {
                 public void stop(jp.me1han.sam.api.DepartureSequence.Channel channel) { session.stopChannel(channel); }
                 public void finished() { session.isPlaying = false; }
             };
-        if (session.synchronizedElapsed > 0 || session.synchronizedRelease >= 0)
+        if (session.synchronizedDepartureSnapshot != null) {
+            long routingDelay = Math.max(0,
+                session.synchronizedElapsed - session.synchronizedDepartureSnapshotElapsed);
+            session.sequence = new jp.me1han.sam.api.DepartureSequence(session.departure, output,
+                session.synchronizedDepartureSnapshot, routingDelay);
+        } else if (session.synchronizedElapsed > 0 || session.synchronizedRelease >= 0)
             session.sequence = new jp.me1han.sam.api.DepartureSequence(session.departure, output,
                 session.synchronizedElapsed, session.synchronizedRelease);
         else session.sequence = new jp.me1han.sam.api.DepartureSequence(session.departure, output);
-        releaseDeparture(session);
+        if (session.pendingDepartureRelease && session.sequence.release())
+            session.releasedThisTick = true;
+        session.pendingDepartureRelease = false;
+        reengageDeparture(session);
     }
 
-    private void releaseDeparture(AnnounceSession session) {
-        if (session.sequence == null || !session.departureReleased) return;
-        boolean wasOn = session.sequence.isOn();
-        session.sequence.release();
-        if (wasOn) session.releasedThisTick = true;
+    private void reengageDeparture(AnnounceSession session) {
+        if (session.sequence == null || !session.departureOn || session.sequence.isOn()) return;
+        if (session.sequence.reengage()) session.sequenceChangedThisTick = true;
     }
 
     private boolean isBlockedByHigherPriority(AnnounceSession session) {
