@@ -453,17 +453,19 @@ public final class DeparturePlaybackTest {
                 AnnouncePackLoader.runDepartureScript("ordinary.js", null);
                 throw new AssertionError("Known approach script ran in the departure execution path");
             } catch (IllegalArgumentException expected) { checks++; }
-            List<jp.me1han.sam.api.AnnounceScriptInfo> approachScripts =
-                AnnouncePackLoader.getCompatibleScripts(ScriptType.APPROACH);
-            List<jp.me1han.sam.api.AnnounceScriptInfo> departureScripts =
-                AnnouncePackLoader.getCompatibleScripts(ScriptType.DEPARTURE_MELODY);
-            check(approachScripts.stream().anyMatch(s -> s.fileName.equals("ordinary.js"))
-                    && approachScripts.stream().anyMatch(s -> s.fileName.equals("legacy-ordinary.js"))
-                    && approachScripts.stream().noneMatch(s -> s.fileName.equals("departure.js")),
+            check(AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.isCompatibleWith(ScriptType.APPROACH)
+                    && s.fileName.equals("ordinary.js"))
+                    && AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.isCompatibleWith(ScriptType.APPROACH)
+                        && s.fileName.equals("legacy-ordinary.js"))
+                    && AnnouncePackLoader.availableScripts.stream().noneMatch(s -> s.isCompatibleWith(ScriptType.APPROACH)
+                        && s.fileName.equals("departure.js")),
                 "Approach GUI candidates include APPROACH and UNKNOWN but exclude departure scripts");
-            check(departureScripts.stream().anyMatch(s -> s.fileName.equals("departure.js"))
-                    && departureScripts.stream().anyMatch(s -> s.fileName.equals("legacy-departure.js"))
-                    && departureScripts.stream().noneMatch(s -> s.fileName.equals("ordinary.js")),
+            check(AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.isCompatibleWith(ScriptType.DEPARTURE_MELODY)
+                    && s.fileName.equals("departure.js"))
+                    && AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.isCompatibleWith(ScriptType.DEPARTURE_MELODY)
+                        && s.fileName.equals("legacy-departure.js"))
+                    && AnnouncePackLoader.availableScripts.stream().noneMatch(s -> s.isCompatibleWith(ScriptType.DEPARTURE_MELODY)
+                        && s.fileName.equals("ordinary.js")),
                 "Departure GUI candidates include DEPARTURE_MELODY and UNKNOWN but exclude approach scripts");
             check(((Number)AnnouncePackLoader.scriptEngines.get("ordinary.js").eval("typeCalls")).intValue() == 1,
                 "Compatibility checks and execution reuse the script type captured once at pack load");

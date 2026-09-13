@@ -172,12 +172,6 @@ public class AnnouncePackLoader {
         return ScriptType.UNKNOWN;
     }
 
-    public static List<AnnounceScriptInfo> getCompatibleScripts(ScriptType required) {
-        List<AnnounceScriptInfo> result = new ArrayList<>();
-        for (AnnounceScriptInfo info : availableScripts) if (info.isCompatibleWith(required)) result.add(info);
-        return result;
-    }
-
     public static boolean canUseScript(String name, ScriptType required) {
         String key = normalizeScriptName(name);
         return key.isEmpty()

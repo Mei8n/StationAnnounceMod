@@ -12,7 +12,8 @@ abstract class GuiScriptConfig extends GuiScreen {
             int x, int y, int mouseX, int mouseY) {
         String key = fileName == null ? "" : fileName.trim();
         String name = I18n.format(key.isEmpty() ? "gui.sam.script.none" : "gui.sam.script.not_loaded");
-        for (AnnounceScriptInfo info : AnnouncePackLoader.getCompatibleScripts(required)) {
+        for (AnnounceScriptInfo info : AnnouncePackLoader.availableScripts) {
+            if (!info.isCompatibleWith(required)) continue;
             if (info.fileName.equals(key)) {
                 name = info.displayName == null || info.displayName.trim().isEmpty() ? info.fileName : info.displayName;
                 break;
