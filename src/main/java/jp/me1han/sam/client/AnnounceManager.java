@@ -250,6 +250,7 @@ public class AnnounceManager {
             }
             queue.clear();
             repeatsRemaining = 0;
+            waitTicks = 0;
             List<AnnouncePart> timeline = new ArrayList<>();
             for (int repeat = 0; repeat < repeatCount; repeat++) {
                 if (startMelo != null && !startMelo.isEmpty())

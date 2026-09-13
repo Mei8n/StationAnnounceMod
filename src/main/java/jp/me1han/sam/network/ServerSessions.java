@@ -43,6 +43,7 @@ public final class ServerSessions {
         final int priority;
         final PacketAnnounce startPacket;
         final long startTick;
+        final long logicalEndTick;
         long releaseTick = -1;
         long routeRevision;
         long expireTick;
@@ -51,7 +52,12 @@ public final class ServerSessions {
             this.id = id; this.owner = owner; world = owner.getWorldObj();
             key = SpeakerRegistry.normalize(packet.linkKey); priority = packet.priority;
             startPacket = copy(packet, new long[0]); startTick = serverTick;
+            logicalEndTick = logicalEndTick(packet, startTick);
             expireTick = serverTick + SESSION_TTL_TICKS;
+        }
+
+        boolean isLogicallyFinished(long now) {
+            return logicalEndTick != Long.MAX_VALUE && now >= logicalEndTick;
         }
     }
     private ServerSessions() {}
@@ -111,6 +117,10 @@ public final class ServerSessions {
         if (playerId == null) return;
         for (Session session : new ArrayList<>(SESSIONS.values())) {
             if (session.world != player.worldObj || hasRecipient(session, playerId)) continue;
+            if (session.isLogicallyFinished(serverTick)) {
+                remove(session);
+                continue;
+            }
             session.recipients.add(player);
             BY_PLAYER.computeIfAbsent(playerId, ignored -> new HashSet<>()).add(session.id);
             long elapsed = Math.max(0, serverTick - session.startTick);
@@ -126,6 +136,16 @@ public final class ServerSessions {
         for (EntityPlayerMP recipient : session.recipients)
             if (playerId.equals(recipient.getUniqueID())) return true;
         return false;
+    }
+
+    private static long logicalEndTick(PacketAnnounce packet, long startTick) {
+        if (packet instanceof PacketDepartureStart || (packet.arrMelo != null && !packet.arrMelo.isEmpty()))
+            return Long.MAX_VALUE;
+        long repeatTicks = packet.startMeloTicks;
+        if (packet.bodyPartTicks != null)
+            for (Integer ticks : packet.bodyPartTicks) repeatTicks += ticks == null ? 0 : ticks;
+        long duration = repeatTicks * (long)packet.repeatCount;
+        return duration >= Long.MAX_VALUE - startTick ? Long.MAX_VALUE : startTick + duration;
     }
 
     private static List<PacketSessionSpeakerRoutes> routeSnapshot(Session session) {
@@ -242,7 +262,11 @@ public final class ServerSessions {
         if (session == null || playerId == null
             || !session.recipients.removeIf(recipient -> playerId.equals(recipient.getUniqueID()))) return;
         forgetPlayer(playerId, id);
-        if (session.recipients.isEmpty()) SESSIONS.remove(id);
+    }
+    /** Server-authoritative natural completion; unlike stop/cancel, this emits no STOP packet. */
+    public static void complete(long id) {
+        Session session = SESSIONS.get(id);
+        if (session != null) remove(session);
     }
     private static void forgetPlayer(UUID player, long id) {
         Set<Long> ids = BY_PLAYER.get(player);
@@ -292,7 +316,14 @@ public final class ServerSessions {
     @SubscribeEvent public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         flushDirtyRoutes();
-        if (++serverTick % CLEANUP_INTERVAL_TICKS == 0) expireSessions(serverTick);
+        serverTick++;
+        completeFiniteSessions(serverTick);
+        if (serverTick % CLEANUP_INTERVAL_TICKS == 0) expireSessions(serverTick);
+    }
+
+    private static void completeFiniteSessions(long now) {
+        for (Session session : new ArrayList<>(SESSIONS.values()))
+            if (session.isLogicallyFinished(now)) remove(session);
     }
 
     // Package access also permits testing expiry without simulating a day of game ticks.

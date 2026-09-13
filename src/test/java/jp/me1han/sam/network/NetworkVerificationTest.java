@@ -53,7 +53,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); clientQueueBudget(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -1731,6 +1731,146 @@ public final class NetworkVerificationTest {
         ServerSessions.clear(); SpeakerRegistry.clear(world); SpeakerRegistry.clear(other);
     }
 
+    private static void clientTimelineResyncBoundaries() {
+        AnnouncePackLoader.soundTicks.put("test:boundary-a", 3);
+        AnnouncePackLoader.soundTicks.put("test:boundary-b", 3);
+        AnnouncePackLoader.soundTicks.put("test:boundary-c", 3);
+        assertTimelineBoundary(4, 0, 3, "Zero routing delay preserves the remaining part duration");
+        assertTimelineBoundary(4, 1, 3, "Part-middle to part-middle resync has no off-by-one");
+        assertTimelineBoundary(4, 2, 3, "Part-middle to next boundary clears the old waitTicks");
+        assertTimelineBoundary(3, 3, 4, "Part boundary to following boundary starts immediately on route completion");
+    }
+
+    private static void assertTimelineBoundary(long elapsed, int routingDelay, int expectedClientTick, String message) {
+        FixtureWorld world = new FixtureWorld(); world.isRemote = true;
+        TestClient client = new TestClient(); client.world = world;
+        PacketAnnounce packet = new PacketAnnounce(); packet.sessionId = 54000 + routingDelay; packet.linkKey = "A";
+        packet.bodySounds = Arrays.asList("test:boundary-a", "test:boundary-b", "test:boundary-c");
+        packet.bodyIntervalTicks = Arrays.asList(0, 0, 0);
+        packet.resolveTiming(AnnouncePackLoader.soundTicks);
+        client.receive(packet);
+        client.receive(new PacketSessionTimeline(packet.sessionId, elapsed, -1));
+        if (routingDelay == 0) client.receive(routes(packet.sessionId, 1, 0, 1, route(0, 16, 1)));
+        client.tick();
+        for (int i = 1; i < routingDelay; i++) client.tick();
+        if (routingDelay > 0) {
+            client.receive(routes(packet.sessionId, 1, 0, 1, route(0, 16, 1)));
+            client.tick();
+        }
+        while (client.played.isEmpty() && client.ticks <= expectedClientTick) client.tick();
+        check(soundNames(client).equals(Collections.singletonList("test:boundary-c"))
+                && client.playedAtTicks.get(0) == expectedClientTick, message);
+    }
+
+    private static void serverLogicalCompletion() throws Exception {
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        AnnouncePackLoader.soundTicks.put("test:finite", 3);
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A"); world.add(owner, 0, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+
+        PacketAnnounce finite = new PacketAnnounce(); finite.linkKey = "A";
+        finite.bodySounds = Arrays.asList("test:finite", "test:finite", "test:finite");
+        finite.bodyIntervalTicks = Arrays.asList(0, 0, 0);
+        long finiteId = ServerSessions.start(owner, finite);
+        check(sessions() == 1 && recipientCount(finiteId) == 0,
+            "Finite ordinary session starts without recipients");
+        for (int i = 0; i < 8; i++) endTick();
+        check(sessions() == 1, "Finite ordinary session remains active before its logical end");
+        endTick();
+        check(sessions() == 0 && out.messages.isEmpty(),
+            "Finite ordinary session is cleaned at logical end without STOP or TTL");
+        Player afterEnd = player(world, 0, 0, 0); out.clear();
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(afterEnd));
+        check(out.messages.isEmpty(), "Login after finite completion receives no stale session packets");
+
+        ServerSessions.clear(); out.clear(); world.playerEntities.clear();
+        PacketAnnounce attachGuard = new PacketAnnounce(); attachGuard.linkKey = "A";
+        attachGuard.bodySounds = Collections.singletonList("test:finite");
+        attachGuard.bodyIntervalTicks = Collections.singletonList(0);
+        ServerSessions.start(owner, attachGuard);
+        Field serverClock = ServerSessions.class.getDeclaredField("serverTick"); serverClock.setAccessible(true);
+        serverClock.setLong(null, 3);
+        Player cleanupRace = player(world, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(cleanupRace));
+        check(sessions() == 0 && out.messages.isEmpty(),
+            "Attach rejects a logically finished session before the cleanup tick runs");
+
+        ServerSessions.clear(); out.clear(); world.playerEntities.clear();
+        Player original = player(world, 0, 0, 0);
+        long ackId = ServerSessions.start(owner, start(0)); out.clear();
+        ServerSessions.finished(original, ackId);
+        check(sessions() == 1 && recipientCount(ackId) == 0,
+            "Last recipient FINISHED is only an ACK while the logical timeline is active");
+        Player replacement = player(world, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(replacement));
+        check(timelineFor(out, ackId) != null && recipientCount(ackId) == 1,
+            "A new player can attach after the previous recipient ACKed");
+
+        out.clear();
+        ServerSessions.finished(replacement, ackId);
+        check(sessions() == 1, "Priority-arbitration FINISHED cannot delete an active logical session");
+        Player afterArbitration = player(world, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(afterArbitration));
+        check(timelineFor(out, ackId) != null,
+            "Active session remains attachable after client-side priority arbitration");
+
+        ServerSessions.clear(); out.clear(); world.playerEntities.clear();
+        Player logoutPlayer = player(world, 0, 0, 0);
+        long logoutId = ServerSessions.start(owner, start(0)); out.clear();
+        for (int i = 0; i < 4; i++) endTick();
+        ServerSessions.INSTANCE.logout(new PlayerEvent.PlayerLoggedOutEvent(logoutPlayer));
+        check(sessions() == 1 && recipientCount(logoutId) == 0,
+            "All recipients may logout while a finite session remains active");
+        Player during = player(world, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(during));
+        check(timelineFor(out, logoutId).elapsedTicks == 4,
+            "Replacement player attaches at the preserved server timeline");
+        ServerSessions.INSTANCE.logout(new PlayerEvent.PlayerLoggedOutEvent(during));
+        for (int i = 4; i < 20; i++) endTick();
+        out.clear();
+        Player tooLate = player(world, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(tooLate));
+        check(sessions() == 0 && out.messages.isEmpty(),
+            "Session ending while empty is not sent to a later login");
+
+        ServerSessions.clear(); out.clear(); world.playerEntities.clear();
+        PacketDepartureStart toggle = departure(0); toggle.departure.intervalTicks = 5;
+        final long departureId = ServerSessions.start(owner, toggle);
+        check(sessions() == 1 && recipientCount(departureId) == 0,
+            "Recipient-free toggle session remains active while ON");
+        DepartureSequence serverSequence = new DepartureSequence(toggle.departure, new DepartureSequence.Output() {
+            public void play(DepartureSequence.Channel channel, String sound) {}
+            public void stop(DepartureSequence.Channel channel) {}
+            public void finished() { ServerSessions.complete(departureId); }
+        });
+        serverSequence.release();
+        ServerSessions.control(departureId, false);
+        for (int i = 0; i < 10; i++) serverSequence.tick(i == 0);
+        check(sessions() == 1, "Released departure remains active through interval and door-close");
+        serverSequence.tick();
+        check(sessions() == 0, "Server-side DepartureSequence completion removes the session");
+        out.clear();
+        Player departureLate = player(world, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(departureLate));
+        check(out.messages.isEmpty(), "Completed departure is not sent to a late player");
+
+        ServerSessions.clear(); out.clear(); SamLinkRegistry.clear();
+        FixtureWorld tileWorld = new FixtureWorld();
+        TileEntityAnnouncer tileOwner = new TileEntityAnnouncer(); tileOwner.setLinkKey("tile-complete");
+        TileEntityDepartureMelody melody = new TileEntityDepartureMelody();
+        melody.setLinkKey("tile-complete"); melody.soundId = "test:m";
+        tileWorld.add(tileOwner, 0, 0, 0); tileWorld.add(melody, 1, 0, 0);
+        check(melody.click(null) && sessions() == 1,
+            "Real server departure device creates a recipient-free logical session");
+        for (tileWorld.time = 1; tileWorld.time < 20; tileWorld.time++) melody.updateEntity();
+        check(sessions() == 1, "Real departure session remains until its server sequence finishes");
+        tileWorld.time = 20; melody.updateEntity();
+        check(sessions() == 0,
+            "TileEntityDepartureMelody notifies ServerSessions on normal sequence completion");
+        ServerSessions.clear(); SpeakerRegistry.clear(world); SamLinkRegistry.clear();
+    }
+
     private static PacketSessionTimeline timelineFor(RecordingDelivery out, long id) {
         for (IMessage message : out.messages)
             if (message instanceof PacketSessionTimeline && ((PacketSessionTimeline)message).sessionId == id)
@@ -1886,7 +2026,7 @@ public final class NetworkVerificationTest {
 
     private static void limitsAndExpiry() throws Exception {
         cpw.mods.fml.common.Mod mod = StationAnnounceModCore.class.getAnnotation(cpw.mods.fml.common.Mod.class);
-        check("0.2.2-beta".equals(StationAnnounceModCore.VERSION), "Expected network-incompatible SAM version");
+        check("0.2.3-beta".equals(StationAnnounceModCore.VERSION), "Wire protocol change bumps the SAM version");
         check(("[" + StationAnnounceModCore.VERSION + "]").equals(mod.acceptableRemoteVersions()),
             "Forge exact remote version gate follows SAM version");
         ByteBuf buf = Unpooled.buffer();
@@ -1972,9 +2112,13 @@ public final class NetworkVerificationTest {
         serverTick();
         check(out.messages.isEmpty(), "Legacy missing-Speaker handler returns no client-selected coordinate data");
         new NetworkHandler.FinishedHandler().onMessage(new PacketSessionFinished(id), context(player));
-        check(sessions() == 1, "FINISHED remains queued"); serverTick(); check(sessions() == 0, "FINISHED handler cleans recipient/session");
+        check(sessions() == 1, "FINISHED remains queued"); serverTick();
+        check(sessions() == 1 && recipientCount(id) == 0,
+            "FINISHED handler releases only the recipient while the logical session remains active");
 
-        long expired = ServerSessions.start(owner, start(0));
+        ServerSessions.clear();
+        PacketAnnounce loopingForTtl = start(0); loopingForTtl.arrMelo = "test:body";
+        long expired = ServerSessions.start(owner, loopingForTtl);
         endTick(); long surviving = ServerSessions.start(owner, departure(0));
         ServerSessions.expireSessions(ServerSessions.SESSION_TTL_TICKS-1);
         check(sessions() == 2, "No early TTL expiration");
@@ -1995,11 +2139,12 @@ public final class NetworkVerificationTest {
             ServerTaskQueue.INSTANCE.enqueue(player, () -> ran[0]++);
         new NetworkHandler.FinishedHandler().onMessage(new PacketSessionFinished(id), context(player));
         serverTick();
-        check(ran[0] == ServerTaskQueue.MAX_PER_SENDER_PER_TICK - 1 && sessions() == 0,
+        check(ran[0] == ServerTaskQueue.MAX_PER_SENDER_PER_TICK - 1 && sessions() == 1
+                && recipientCount(id) == 0,
             "Critical FINISHED bypasses saturated normal work within the sender tick bound");
         for (int i = 0; i < 5; i++) serverTick();
-        check(ran[0] == ServerTaskQueue.MAX_PENDING_PER_SENDER && sessions() == 0,
-            "Saturated normal tasks drain without retaining the completed session");
+        check(ran[0] == ServerTaskQueue.MAX_PENDING_PER_SENDER && sessions() == 1,
+            "Saturated normal tasks drain while ACK leaves logical lifetime server-authoritative");
         ServerSessions.expireSessions(ServerSessions.SESSION_TTL_TICKS);
         check(sessions() == 0, "TTL sweep remains safe after critical ACK cleanup");
 
@@ -2164,6 +2309,7 @@ public final class NetworkVerificationTest {
             throw new AssertionError("Detector performed a per-query World entity search");
         }
         @Override public boolean blockExists(int x, int y, int z) { return true; }
+        @Override public boolean isBlockIndirectlyGettingPowered(int x, int y, int z) { return false; }
         @Override public TileEntity getTileEntity(int x, int y, int z) { return tiles.get(SpeakerRegistry.position(x, y, z)); }
         @Override public void markBlockForUpdate(int x, int y, int z) { updates++; }
         @Override public int getBlockMetadata(int x, int y, int z) { return 0; }
