@@ -53,7 +53,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); awarenessPauseLifetime(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -1847,6 +1847,53 @@ public final class NetworkVerificationTest {
                 && timelineFor(out, ordinaryId).elapsedTicks == 10,
             "Overlapping Awareness and ordinary announcements retain wall-clock late-join timelines");
         ServerSessions.clear(); SpeakerRegistry.clear(serverWorld);
+    }
+
+    private static void departureCompletionRetention() throws Exception {
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A"); world.add(owner, 0, 0, 0);
+        Player existing = player(world, 0, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+
+        long completedId = ServerSessions.start(owner, departure(0));
+        out.clear();
+        ServerSessions.complete(completedId);
+        ServerSessions.complete(completedId);
+        check(sessions() == 1 && recipientCount(completedId) == 1 && out.messages.isEmpty(),
+            "Natural departure completion is idempotent and retains its existing recipient without STOP");
+
+        Player late = player(world, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(late));
+        check(out.messages.isEmpty() && sessions() == 1 && recipientCount(completedId) == 1,
+            "A server-completed departure rejects late join without removing its existing recipient");
+        ServerSessions.finished(existing, completedId);
+        check(sessions() == 0,
+            "The final client ACK removes a server-completed departure session");
+
+        ServerSessions.clear(); out.clear(); world.playerEntities.clear();
+        long emptyId = ServerSessions.start(owner, departure(0));
+        ServerSessions.complete(emptyId);
+        check(sessions() == 0,
+            "A recipient-free departure is removed immediately on natural server completion");
+
+        ServerSessions.clear(); out.clear(); world.playerEntities.clear();
+        Player loggingOut = player(world, 0, 0, 0);
+        long logoutId = ServerSessions.start(owner, departure(0));
+        ServerSessions.complete(logoutId);
+        ServerSessions.INSTANCE.logout(new PlayerEvent.PlayerLoggedOutEvent(loggingOut));
+        check(sessions() == 0,
+            "Detaching the final recipient removes a server-completed departure");
+
+        ServerSessions.clear(); out.clear(); world.playerEntities.clear();
+        player(world, 0, 0, 0);
+        long stoppableId = ServerSessions.start(owner, departure(0));
+        ServerSessions.complete(stoppableId);
+        out.clear();
+        ServerSessions.stopKey(world, "A");
+        check(out.count(PacketAnnounceStop.class) == 1 && sessions() == 0,
+            "Explicit stop still reaches an existing recipient after server-side natural completion");
+        ServerSessions.clear(); SpeakerRegistry.clear(world);
     }
 
     private static void serverLogicalCompletion() throws Exception {

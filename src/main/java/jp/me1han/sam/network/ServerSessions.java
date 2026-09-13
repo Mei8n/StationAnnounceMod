@@ -45,6 +45,7 @@ public final class ServerSessions {
         final long startTick;
         /** Nominal wall-clock boundary after which new recipients may no longer attach. */
         final long logicalEndTick;
+        boolean serverCompleted;
         long releaseTick = -1;
         long routeRevision;
         long expireTick;
@@ -59,6 +60,10 @@ public final class ServerSessions {
 
         boolean isLogicallyFinished(long now) {
             return logicalEndTick != Long.MAX_VALUE && now >= logicalEndTick;
+        }
+
+        boolean isClosedToNewRecipients(long now) {
+            return serverCompleted || isLogicallyFinished(now);
         }
     }
     private ServerSessions() {}
@@ -118,7 +123,7 @@ public final class ServerSessions {
         if (playerId == null) return;
         for (Session session : new ArrayList<>(SESSIONS.values())) {
             if (session.world != player.worldObj || hasRecipient(session, playerId)) continue;
-            if (session.isLogicallyFinished(serverTick)) {
+            if (session.isClosedToNewRecipients(serverTick)) {
                 removeIfCompletedAndUnobserved(session, serverTick);
                 continue;
             }
@@ -270,10 +275,12 @@ public final class ServerSessions {
         forgetPlayer(playerId, id);
         removeIfCompletedAndUnobserved(session, serverTick);
     }
-    /** Server-authoritative natural completion; unlike stop/cancel, this emits no STOP packet. */
+    /** Close a naturally completed server sequence to new recipients without stopping existing clients. */
     public static void complete(long id) {
         Session session = SESSIONS.get(id);
-        if (session != null) remove(session);
+        if (session == null) return;
+        session.serverCompleted = true;
+        removeIfCompletedAndUnobserved(session, serverTick);
     }
     private static void forgetPlayer(UUID player, long id) {
         Set<Long> ids = BY_PLAYER.get(player);
@@ -335,7 +342,7 @@ public final class ServerSessions {
     }
 
     private static void removeIfCompletedAndUnobserved(Session session, long now) {
-        if (session.recipients.isEmpty() && session.isLogicallyFinished(now)) remove(session);
+        if (session.recipients.isEmpty() && session.isClosedToNewRecipients(now)) remove(session);
     }
 
     // Package access also permits testing expiry without simulating a day of game ticks.
