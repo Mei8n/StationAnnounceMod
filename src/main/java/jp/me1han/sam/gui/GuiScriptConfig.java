@@ -2,15 +2,17 @@ package jp.me1han.sam.gui;
 
 import jp.me1han.sam.AnnouncePackLoader;
 import jp.me1han.sam.api.AnnounceScriptInfo;
+import jp.me1han.sam.api.ScriptType;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
 
 /** Shared script-name preview using metadata collected when packs are loaded. */
 abstract class GuiScriptConfig extends GuiScreen {
-    protected void drawScriptDisplayName(String fileName, int x, int y, int mouseX, int mouseY) {
+    protected void drawScriptDisplayName(String fileName, ScriptType required,
+            int x, int y, int mouseX, int mouseY) {
         String key = fileName == null ? "" : fileName.trim();
         String name = I18n.format(key.isEmpty() ? "gui.sam.script.none" : "gui.sam.script.not_loaded");
-        for (AnnounceScriptInfo info : AnnouncePackLoader.availableScripts) {
+        for (AnnounceScriptInfo info : AnnouncePackLoader.getCompatibleScripts(required)) {
             if (info.fileName.equals(key)) {
                 name = info.displayName == null || info.displayName.trim().isEmpty() ? info.fileName : info.displayName;
                 break;

@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import jp.me1han.sam.api.AnnounceData;
 import jp.me1han.sam.api.AnnounceScriptInfo;
 import jp.me1han.sam.api.DepartureProgram;
+import jp.me1han.sam.api.ScriptType;
 import jp.me1han.sam.network.PacketAnnounce;
 import jp.me1han.sam.network.PacketDepartureStart;
 import jp.me1han.sam.network.PacketLimits;
@@ -142,15 +143,70 @@ public class AnnouncePackLoader {
             logScriptFailure(scriptName, "getDisplayName", error);
         }
 
+        ScriptType scriptType = ScriptType.UNKNOWN;
+        try {
+            if (Boolean.TRUE.equals(engine.eval("typeof getScriptType === 'function'"))) {
+                Object result = ((Invocable) engine).invokeFunction("getScriptType");
+                if (!(result instanceof Number)) throw new IllegalArgumentException("getScriptType() must return an integer");
+                double number = ((Number)result).doubleValue();
+                int id = ((Number)result).intValue();
+                if (number != id || !ScriptType.isDeclaredId(id))
+                    throw new IllegalArgumentException("Invalid getScriptType() value: " + result);
+                scriptType = ScriptType.fromId(id);
+            }
+        } catch (Throwable error) {
+            rethrowFatal(error);
+            logScriptFailure(scriptName, "getScriptType", error);
+        }
+
         scriptEngines.put(scriptName, engine);
         availableScripts.removeIf(info -> info.fileName.equals(scriptName));
-        availableScripts.add(new AnnounceScriptInfo(scriptName, displayName));
+        availableScripts.add(new AnnounceScriptInfo(scriptName, displayName, scriptType));
         StationAnnounceModCore.logger.info("[SAM] Registered: " + displayName);
     }
 
+    public static ScriptType getScriptType(String name) {
+        String key = normalizeScriptName(name);
+        for (AnnounceScriptInfo info : availableScripts)
+            if (info.fileName.equals(key)) return info.scriptType;
+        return ScriptType.UNKNOWN;
+    }
+
+    public static List<AnnounceScriptInfo> getCompatibleScripts(ScriptType required) {
+        List<AnnounceScriptInfo> result = new ArrayList<>();
+        for (AnnounceScriptInfo info : availableScripts) if (info.isCompatibleWith(required)) result.add(info);
+        return result;
+    }
+
+    public static boolean canUseScript(String name, ScriptType required) {
+        String key = normalizeScriptName(name);
+        return key.isEmpty()
+            || (scriptEngines.containsKey(key) && getScriptType(key).isCompatibleWith(required));
+    }
+
+    public static boolean validateScript(String name, ScriptType required) {
+        if (canUseScript(name, required)) return true;
+        StationAnnounceModCore.logger.error("[SAM] " + compatibilityError(name, required));
+        return false;
+    }
+
+    private static String compatibilityError(String name, ScriptType required) {
+        String key = normalizeScriptName(name);
+        if (!scriptEngines.containsKey(key)) return "Script not found: " + key;
+        return "Script type mismatch: " + key + " is " + getScriptType(key) + ", but " + required + " was required";
+    }
+
+    private static String normalizeScriptName(String name) { return name == null ? "" : name.trim(); }
+
     public static AnnounceData runScript(String name, TileEntityAnnouncer tile) {
+        String scriptName = normalizeScriptName(name);
+        if (!canUseScript(scriptName, ScriptType.APPROACH)) {
+            logScriptFailure(scriptName, "script type",
+                new IllegalArgumentException(compatibilityError(scriptName, ScriptType.APPROACH)));
+            return null;
+        }
         try {
-            ScriptEngine engine = scriptEngines.get(name);
+            ScriptEngine engine = scriptEngines.get(scriptName);
             if (engine == null) throw new IllegalArgumentException("Script not found");
             AnnounceScriptContext context = AnnounceScriptContext.snapshot(tile);
             synchronized (engine) {
@@ -166,15 +222,22 @@ public class AnnouncePackLoader {
             }
         } catch (Throwable error) {
             rethrowFatal(error);
-            logScriptFailure(name, "samMain", error);
+            logScriptFailure(scriptName, "samMain", error);
             return null;
         }
     }
 
     public static DepartureProgram runDepartureScript(String name,
             jp.me1han.sam.render.TileEntityDepartureMelody tile) throws Exception {
+        String scriptName = normalizeScriptName(name);
+        if (!canUseScript(scriptName, ScriptType.DEPARTURE_MELODY)) {
+            IllegalArgumentException error = new IllegalArgumentException(
+                compatibilityError(scriptName, ScriptType.DEPARTURE_MELODY));
+            logScriptFailure(scriptName, "script type", error);
+            throw error;
+        }
         try {
-            ScriptEngine engine = scriptEngines.get(name);
+            ScriptEngine engine = scriptEngines.get(scriptName);
             if (engine == null) throw new IllegalArgumentException("Departure script not found");
             DepartureScriptContext context = DepartureScriptContext.snapshot(tile);
             synchronized (engine) {
@@ -189,7 +252,7 @@ public class AnnouncePackLoader {
             }
         } catch (Throwable error) {
             rethrowFatal(error);
-            logScriptFailure(name, "samMain", error);
+            logScriptFailure(scriptName, "samMain", error);
             if (error instanceof Exception) throw (Exception)error;
             throw new IllegalArgumentException(error.toString(), error);
         }

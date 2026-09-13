@@ -151,7 +151,10 @@ public class NetworkHandler {
         @Override public IMessage onMessage(PacketDepartureMelodyConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityDepartureMelody.class, tile -> {
                 if (!m.isValidPayload()) return;
-                tile.applyConfig(m.linkKey, m.soundId, m.scriptName);
+                String scriptName = m.scriptName == null ? "" : m.scriptName.trim();
+                if (!jp.me1han.sam.AnnouncePackLoader.validateScript(scriptName,
+                        jp.me1han.sam.api.ScriptType.DEPARTURE_MELODY)) return;
+                tile.applyConfig(m.linkKey, m.soundId, scriptName);
             }); return null;
         }
     }

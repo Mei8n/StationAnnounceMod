@@ -53,7 +53,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -892,6 +892,7 @@ public final class NetworkVerificationTest {
         check(speaker.linkKey.equals("A"), "World change between receipt and dispatch rejected");
         player.worldObj = world;
         TileEntityAnnouncer announcer = new TileEntityAnnouncer(); world.add(announcer, 1, 0, 0);
+        AnnouncePackLoader.scriptEngines.put("test.js", SamScriptEngineFactory.requireEngine());
         new PacketConfig.Handler().onMessage(new PacketConfig(1, 0, 0, "test.js", "A", true), context);
         check(announcer.getScriptName().isEmpty(), "Ordinary config is queued"); serverTick();
         check(announcer.getScriptName().equals("test.js") && announcer.playLocalSound, "Ordinary config applied");
@@ -926,6 +927,81 @@ public final class NetworkVerificationTest {
         new NetworkHandler.AwarenessConfigHandler().onMessage(awarenessConfig, context); serverTick();
         check(world.updates == updates, "Oversized Awareness list rejected");
         check(speaker.dirty == dirty, "Rejected writes do not mark dirty");
+        AnnouncePackLoader.scriptEngines.remove("test.js");
+    }
+
+    private static void scriptTypeValidation() throws Exception {
+        String approachName = "typed-approach.js";
+        String departureName = "typed-departure.js";
+        String unknownApproachName = "legacy-approach.js";
+        String unknownDepartureName = "legacy-departure.js";
+        ScriptEngine approachEngine = registerScript(approachName, ScriptType.APPROACH,
+            "var calls=0; function samMain(tile){calls++; return sam.build(null,['test:body'],null);}");
+        ScriptEngine departureEngine = registerScript(departureName, ScriptType.DEPARTURE_MELODY,
+            "var calls=0; function samMain(tile){calls++; return sam.build('test:m',[],sam.push());}");
+        registerScript(unknownApproachName, ScriptType.UNKNOWN,
+            "function samMain(tile){return sam.build(null,['test:body'],null);}");
+        registerScript(unknownDepartureName, ScriptType.UNKNOWN,
+            "function samMain(tile){return sam.build('test:m',[],sam.push());}");
+
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer announcer = new TileEntityAnnouncer(); world.add(announcer, 0, 0, 0);
+        TileEntityDepartureMelody melody = new TileEntityDepartureMelody(); world.add(melody, 1, 0, 0);
+        Player player = player(world, 0, 0, 0);
+        MessageContext context = context(player);
+
+        PacketConfig.Handler approachHandler = new PacketConfig.Handler();
+        approachHandler.onMessage(new PacketConfig(0, 0, 0, approachName, "A", false), context); serverTick();
+        check(announcer.getScriptName().equals(approachName), "APPROACH script is accepted by the parent announcer");
+        approachHandler.onMessage(new PacketConfig(0, 0, 0, unknownApproachName, "A", false), context); serverTick();
+        check(announcer.getScriptName().equals(unknownApproachName), "UNKNOWN script is accepted by the parent announcer");
+        approachHandler.onMessage(new PacketConfig(0, 0, 0, departureName, "A", false), context); serverTick();
+        check(announcer.getScriptName().equals(unknownApproachName),
+            "Direct C2S config cannot assign DEPARTURE_MELODY to the parent announcer");
+        approachHandler.onMessage(new PacketConfig(0, 0, 0, "missing-script.js", "A", false), context); serverTick();
+        check(announcer.getScriptName().equals(unknownApproachName),
+            "Direct C2S config cannot assign a script absent from the server registry");
+
+        NetworkHandler.DepartureMelodyConfigHandler departureHandler = new NetworkHandler.DepartureMelodyConfigHandler();
+        departureHandler.onMessage(new PacketDepartureMelodyConfig(1, 0, 0, "A", "", departureName), context); serverTick();
+        check(melody.scriptName.equals(departureName), "DEPARTURE_MELODY script is accepted by its device");
+        departureHandler.onMessage(new PacketDepartureMelodyConfig(1, 0, 0, "A", "", unknownDepartureName), context); serverTick();
+        check(melody.scriptName.equals(unknownDepartureName), "UNKNOWN script is accepted by the departure device");
+        departureHandler.onMessage(new PacketDepartureMelodyConfig(1, 0, 0, "A", "", approachName), context); serverTick();
+        check(melody.scriptName.equals(unknownDepartureName),
+            "Direct C2S config cannot assign APPROACH to the departure device");
+        departureHandler.onMessage(new PacketDepartureMelodyConfig(1, 0, 0, "A", "", "missing-script.js"), context); serverTick();
+        check(melody.scriptName.equals(unknownDepartureName),
+            "Departure C2S config also rejects a script absent from the server registry");
+
+        NBTTagCompound badAnnouncer = new NBTTagCompound();
+        badAnnouncer.setString("scriptName", departureName); badAnnouncer.setString("linkKey", "A");
+        announcer.readFromNBT(badAnnouncer);
+        ServerSessions.clear();
+        announcer.startAnnounce();
+        check(((Number)departureEngine.eval("calls")).intValue() == 0 && sessions() == 0,
+            "A departure script restored into announcer NBT is rejected before samMain executes");
+
+        NBTTagCompound badMelody = new NBTTagCompound();
+        badMelody.setString("scriptName", approachName); badMelody.setString("linkKey", "A");
+        melody.readFromNBT(badMelody);
+        check(!melody.click(null) && ((Number)approachEngine.eval("calls")).intValue() == 0 && !melody.isPlaying(),
+            "An approach script restored into departure NBT is rejected before samMain executes");
+
+        for (String name : Arrays.asList(approachName, departureName, unknownApproachName, unknownDepartureName)) {
+            AnnouncePackLoader.scriptEngines.remove(name);
+            AnnouncePackLoader.availableScripts.removeIf(info -> info.fileName.equals(name));
+        }
+        ServerSessions.clear(); SamLinkRegistry.clear(world); LoadedSamTiles.clear(world);
+    }
+
+    private static ScriptEngine registerScript(String name, ScriptType type, String source) throws Exception {
+        ScriptEngine engine = SamScriptEngineFactory.requireEngine();
+        engine.put("sam", new SAMScriptAPI()); engine.eval(source);
+        AnnouncePackLoader.scriptEngines.put(name, engine);
+        AnnouncePackLoader.availableScripts.removeIf(info -> info.fileName.equals(name));
+        AnnouncePackLoader.availableScripts.add(new AnnounceScriptInfo(name, name, type));
+        return engine;
     }
     private static void serverTick() { ServerTaskQueue.INSTANCE.onServerTick(new TickEvent.ServerTickEvent(TickEvent.Phase.START)); }
 

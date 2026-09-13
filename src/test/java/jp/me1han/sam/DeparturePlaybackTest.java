@@ -13,6 +13,7 @@ import javax.script.ScriptEngine;
 import jp.me1han.sam.api.AnnounceData;
 import jp.me1han.sam.api.DepartureProgram;
 import jp.me1han.sam.api.DepartureSequence;
+import jp.me1han.sam.api.ScriptType;
 import jp.me1han.sam.network.PacketAnnounce;
 import jp.me1han.sam.network.PacketDepartureStart;
 import jp.me1han.sam.network.PacketDepartureControl;
@@ -398,15 +399,26 @@ public final class DeparturePlaybackTest {
     }
 
     private static void verifyPackScripts() throws Exception {
+        check(ScriptType.UNKNOWN.id == -1 && ScriptType.APPROACH.id == 0 && ScriptType.ARRIVAL.id == 1
+                && ScriptType.STATION_NAME.id == 2 && ScriptType.DEPARTURE_MELODY.id == 3
+                && ScriptType.AWARENESS.id == 4,
+            "Script type identifiers remain stable and append-only");
         java.nio.file.Path path = java.nio.file.Files.createTempFile("sam-script-test-", ".zip");
-        String departure = "function samMain(tile) { return sam.build('test:melody', [], sam.toggle().interval(0.059)); }";
+        String departure = "function getScriptType() { return 3; }"
+            + " function samMain(tile) { return sam.build('test:melody', [], sam.toggle().interval(0.059)); }";
+        String legacyDeparture = "function samMain(tile) { return sam.build('test:melody', [], sam.push()); }";
         String hugeDisplayName = String.join("", Collections.nCopies(257, "x"));
         try {
             try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(path))) {
                 scriptEntry(zip, "sam_length.json", "{\"test:melody\":{\"length\":1.23}}");
                 scriptEntry(zip, "scripts/shared.js", departure + "function getDisplayName() { return 'new'; }");
                 scriptEntry(zip, "departure/ignored.js", departure);
-                scriptEntry(zip, "scripts/ordinary.js", "function samMain(t) { return sam.build(null, [], null); }");
+                scriptEntry(zip, "scripts/ordinary.js", "var typeCalls=0; function getScriptType(){typeCalls++;return 0;}"
+                    + " function samMain(t) { return sam.build(null, [], null); }");
+                scriptEntry(zip, "scripts/legacy-ordinary.js", "function samMain(t) { return sam.build(null, [], null); }");
+                scriptEntry(zip, "scripts/legacy-departure.js", legacyDeparture);
+                scriptEntry(zip, "scripts/invalid-type.js", "function getScriptType(){return 99;}"
+                    + " function samMain(t) { return sam.build(null, [], null); }");
                 scriptEntry(zip, "scripts/sub/departure.js", departure);
                 scriptEntry(zip, "scripts/huge-name.js", "function getDisplayName(){return '" + hugeDisplayName
                     + "';} function samMain(tile){return sam.build(null, [], null);}");
@@ -426,6 +438,35 @@ public final class DeparturePlaybackTest {
             check(!AnnouncePackLoader.scriptEngines.containsKey("ignored.js"), "Legacy departure folder is not loaded");
             check(AnnouncePackLoader.runDepartureScript("departure.js", null).alternate, "Subfolder scripts resolve by filename");
             check(AnnouncePackLoader.runScript("ordinary.js", null) != null, "Ordinary script runs from shared folder");
+            check(AnnouncePackLoader.getScriptType("ordinary.js") == ScriptType.APPROACH
+                    && AnnouncePackLoader.getScriptType("departure.js") == ScriptType.DEPARTURE_MELODY,
+                "Pack loading caches declared stable script type IDs");
+            check(AnnouncePackLoader.getScriptType("legacy-ordinary.js") == ScriptType.UNKNOWN
+                    && AnnouncePackLoader.runScript("legacy-ordinary.js", null) != null
+                    && AnnouncePackLoader.runDepartureScript("legacy-departure.js", null).melodyTicks == 25,
+                "Scripts without getScriptType remain UNKNOWN and executable by either matching runtime");
+            check(AnnouncePackLoader.getScriptType("invalid-type.js") == ScriptType.UNKNOWN,
+                "Invalid getScriptType falls back to the cached UNKNOWN policy");
+            check(AnnouncePackLoader.runScript("departure.js", null) == null,
+                "Known departure scripts are rejected by the approach execution path");
+            try {
+                AnnouncePackLoader.runDepartureScript("ordinary.js", null);
+                throw new AssertionError("Known approach script ran in the departure execution path");
+            } catch (IllegalArgumentException expected) { checks++; }
+            List<jp.me1han.sam.api.AnnounceScriptInfo> approachScripts =
+                AnnouncePackLoader.getCompatibleScripts(ScriptType.APPROACH);
+            List<jp.me1han.sam.api.AnnounceScriptInfo> departureScripts =
+                AnnouncePackLoader.getCompatibleScripts(ScriptType.DEPARTURE_MELODY);
+            check(approachScripts.stream().anyMatch(s -> s.fileName.equals("ordinary.js"))
+                    && approachScripts.stream().anyMatch(s -> s.fileName.equals("legacy-ordinary.js"))
+                    && approachScripts.stream().noneMatch(s -> s.fileName.equals("departure.js")),
+                "Approach GUI candidates include APPROACH and UNKNOWN but exclude departure scripts");
+            check(departureScripts.stream().anyMatch(s -> s.fileName.equals("departure.js"))
+                    && departureScripts.stream().anyMatch(s -> s.fileName.equals("legacy-departure.js"))
+                    && departureScripts.stream().noneMatch(s -> s.fileName.equals("ordinary.js")),
+                "Departure GUI candidates include DEPARTURE_MELODY and UNKNOWN but exclude approach scripts");
+            check(((Number)AnnouncePackLoader.scriptEngines.get("ordinary.js").eval("typeCalls")).intValue() == 1,
+                "Compatibility checks and execution reuse the script type captured once at pack load");
             check(AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.fileName.equals("ordinary.js")
                 && s.displayName.equals("ordinary.js")), "Missing getDisplayName falls back to the script filename");
             check(AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.fileName.equals("huge-name.js")

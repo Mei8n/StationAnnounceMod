@@ -5,6 +5,8 @@ import jp.me1han.sam.network.PacketConfig;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketLimits;
 import jp.me1han.sam.render.TileEntityAnnouncer;
+import jp.me1han.sam.api.ScriptType;
+import jp.me1han.sam.AnnouncePackLoader;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.resources.I18n;
@@ -43,6 +45,7 @@ public class GuiAnnouncer extends GuiScriptConfig {
     protected void actionPerformed(GuiButton button) {
         if (button.id != 0) return;
         String scriptName = scriptNameField.getText().trim();
+        if (!AnnouncePackLoader.canUseScript(scriptName, ScriptType.APPROACH)) return;
         PacketConfig packet = new PacketConfig(
             tile.xCoord, tile.yCoord, tile.zCoord, scriptName,
             linkKeyField.getText(), chkPlayLocal.isChecked());
@@ -64,7 +67,8 @@ public class GuiAnnouncer extends GuiScriptConfig {
         this.linkKeyField.drawTextBox();
         this.scriptNameField.drawTextBox();
         super.drawScreen(mouseX, mouseY, partialTicks);
-        drawScriptDisplayName(this.scriptNameField.getText(), left + 10, top + 103, mouseX, mouseY);
+        drawScriptDisplayName(this.scriptNameField.getText(), ScriptType.APPROACH,
+            left + 10, top + 103, mouseX, mouseY);
     }
 
     @Override

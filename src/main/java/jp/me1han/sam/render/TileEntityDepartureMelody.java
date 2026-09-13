@@ -4,6 +4,7 @@ import jp.me1han.sam.AnnouncePackLoader;
 import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.api.DepartureProgram;
 import jp.me1han.sam.api.DepartureSequence;
+import jp.me1han.sam.api.ScriptType;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketDepartureControl;
 import java.util.HashMap;
@@ -240,11 +241,15 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
     }
 
     public void applyConfig(String key, String legacySound, String script) {
-        if (LinkKey.equals(key, getLinkKey()) && normalize(legacySound).equals(soundId) && normalize(script).equals(scriptName)) return;
+        String normalizedScript = normalize(script);
+        if (worldObj != null && !worldObj.isRemote
+            && !AnnouncePackLoader.validateScript(normalizedScript, ScriptType.DEPARTURE_MELODY)) return;
+        if (LinkKey.equals(key, getLinkKey()) && normalize(legacySound).equals(soundId)
+            && normalizedScript.equals(scriptName)) return;
         cancelPlayback();
         setLinkKey(key);
         soundId = normalize(legacySound);
-        scriptName = normalize(script);
+        scriptName = normalizedScript;
         lastError = "";
         sync();
     }

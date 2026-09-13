@@ -5,6 +5,8 @@ import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
 import io.netty.buffer.ByteBuf;
 import jp.me1han.sam.render.TileEntityAnnouncer;
+import jp.me1han.sam.AnnouncePackLoader;
+import jp.me1han.sam.api.ScriptType;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
@@ -56,9 +58,11 @@ public class PacketConfig implements IMessage {
         @Override public IMessage onMessage(PacketConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntityAnnouncer.class, tile -> {
                 if (!m.isValidPayload()) return;
+                String scriptName = m.scriptName == null ? "" : m.scriptName.trim();
+                if (!AnnouncePackLoader.validateScript(scriptName, ScriptType.APPROACH)) return;
                 if (!ConfigAccess.normalize(m.linkKey).equals(tile.getLinkKey())) ServerSessions.stopOwner(tile);
                 ConfigAccess.change(tile, () -> {
-                    tile.setScriptName(m.scriptName); tile.setLinkKey(m.linkKey);
+                    tile.setScriptName(scriptName); tile.setLinkKey(m.linkKey);
                     tile.playLocalSound = m.playLocalSound;
                 });
             }); return null;
