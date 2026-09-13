@@ -129,7 +129,14 @@ public class NetworkHandler {
         @Override public IMessage onMessage(PacketSpeakerConfig m, MessageContext ctx) {
             ConfigAccess.enqueue(ctx, m.x, m.y, m.z, TileEntitySpeaker.class, tile -> {
                 if (!m.isValidPayload()) return;
-                tile.applyConfig(m.linkKey, m.range, m.volume);
+                String model = PacketLimits.normalize(m.modelName);
+                if (!model.isEmpty() && jp.me1han.sam.speakermodel.SpeakerModelRegistry.get(model) == null) {
+                    jp.me1han.sam.StationAnnounceModCore.logger.warn("[SAM] Speaker model not found: " + model);
+                    return;
+                }
+                int yaw = (int)jp.me1han.sam.switchmodel.SwitchYaw.normalize(m.rotationYaw);
+                tile.applyConfig(m.linkKey, m.range, m.volume, model, yaw,
+                    m.offsetX, m.offsetY, m.offsetZ);
             }); return null;
         }
     }

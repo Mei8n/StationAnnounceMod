@@ -11,6 +11,17 @@ tile.sam.departure_melody.name=発車メロディブロック
 
 # Common GUI
 gui.sam.link_key=Link Key
+gui.sam.speaker.title=スピーカー設定
+gui.sam.speaker.model=モデル
+gui.sam.speaker.no_model=モデルなし
+gui.sam.speaker.search=モデル名・タグで検索
+gui.sam.speaker.rotation=角度
+gui.sam.speaker.offset=オフセット X / Y / Z
+gui.sam.speaker.range=範囲
+gui.sam.speaker.volume=音量
+gui.sam.speaker.empty=該当するモデルがありません
+gui.sam.speaker.missing=モデルが見つかりません
+gui.sam.speaker.model_error=モデルを読み込めません。パックの定義とログを確認してください。
 
 # Awareness Announcer GUI
 gui.sam.awareness.title=啓発放送設定

@@ -540,6 +540,8 @@ public final class NetworkVerificationTest {
                 buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
                 PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
                 buf.writeInt(range).writeFloat(1);
+                PacketLimits.writeString(buf, "", PacketLimits.MODEL);
+                buf.writeInt(0).writeFloat(0).writeFloat(0).writeFloat(0);
                 expectInvalid(() -> new PacketSpeakerConfig().fromBytes(buf));
             }
             for (float volume : new float[] {-0.1F, 1.1F, Float.NaN, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY}) {
@@ -547,8 +549,26 @@ public final class NetworkVerificationTest {
                 buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
                 PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
                 buf.writeInt(16).writeFloat(volume);
+                PacketLimits.writeString(buf, "", PacketLimits.MODEL);
+                buf.writeInt(0).writeFloat(0).writeFloat(0).writeFloat(0);
                 expectInvalid(() -> new PacketSpeakerConfig().fromBytes(buf));
             }
+            PacketSpeakerConfig speakerModel = new PacketSpeakerConfig(1, 2, 3, "key", 16, .5F,
+                "platform", 361, -16, 16, .25F);
+            buf.clear(); speakerModel.toBytes(buf);
+            PacketSpeakerConfig speakerModelRead = new PacketSpeakerConfig(); speakerModelRead.fromBytes(buf);
+            check(speakerModelRead.modelName.equals("platform") && speakerModelRead.rotationYaw == 361
+                && speakerModelRead.offsetX == -16 && speakerModelRead.offsetY == 16
+                && speakerModelRead.offsetZ == .25F && buf.readableBytes() == 0,
+                "Speaker model, yaw and offset packet fields round trip");
+            buf.clear(); expectEncodeInvalid(() -> new PacketSpeakerConfig(1,2,3,"key",16,1,"model",0,
+                Float.NaN,0,0).toBytes(buf));
+            buf.clear(); buf.writeInt(1).writeInt(2).writeInt(3);
+            PacketLimits.writeString(buf, "key", PacketLimits.LINK_KEY);
+            buf.writeInt(16).writeFloat(1);
+            PacketLimits.writeString(buf, "model", PacketLimits.MODEL);
+            buf.writeInt(0).writeFloat(Float.POSITIVE_INFINITY).writeFloat(0).writeFloat(0);
+            expectInvalid(() -> new PacketSpeakerConfig().fromBytes(buf));
 
             String maxSounds = String.join(",", Collections.nCopies(PacketLimits.SOUNDS, "s"));
             PacketAwarenessConfig awareness = new PacketAwarenessConfig(1, 2, 3, "key", maxSounds,
@@ -893,6 +913,14 @@ public final class NetworkVerificationTest {
     }
 
     private static void config() throws Exception {
+        jp.me1han.sam.speakermodel.SpeakerModelRegistry.reset();
+        java.lang.reflect.Field speakerModels = jp.me1han.sam.speakermodel.SpeakerModelRegistry.class.getDeclaredField("MODELS");
+        speakerModels.setAccessible(true);
+        jp.me1han.sam.speakermodel.SpeakerModelDefinition speakerModel =
+            jp.me1han.sam.speakermodel.SpeakerModelDefinition.parse(new java.io.StringReader(
+                "{\"name\":\"platform\",\"model\":{\"modelFile\":\"platform.mqo\"}}"),
+                "stationannouncemod:speakers/platform.json");
+        ((Map<String, jp.me1han.sam.speakermodel.SpeakerModelDefinition>)speakerModels.get(null)).put("platform", speakerModel);
         FixtureWorld world = new FixtureWorld();
         Speaker speaker = new Speaker(); world.add(speaker, 0, 0, 0);
         Player player = player(world, 0, 0, 0);
@@ -904,8 +932,16 @@ public final class NetworkVerificationTest {
         check(speaker.linkKey.isEmpty(), "Network handler does not write TE before server tick");
         serverTick();
         check(speaker.linkKey.equals("A") && speaker.range == 32 && speaker.volume == .5F, "Server tick applies validated config");
+        handler.onMessage(new PacketSpeakerConfig(0, 0, 0, "A", 32, .5F, "platform", 361, 1, 2, 3), context);
+        serverTick();
+        check(speaker.modelName.equals("platform") && speaker.getRotationYaw() == 1
+            && speaker.getOffsetX() == 1 && speaker.getOffsetY() == 2 && speaker.getOffsetZ() == 3,
+            "Server accepts a registered Speaker model and visual transform");
+        handler.onMessage(new PacketSpeakerConfig(0, 0, 0, "A", 32, .5F, "missing", 90, 0, 0, 0), context);
+        serverTick();
+        check(speaker.modelName.equals("platform"), "Crafted config cannot save an unknown Speaker model");
         int dirty = speaker.dirty, updates = world.updates;
-        handler.onMessage(new PacketSpeakerConfig(0, 0, 0, "A", 32, .5F), context); serverTick();
+        handler.onMessage(new PacketSpeakerConfig(0, 0, 0, "A", 32, .5F, "platform", 361, 1, 2, 3), context); serverTick();
         check(speaker.dirty == dirty && updates == world.updates, "Identical GUI save has no update");
         handler.onMessage(new PacketSpeakerConfig(99, 0, 0, "ghost", 16, 1), context); serverTick();
         check(SpeakerRegistry.findByKey(world, "ghost").isEmpty(), "Invented coordinate cannot register speaker");

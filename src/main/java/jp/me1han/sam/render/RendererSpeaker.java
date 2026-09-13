@@ -2,6 +2,8 @@ package jp.me1han.sam.render;
 
 import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.client.SAMRendererBase;
+import jp.me1han.sam.client.SwitchMeshRenderer;
+import jp.me1han.sam.speakermodel.SpeakerModelDefinition;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.client.renderer.Tessellator;
@@ -18,6 +20,20 @@ public class RendererSpeaker extends SAMRendererBase {
     public void renderTileEntityAt(TileEntity te, double x, double y, double z, float partialTicks) {
         if (!(te instanceof TileEntitySpeaker)) return;
         TileEntitySpeaker speaker = (TileEntitySpeaker) te;
+
+        SpeakerModelDefinition model = speaker.getModelDefinition();
+        if (model != null) {
+            GL11.glPushMatrix();
+            try {
+                GL11.glTranslated(x + 0.5, y, z + 0.5);
+                GL11.glTranslatef(speaker.getOffsetX(), speaker.getOffsetY(), speaker.getOffsetZ());
+                GL11.glRotatef(speaker.getRotationYaw(), 0, 1, 0);
+                int brightness = te.getWorldObj() == null ? 0xF000F0
+                    : te.getWorldObj().getLightBrightnessForSkyBlocks(te.xCoord, te.yCoord, te.zCoord, 0);
+                // Missing/broken resources deliberately have no fallback model.
+                SwitchMeshRenderer.INSTANCE.render(model, false, brightness);
+            } finally { GL11.glPopMatrix(); }
+        }
 
         if (!isPlayerHoldingDebugItem()) return;
 

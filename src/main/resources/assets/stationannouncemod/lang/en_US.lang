@@ -9,6 +9,17 @@ tile.sam.departure_melody.name=Departure Melody Block
 
 # Common GUI
 gui.sam.link_key=Link Key
+gui.sam.speaker.title=Speaker Config
+gui.sam.speaker.model=Model
+gui.sam.speaker.no_model=No Model
+gui.sam.speaker.search=Search models / tags
+gui.sam.speaker.rotation=Rotation
+gui.sam.speaker.offset=Offset X / Y / Z
+gui.sam.speaker.range=Range
+gui.sam.speaker.volume=Volume
+gui.sam.speaker.empty=No matching models
+gui.sam.speaker.missing=Model not found
+gui.sam.speaker.model_error=Model load error. Check the pack definition and log.
 
 # Awareness Announcer GUI
 gui.sam.awareness.title=Awareness Announcer Config

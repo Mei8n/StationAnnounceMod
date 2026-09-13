@@ -1,0 +1,208 @@
+package jp.me1han.sam;
+
+import com.mojang.authlib.GameProfile;
+import io.netty.buffer.*;
+import java.io.*;
+import java.lang.reflect.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.*;
+import java.util.zip.*;
+import jp.me1han.sam.block.BlockSpeaker;
+import jp.me1han.sam.client.SwitchMeshRenderer;
+import jp.me1han.sam.network.*;
+import jp.me1han.sam.render.TileEntitySpeaker;
+import jp.me1han.sam.speakermodel.*;
+import jp.me1han.sam.switchmodel.*;
+import net.minecraft.entity.*;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
+import net.minecraft.profiler.Profiler;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.AxisAlignedBB;
+import net.minecraft.world.*;
+import net.minecraft.world.chunk.IChunkProvider;
+import net.minecraft.world.storage.SaveHandlerMP;
+
+/** Headless checks for Speaker pack metadata, portable configuration and placement. */
+public final class SpeakerModelTest {
+    private static int checks;
+    private static void check(boolean value, String message) { checks++; if (!value) throw new AssertionError(message); }
+    private static final String VALID = "{\"name\":\"platform\",\"displayName\":\"Platform Speaker\","
+        + "\"tags\":\"speaker platform station\",\"model\":{\"modelFile\":\"platform.mqo\","
+        + "\"scale\":0.02,\"offset\":[1,2,3],\"textures\":[[\"mat1\",\"platform.png\"]]},"
+        + "\"bounds\":[0.2,-0.1,0.3,0.8,1.2,0.7]}";
+
+    public static void main(String[] args) throws Exception {
+        Method mapping = TileEntity.class.getDeclaredMethod("addMapping", Class.class, String.class);
+        mapping.setAccessible(true); mapping.invoke(null, TestSpeaker.class, "speaker-model-test");
+        definition(); registry(); tileAndPacket(); placement(); cache();
+        SwitchModelRegistry.reset();
+        check(SwitchModelRegistry.list().size() == 2, "Speaker registry work does not alter switch models");
+        System.out.println("Speaker models: " + checks + " checks passed");
+    }
+    private static void definition() {
+        SpeakerModelDefinition model = SpeakerModelDefinition.parse(new StringReader(VALID),
+            "stationannouncemod:speakers/platform.json");
+        check(model.name.equals("platform") && model.displayName.equals("Platform Speaker")
+            && model.tags.contains("station"), "Identity metadata");
+        check(model.modelFile.equals("stationannouncemod:speakers/platform.mqo"), "Relative MQO path");
+        check(model.textures.get("mat1").equals("stationannouncemod:speakers/platform.png"), "Relative texture path");
+        check(model.scale == .02 && Arrays.equals(model.modelOffset, new double[]{1,2,3}), "Scale and model offset");
+        check(Arrays.equals(model.bounds, new double[]{.2,-.1,.3,.8,1.2,.7}), "Bounds");
+        check(model.visible("anything", false) && model.visible("anything", true), "Speaker model has one static state");
+        for (String json : new String[]{
+            VALID.replace("\"platform\"", "\"bad/name\""),
+            VALID.replace("platform.mqo", "../platform.mqo"),
+            VALID.replace("\"scale\":0.02", "\"scale\":0"),
+            VALID.replace("[0.2,-0.1,0.3,0.8,1.2,0.7]", "[1,0,0,0,1,1]"),
+            VALID.replace("[0.2,-0.1,0.3,0.8,1.2,0.7]", "[-17,0,0,1,1,1]"),
+            VALID.replace("[1,2,3]", "[1,2]")
+        }) {
+            try { SpeakerModelDefinition.parse(new StringReader(json), "stationannouncemod:speakers/x.json"); throw new AssertionError("Invalid JSON accepted"); }
+            catch (RuntimeException expected) { checks++; }
+        }
+    }
+    private static void registry() throws Exception {
+        SpeakerModelRegistry.reset();
+        check(SpeakerModelRegistry.list().isEmpty(), "Empty Speaker registry is valid");
+        Path zipPath = zip(new String[][]{{"assets/stationannouncemod/speakers/platform.json", VALID}});
+        try (ZipFile zip = new ZipFile(zipPath.toFile())) { SpeakerModelRegistry.loadPack(zip); }
+        check(SpeakerModelRegistry.get("platform") != null && SpeakerModelRegistry.list().size() == 1, "Pack model loads");
+        Files.delete(zipPath);
+        Path duplicate = zip(new String[][]{
+            {"assets/stationannouncemod/speakers/a.json", VALID},
+            {"assets/stationannouncemod/speakers/b.json", VALID.replace("platform.mqo", "other.mqo")}
+        });
+        SpeakerModelRegistry.reset();
+        try (ZipFile zip = new ZipFile(duplicate.toFile())) { SpeakerModelRegistry.loadPack(zip); }
+        check(SpeakerModelRegistry.list().size() == 1 && SpeakerModelRegistry.get("platform").modelFile.endsWith("platform.mqo"),
+            "Duplicate name is rejected without replacing the first definition");
+        Files.delete(duplicate);
+    }
+    private static Path zip(String[][] entries) throws Exception {
+        Path path = Files.createTempFile(Paths.get("build"), "speaker-model-", ".zip");
+        try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(path))) {
+            for (String[] entry : entries) {
+                out.putNextEntry(new ZipEntry(entry[0])); out.write(entry[1].getBytes(StandardCharsets.UTF_8)); out.closeEntry();
+            }
+        }
+        return path;
+    }
+    private static void tileAndPacket() {
+        NBTTagCompound old = new NBTTagCompound(); old.setString("linkKey", "A"); old.setInteger("range", 24); old.setFloat("volume", .5F);
+        TestSpeaker legacy = new TestSpeaker(); legacy.readFromNBT(old);
+        check(legacy.modelName.isEmpty() && legacy.getRotationYaw() == 0
+            && legacy.getOffsetX() == 0 && legacy.getOffsetY() == 0 && legacy.getOffsetZ() == 0, "Old NBT defaults to No Model");
+        check(legacy.linkKey.equals("A") && legacy.range == 24 && legacy.volume == .5F, "Old audio settings remain intact");
+        legacy.applyConfig("A", 24, .5F, "missing", 45, 1, -2, 3);
+        NBTTagCompound saved = new NBTTagCompound(); legacy.writeToNBT(saved);
+        TestSpeaker restored = new TestSpeaker(); restored.readFromNBT(saved);
+        check(restored.modelName.equals("missing") && restored.getRotationYaw() == 45, "Model and yaw NBT round trip");
+        check(restored.getOffsetX() == 1 && restored.getOffsetY() == -2 && restored.getOffsetZ() == 3, "Offsets NBT round trip");
+        check(restored.getRenderBoundingBox().minX == restored.xCoord, "Missing model uses block bounds without fallback");
+        restored.modelName = "";
+        check(restored.getModelDefinition() == null, "No Model performs no model resolution");
+        NBTTagCompound unsafe = (NBTTagCompound)saved.copy();
+        unsafe.setFloat("offsetX", Float.NaN); unsafe.setFloat("offsetY", Float.POSITIVE_INFINITY); unsafe.setFloat("offsetZ", 17);
+        restored.readFromNBT(unsafe);
+        check(restored.getOffsetX() == 0 && restored.getOffsetY() == 0 && restored.getOffsetZ() == 0, "Unsafe NBT offsets sanitize");
+        for (float value : new float[]{Float.NaN, Float.POSITIVE_INFINITY, 16.000002F, -16.000002F})
+            check(!TileEntitySpeaker.validOffset(value), "Unsafe offset rejected");
+
+        PacketSpeakerConfig packet = new PacketSpeakerConfig(1,2,3,"A",32,.75F,"platform",361,1,2,3);
+        ByteBuf buf = Unpooled.buffer();
+        packet.toBytes(buf); PacketSpeakerConfig decoded = new PacketSpeakerConfig(); decoded.fromBytes(buf);
+        check(decoded.modelName.equals("platform") && decoded.rotationYaw == 361
+            && decoded.offsetX == 1 && decoded.offsetY == 2 && decoded.offsetZ == 3 && buf.readableBytes() == 0,
+            "Speaker model packet round trip");
+        PacketSpeakerConfig noModel = new PacketSpeakerConfig(1,2,3,"A",16,1,"",0,0,0,0);
+        check(noModel.isValidPayload(), "Empty model name is valid");
+        check(!new PacketSpeakerConfig(1,2,3,"A",16,1,"x",0,Float.NaN,0,0).isValidPayload(), "Packet rejects NaN offset");
+        check(!new PacketSpeakerConfig(1,2,3,"A",16,1,
+            String.join("", Collections.nCopies(PacketLimits.MODEL + 1, "m")),0,0,0,0).isValidPayload(), "Packet rejects long model name");
+        buf.release();
+
+        SpeakerModelRegistry.reset();
+        try {
+            Field models = SpeakerModelRegistry.class.getDeclaredField("MODELS"); models.setAccessible(true);
+            ((Map<String, SpeakerModelDefinition>)models.get(null)).put("platform",
+                SpeakerModelDefinition.parse(new StringReader(VALID), "stationannouncemod:speakers/platform.json"));
+        } catch (Exception e) { throw new AssertionError(e); }
+        FixtureWorld world = new FixtureWorld(); TestSpeaker tile = new TestSpeaker(); world.add(tile);
+        SpeakerRegistry.Entry entry = SpeakerRegistry.at(world, SpeakerRegistry.position(0,0,0));
+        int dirty = tile.dirty, updates = world.updates;
+        check(tile.applyConfig("",16,1,"platform",90,1,0,0), "Visual config applies");
+        check(tile.getModelDefinition() == SpeakerModelRegistry.get("platform"),
+            "Valid model resolves from the Speaker-only registry");
+        check(SpeakerRegistry.at(world, SpeakerRegistry.position(0,0,0)) == entry, "Visual-only config does not rebuild routing");
+        check(!tile.applyConfig("",16,1,"platform",90,1,0,0)
+            && tile.dirty == dirty + 1 && world.updates == updates + 1, "Identical full config emits no update");
+        tile.applyConfig("B",32,.5F,"platform",90,1,0,0);
+        check(SpeakerRegistry.at(world, SpeakerRegistry.position(0,0,0)) != entry, "Audio config rebuilds routing");
+        AxisAlignedBB bounds = tile.getRenderBoundingBox();
+        check(bounds.minX > .7 && bounds.maxX < 1.8 && bounds.minZ > .1 && bounds.maxZ < .9, "Render bounds include yaw and tile offset");
+        TestSpeaker client = new TestSpeaker();
+        client.onDataPacket(null, (S35PacketUpdateTileEntity)tile.getDescriptionPacket());
+        check(client.modelName.equals("platform") && client.getRotationYaw() == 90
+            && client.getOffsetX() == 1, "Description packet synchronizes visual configuration");
+        jp.me1han.sam.client.ClientSpeakerRegistry.clear();
+        SpeakerRegistry.clear(world);
+    }
+    private static void placement() throws Exception {
+        FixtureWorld world = new FixtureWorld(); TestSpeaker tile = new TestSpeaker(); world.add(tile);
+        NBTTagCompound settings = new NBTTagCompound(); settings.setString("modelName", "platform");
+        settings.setString("linkKey", "copied"); settings.setInteger("range", 30); settings.setFloat("volume", .4F);
+        settings.setFloat("RotationYaw", 12); settings.setFloat("offsetX", 1); settings.setFloat("offsetY", 2); settings.setFloat("offsetZ", 3);
+        ItemStack stack = new ItemStack(net.minecraft.init.Items.stick); NBTTagCompound tag = new NBTTagCompound();
+        tag.setTag("BlockEntityTag", settings); stack.setTagCompound(tag);
+        Constructor<?> ctor = sun.reflect.ReflectionFactory.getReflectionFactory()
+            .newConstructorForSerialization(TestPlayer.class, Object.class.getDeclaredConstructor());
+        TestPlayer player = (TestPlayer)ctor.newInstance(); player.rotationYaw = -32.2F;
+        new BlockSpeaker().onBlockPlacedBy(world,0,0,0,player,stack);
+        check(tile.modelName.equals("platform") && tile.getOffsetX() == 1 && tile.getOffsetY() == 2 && tile.getOffsetZ() == 3,
+            "Copied model and offsets survive placement");
+        check(tile.linkKey.equals("copied") && tile.range == 30 && tile.volume == .4F, "Copied audio settings survive placement");
+        check(tile.getRotationYaw() == SwitchYaw.placement(player.rotationYaw, false), "Normal placement overrides copied yaw");
+        player.sneaking = true; player.rotationYaw = -32.6F;
+        new BlockSpeaker().onBlockPlacedBy(world,0,0,0,player,new ItemStack(net.minecraft.init.Items.stick));
+        check(tile.getRotationYaw() == SwitchYaw.placement(player.rotationYaw, true), "Sneak placement uses one-degree orientation");
+        SpeakerRegistry.clear(world);
+    }
+    private static void cache() throws Exception {
+        Field meshes = SwitchMeshRenderer.class.getDeclaredField("meshes"); meshes.setAccessible(true);
+        Field failed = SwitchMeshRenderer.class.getDeclaredField("failed"); failed.setAccessible(true);
+        ((Map)meshes.get(SwitchMeshRenderer.INSTANCE)).put("speaker:test", new MqoMesh());
+        SpeakerModelDefinition broken = SpeakerModelDefinition.parse(new StringReader(
+            VALID.replace("\"platform\"", "\"broken\"")), "stationannouncemod:speakers/broken.json");
+        ((Set)failed.get(SwitchMeshRenderer.INSTANCE)).add(broken.getClass().getName() + ":broken");
+        check(SwitchMeshRenderer.INSTANCE.mesh(broken) == null, "Failed Speaker resource is not retried each frame");
+        SwitchMeshRenderer.INSTANCE.onResourceManagerReload(null);
+        check(((Map)meshes.get(SwitchMeshRenderer.INSTANCE)).isEmpty()
+            && ((Set)failed.get(SwitchMeshRenderer.INSTANCE)).isEmpty(), "Resource reload clears mesh and failed caches");
+    }
+    private static class TestSpeaker extends TileEntitySpeaker { int dirty; @Override public void markDirty() { dirty++; } }
+    private static class TestPlayer extends EntityPlayer {
+        boolean sneaking;
+        TestPlayer() { super(null, new GameProfile(UUID.randomUUID(), "speaker")); }
+        @Override public boolean isSneaking() { return sneaking; }
+        @Override public void addChatMessage(net.minecraft.util.IChatComponent message) {}
+        @Override public boolean canCommandSenderUseCommand(int level, String command) { return true; }
+        @Override public net.minecraft.util.ChunkCoordinates getPlayerCoordinates() { return new net.minecraft.util.ChunkCoordinates(); }
+    }
+    private static class FixtureWorld extends World {
+        TileEntity tile; int updates;
+        FixtureWorld() { super(new SaveHandlerMP(), "speaker-model", new WorldProviderSurface(),
+            new WorldSettings(0, WorldSettings.GameType.CREATIVE, false, false, WorldType.FLAT), new Profiler()); }
+        void add(TileEntity tile) { this.tile=tile; tile.setWorldObj(this); tile.xCoord=tile.yCoord=tile.zCoord=0; tile.validate(); }
+        @Override protected IChunkProvider createChunkProvider() { return null; }
+        @Override protected int func_152379_p() { return 0; }
+        @Override public Entity getEntityByID(int id) { return null; }
+        @Override public TileEntity getTileEntity(int x,int y,int z) { return tile; }
+        @Override public boolean blockExists(int x,int y,int z) { return true; }
+        @Override public void markBlockForUpdate(int x,int y,int z) { updates++; }
+        @Override public void markTileEntityChunkModified(int x,int y,int z,TileEntity tile) {}
+    }
+}

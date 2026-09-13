@@ -5,7 +5,7 @@ import java.io.Reader;
 import java.util.*;
 
 /** Common-side JSON data. Does not depend on RTM or OpenGL. Offsets use MQO model units. */
-public final class SwitchModelDefinition {
+public final class SwitchModelDefinition implements StaticModelDefinition {
     public enum SwitchMode { ALTERNATE, MOMENTARY }
     public SwitchMode switchMode = SwitchMode.MOMENTARY;
     public String name;
@@ -81,7 +81,7 @@ public final class SwitchModelDefinition {
         return result;
     }
 
-    public boolean visible(String part, boolean pressed) {
+    @Override public boolean visible(String part, boolean pressed) {
         return pressed ? !normalParts.contains(part) : !pressedParts.contains(part);
     }
 
@@ -89,12 +89,19 @@ public final class SwitchModelDefinition {
         return pressed && translations.containsKey(part) ? translations.get(part) : new double[3];
     }
 
-    public void validateParts(Set<String> parts) {
+    @Override public void validateParts(Set<String> parts) {
         Set<String> references = new LinkedHashSet<>(normalParts);
         references.addAll(pressedParts);
         references.addAll(translations.keySet());
         for (String part : references) if (!parts.contains(part)) throw new IllegalArgumentException("Unknown MQO part: " + part);
     }
+
+    @Override public String getName() { return name; }
+    @Override public String getModelFile() { return modelFile; }
+    @Override public double getScale() { return scale; }
+    @Override public double[] getModelOffset() { return modelOffset; }
+    @Override public Map<String, String> getTextures() { return textures; }
+    @Override public double[] partOffset(String part, boolean state) { return offset(part, state); }
 
     public static String resolveResource(String base, String path) {
         path = path.trim().replace('\\', '/');

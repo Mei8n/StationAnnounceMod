@@ -18,26 +18,42 @@ public final class SwitchMeshRenderer implements IResourceManagerReloadListener 
     private final Set<String> failed = new HashSet<>();
     @Override public void onResourceManagerReload(IResourceManager manager) { meshes.clear(); failed.clear(); }
 
-    public MqoMesh mesh(SwitchModelDefinition definition) {
-        if (definition == null || failed.contains(definition.name)) return null;
-        MqoMesh mesh = meshes.get(definition.name);
+    public MqoMesh mesh(StaticModelDefinition definition) {
+        if (definition == null) return null;
+        String cacheKey = definition.getClass().getName() + ":" + definition.getName();
+        if (failed.contains(cacheKey)) return null;
+        MqoMesh mesh = meshes.get(cacheKey);
         if (mesh == null) {
             try (Reader reader = new InputStreamReader(Minecraft.getMinecraft().getResourceManager()
-                    .getResource(new ResourceLocation(definition.modelFile)).getInputStream(), StandardCharsets.UTF_8)) {
+                    .getResource(new ResourceLocation(definition.getModelFile())).getInputStream(), StandardCharsets.UTF_8)) {
                 mesh = MqoMesh.read(reader);
                 definition.validateParts(mesh.parts.keySet());
-                meshes.put(definition.name, mesh);
+                validateTextures(definition, mesh);
+                meshes.put(cacheKey, mesh);
             } catch (Exception e) {
-                failed.add(definition.name);
-                StationAnnounceModCore.logger.error("[SAM] Cannot render switch model " + definition.name, e);
+                failed.add(cacheKey);
+                StationAnnounceModCore.logger.error("[SAM] Cannot render model " + definition.getName(), e);
                 return null;
             }
         }
         return mesh;
     }
 
+    private void validateTextures(StaticModelDefinition definition, MqoMesh mesh) throws IOException {
+        Set<String> resources = new HashSet<>(definition.getTextures().values());
+        for (MqoMesh.Material material : mesh.materials) {
+            String texture = definition.getTextures().get(material.name);
+            if (texture == null) texture = definition.getTextures().get("default");
+            if (texture == null && !material.texture.isEmpty())
+                texture = SwitchModelDefinition.resolveResource(definition.getModelFile(), material.texture);
+            if (texture != null) resources.add(texture);
+        }
+        for (String resource : resources)
+            Minecraft.getMinecraft().getResourceManager().getResource(new ResourceLocation(resource)).getInputStream().close();
+    }
+
     /** Coordinates are centered in X/Z; the model base is Y=0. Returns false for unavailable assets. */
-    public boolean render(SwitchModelDefinition definition, boolean pressed, int brightness) {
+    public boolean render(StaticModelDefinition definition, boolean state, int brightness) {
         MqoMesh mesh = mesh(definition);
         if (mesh == null) return false;
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_TEXTURE_BIT);
@@ -47,20 +63,21 @@ public final class SwitchMeshRenderer implements IResourceManagerReloadListener 
             GL11.glDisable(GL11.GL_CULL_FACE);
             GL11.glEnable(GL11.GL_BLEND);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-            GL11.glScaled(definition.scale, definition.scale, definition.scale);
-            GL11.glTranslated(definition.modelOffset[0], definition.modelOffset[1], definition.modelOffset[2]);
+            GL11.glScaled(definition.getScale(), definition.getScale(), definition.getScale());
+            double[] modelOffset = definition.getModelOffset();
+            GL11.glTranslated(modelOffset[0], modelOffset[1], modelOffset[2]);
             for (Map.Entry<String, List<MqoMesh.Triangle>> part : mesh.parts.entrySet()) {
-                if (!definition.visible(part.getKey(), pressed)) continue;
-                double[] offset = definition.offset(part.getKey(), pressed);
+                if (!definition.visible(part.getKey(), state)) continue;
+                double[] offset = definition.partOffset(part.getKey(), state);
                 GL11.glPushMatrix();
                 GL11.glTranslated(offset[0], offset[1], offset[2]);
                 for (int m = 0; m < mesh.materials.size(); m++) {
                     MqoMesh.Material material = mesh.materials.get(m);
-                    String texture = definition.textures.get(material.name);
-                    if (texture == null) texture = definition.textures.get("default");
+                    String texture = definition.getTextures().get(material.name);
+                    if (texture == null) texture = definition.getTextures().get("default");
                     if (texture == null && !material.texture.isEmpty()) {
                         // JSON overrides are authoritative, including legacy MQO absolute texture paths.
-                        try { texture = SwitchModelDefinition.resolveResource(definition.modelFile, material.texture); }
+                        try { texture = SwitchModelDefinition.resolveResource(definition.getModelFile(), material.texture); }
                         catch (IllegalArgumentException ignored) { texture = null; }
                     }
                     if (texture == null) GL11.glDisable(GL11.GL_TEXTURE_2D);
