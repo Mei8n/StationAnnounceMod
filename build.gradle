@@ -30,15 +30,13 @@ def modId = (coreSource =~ /MOD_ID\s*=\s*"([^"]+)"/)[0][1]
 def modName = (coreSource =~ /MOD_NAME\s*=\s*"([^"]+)"/)[0][1]
 def releaseVersion = (coreSource =~ /VERSION\s*=\s*"([^"]+)"/)[0][1]
 
-version = "SNAPSHOT"
+def releaseTaskRequested = gradle.startParameter.taskNames.any { requested ->
+    def taskName = requested.tokenize(':').last()
+    taskName == 'buildRelease' || taskName == 'verifyReleaseMetadata'
+}
+version = releaseTaskRequested ? releaseVersion : "SNAPSHOT"
 group = "jp.me1han.sam"
 archivesBaseName = "stationannouncemod"
-
-gradle.taskGraph.whenReady { graph ->
-    if (graph.hasTask(":buildRelease")) {
-        project.version = releaseVersion
-    }
-}
 
 ext.set('modId', modId)
 ext.set('modName', modName)
@@ -126,21 +124,14 @@ dependencies {
 }
 
 processResources {
-    duplicatesStrategy 'exclude'
-
     inputs.property "modId", project.modId
     inputs.property "modName", project.modName
     inputs.property "modVersion", project.version
     inputs.property "minecraftVersion", project.minecraft.version
 
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
+    filesMatching('mcmod.info') {
         expand 'modId': project.modId, 'modName': project.modName,
                'modVersion': project.version, 'minecraftVersion': project.minecraft.version
-    }
-
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
     }
 }
 
@@ -213,6 +204,34 @@ task runClientDev {
 tasks.register('buildRelease') {
     group = 'build'
     dependsOn 'build'
+}
+
+tasks.register('verifyReleaseMetadata') {
+    group = 'verification'
+    description = 'Build the release artifact and verify its filename and embedded mcmod.info version.'
+    dependsOn 'buildRelease'
+
+    doLast {
+        if (project.version.toString() != releaseVersion)
+            throw new GradleException("Release project version mismatch: ${project.version} != ${releaseVersion}")
+        def releaseJar = tasks.named('jar').get().archiveFile.get().asFile
+        def expectedJarName = "${archivesBaseName}-${releaseVersion}.jar"
+        if (releaseJar.name != expectedJarName)
+            throw new GradleException("Release artifact filename mismatch: ${releaseJar.name}")
+        def zip = new java.util.zip.ZipFile(releaseJar)
+        try {
+            def entry = zip.getEntry('mcmod.info')
+            if (entry == null) throw new GradleException('Release artifact has no mcmod.info')
+            def metadata = new groovy.json.JsonSlurper().parse(zip.getInputStream(entry))
+            def embeddedVersion = metadata?.modList instanceof List && !metadata.modList.isEmpty()
+                ? metadata.modList[0].version : null
+            if (embeddedVersion != releaseVersion)
+                throw new GradleException("mcmod.info version mismatch: ${embeddedVersion} != ${releaseVersion}")
+        } finally {
+            zip.close()
+        }
+        logger.lifecycle("Verified release metadata: ${releaseJar.name}, version ${releaseVersion}")
+    }
 }
 
 tasks.register('verifyBuildEnvironment') {

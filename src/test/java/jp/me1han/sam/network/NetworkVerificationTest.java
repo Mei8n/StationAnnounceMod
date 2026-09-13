@@ -53,7 +53,7 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); client(); clientQueueBudget(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -1598,6 +1598,161 @@ public final class NetworkVerificationTest {
     }
     private static void endTick() { ServerSessions.INSTANCE.onServerTick(new TickEvent.ServerTickEvent(TickEvent.Phase.END)); }
 
+    private static void clientQueueBudget() throws Exception {
+        FixtureWorld world = new FixtureWorld(); world.isRemote = true;
+        TestClient client = new TestClient(); client.world = world;
+        for (int i = 0; i < AnnounceManager.MAX_PENDING_PER_TICK + 17; i++)
+            client.receive(new PacketAnnounceStop(50000 + i));
+        int queued = client.pendingCount();
+        client.tick();
+        check(queued == AnnounceManager.MAX_PENDING_PER_TICK + 17
+                && client.pendingCount() == 17,
+            "Client processes no more than MAX_PENDING_PER_TICK FIFO actions");
+        client.tick();
+        check(client.pendingCount() == 0, "Client carries excess FIFO actions to the next tick");
+
+        for (int i = 0; i < AnnounceManager.MAX_PENDING_PER_TICK; i++)
+            client.receive(new PacketAnnounceStop(51000 + i));
+        PacketDepartureStart departure = departure(52000);
+        client.receive(departure);
+        client.receive(new PacketSessionTimeline(52000, 0, -1));
+        client.receive(routes(52000, 1, 0, 1, route(0, 16, 1)));
+        client.receive(new PacketDepartureControl(52000, true));
+        client.tick();
+        check(client.pendingCount() == 4 && client.played.isEmpty(),
+            "A budget boundary retains START, timeline, route and control in FIFO order");
+        client.tick();
+        check(client.pendingCount() == 0 && client.played.isEmpty() && client.live.isEmpty()
+                && clientSessionCount(client) == 0,
+            "Deferred START -> timeline -> route -> control ordering remains intact without resurrection");
+
+        Map<String, Integer> lengths = new HashMap<>();
+        lengths.put("test:join-start", 3); lengths.put("test:join-b", 3); lengths.put("test:join-arr", 3);
+        PacketAnnounce rich = new PacketAnnounce(); rich.sessionId = 53000; rich.linkKey = "A";
+        rich.startMelo = "test:join-start"; rich.bodySounds = Arrays.asList("", "test:join-b");
+        rich.bodyIntervalTicks = Arrays.asList(2, 0); rich.arrMelo = "test:join-arr"; rich.repeatCount = 2;
+        rich.resolveTiming(lengths);
+        TestClient richClient = new TestClient(); richClient.world = world;
+        richClient.receive(rich); richClient.receive(new PacketSessionTimeline(53000, 11, -1));
+        richClient.receive(routes(53000, 1, 0, 1, route(0, 16, 1)));
+        for (int i = 0; i < 10; i++) richClient.tick();
+        check(soundNames(richClient).size() >= 2
+                && soundNames(richClient).get(0).equals("test:join-b")
+                && soundNames(richClient).get(1).equals("test:join-arr")
+                && !soundNames(richClient).contains("test:join-start"),
+            "Ordinary restore accounts for start melody, interval, repeats and arrival loop");
+    }
+
+    private static void activeSessionAttach() throws Exception {
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        AnnouncePackLoader.soundTicks.put("test:join-a", 3);
+        AnnouncePackLoader.soundTicks.put("test:join-b", 3);
+        AnnouncePackLoader.soundTicks.put("test:join-c", 3);
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A"); world.add(owner, 0, 0, 0);
+        Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 1, 0, 0);
+        Player original = player(world, 0, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        PacketAnnounce ordinary = new PacketAnnounce(); ordinary.linkKey = "A";
+        ordinary.bodySounds = Arrays.asList("test:join-a", "test:join-b", "test:join-c");
+        ordinary.bodyIntervalTicks = Arrays.asList(0, 0, 0);
+        long ordinaryId = ServerSessions.start(owner, ordinary);
+        for (int i = 0; i < 4; i++) endTick();
+        Player late = player(world, 0, 0, 0); out.clear();
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(late));
+        check(out.messages.size() == 3 && out.messages.get(0) instanceof PacketAnnounce
+                && out.messages.get(1) instanceof PacketSessionTimeline
+                && out.messages.get(2) instanceof PacketSessionSpeakerRoutes,
+            "Late attach sends START, authoritative timeline, then current routing snapshot");
+        PacketSessionTimeline ordinaryTimeline = (PacketSessionTimeline)out.messages.get(1);
+        check(ordinaryTimeline.elapsedTicks == 4 && ordinaryTimeline.releaseElapsedTicks == -1,
+            "Ordinary late attach uses the server session clock");
+        TestClient ordinaryClient = new TestClient(); FixtureWorld clientWorld = new FixtureWorld(); clientWorld.isRemote = true;
+        ordinaryClient.world = clientWorld;
+        ordinaryClient.receive((PacketAnnounce)out.messages.get(0));
+        ordinaryClient.receive(ordinaryTimeline);
+        ordinaryClient.tick();
+        check(ordinaryClient.played.isEmpty(), "Timeline alone cannot bypass the initial routing gate");
+        ordinaryClient.receive((PacketSessionSpeakerRoutes)out.messages.get(2));
+        for (int i = 0; i < 8; i++) ordinaryClient.tick();
+        check(soundNames(ordinaryClient).equals(Collections.singletonList("test:join-c")),
+            "Late ordinary attach skips completed and in-progress parts, then receives future parts");
+
+        PacketDepartureStart toggle = departure(0); toggle.departure.intervalTicks = 5;
+        long toggleId = ServerSessions.start(owner, toggle);
+        for (int i = 0; i < 5; i++) endTick();
+        Player onJoin = player(world, 0, 0, 0); out.clear();
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(onJoin));
+        PacketSessionTimeline onTimeline = timelineFor(out, toggleId);
+        check(onTimeline != null && onTimeline.elapsedTicks >= 5 && onTimeline.releaseElapsedTicks == -1,
+            "Toggle late attach records the continuing ON state");
+        TestClient onClient = new TestClient(); onClient.world = clientWorld;
+        onClient.receive(startFor(out, toggleId)); onClient.receive(onTimeline);
+        onClient.receive(out.routeFor(toggleId)); onClient.tick();
+        check(onClient.played.isEmpty(), "Toggle attach does not restart the current chorus at tick zero");
+        for (int i = 0; i < 15; i++) onClient.tick();
+        check(soundNames(onClient).equals(Collections.singletonList("test:m")),
+            "Continuing toggle joins at the next server-timeline chorus boundary");
+
+        ServerSessions.control(toggleId, false);
+        for (int i = 0; i < 2; i++) endTick();
+        Player releasedJoin = player(world, 0, 0, 0); out.clear();
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(releasedJoin));
+        PacketSessionTimeline releasedTimeline = timelineFor(out, toggleId);
+        check(releasedTimeline != null && releasedTimeline.releaseElapsedTicks >= 0
+                && releasedTimeline.elapsedTicks > releasedTimeline.releaseElapsedTicks,
+            "Post-release attach carries release and current elapsed positions");
+        TestClient releasedClient = new TestClient(); releasedClient.world = clientWorld;
+        releasedClient.receive(startFor(out, toggleId)); releasedClient.receive(releasedTimeline);
+        releasedClient.receive(out.routeFor(toggleId)); releasedClient.tick();
+        check(releasedClient.played.isEmpty(), "Post-release attach does not replay the stopped melody");
+        for (int i = 0; i < 3; i++) releasedClient.tick();
+        check(soundNames(releasedClient).equals(Collections.singletonList("test:d")),
+            "Post-release attach resumes at the remaining interval and door-close boundary");
+
+        out.clear();
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(releasedJoin));
+        check(out.messages.isEmpty() && recipientCount(toggleId) == 4,
+            "Repeated lifecycle notification cannot duplicate a recipient");
+
+        FixtureWorld other = new FixtureWorld();
+        TileEntityAnnouncer otherOwner = new TileEntityAnnouncer(); otherOwner.setLinkKey("A"); other.add(otherOwner, 0, 0, 0);
+        PacketDepartureStart otherDeparture = departure(0); otherDeparture.departure.intervalTicks = 5;
+        long otherId = ServerSessions.start(otherOwner, otherDeparture);
+        releasedJoin.worldObj = other; out.clear();
+        ServerSessions.INSTANCE.changedWorld(new PlayerEvent.PlayerChangedDimensionEvent(releasedJoin, 0, 1));
+        check(timelineFor(out, otherId) != null && recipientCount(toggleId) == 3 && recipientCount(otherId) == 1,
+            "Dimension change detaches old sessions and attaches active destination sessions");
+        out.clear();
+        ServerSessions.INSTANCE.respawn(new PlayerEvent.PlayerRespawnEvent(releasedJoin));
+        check(out.count(PacketAnnounceStop.class) == 1 && timelineFor(out, otherId) != null
+                && recipientCount(otherId) == 1,
+            "Respawn stops the old client state and reattaches once");
+        ServerSessions.clear(); SpeakerRegistry.clear(world); SpeakerRegistry.clear(other);
+    }
+
+    private static PacketSessionTimeline timelineFor(RecordingDelivery out, long id) {
+        for (IMessage message : out.messages)
+            if (message instanceof PacketSessionTimeline && ((PacketSessionTimeline)message).sessionId == id)
+                return (PacketSessionTimeline)message;
+        return null;
+    }
+
+    private static PacketAnnounce startFor(RecordingDelivery out, long id) {
+        for (IMessage message : out.messages)
+            if (message instanceof PacketAnnounce && ((PacketAnnounce)message).sessionId == id)
+                return (PacketAnnounce)message;
+        return null;
+    }
+
+    private static int recipientCount(long id) throws Exception {
+        Field sessionsField = ServerSessions.class.getDeclaredField("SESSIONS"); sessionsField.setAccessible(true);
+        Object session = ((Map<?, ?>)sessionsField.get(null)).get(id);
+        if (session == null) return 0;
+        Field recipients = session.getClass().getDeclaredField("recipients"); recipients.setAccessible(true);
+        return ((Set<?>)recipients.get(session)).size();
+    }
+
     private static void serverTaskQueueFairness() throws Exception {
         ServerTaskQueue queue = ServerTaskQueue.INSTANCE;
         queue.clear();
@@ -1628,6 +1783,23 @@ public final class NetworkVerificationTest {
         boolean fifo = true;
         for (int i = 0; i < playerAOrder.size(); i++) fifo &= playerAOrder.get(i) == i;
         check(fifo, "A sender retains FIFO order");
+
+        queue.clear();
+        List<String> priorityOrder = new ArrayList<>();
+        for (int i = 0; i < ServerTaskQueue.MAX_PENDING_PER_SENDER; i++)
+            check(queue.enqueue(playerA, () -> priorityOrder.add("N")), "Normal capacity accepts its full bound");
+        for (int i = 0; i < ServerTaskQueue.MAX_CRITICAL_PENDING_PER_SENDER; i++)
+            check(queue.enqueue(playerA, ServerTaskQueue.Priority.CRITICAL, () -> priorityOrder.add("C")),
+                "Critical capacity is independent from saturated normal work");
+        check(!queue.enqueue(playerA, ServerTaskQueue.Priority.CRITICAL, () -> {}),
+            "Critical per-sender capacity is bounded");
+        check(queue.normalPendingCount(playerA) == ServerTaskQueue.MAX_PENDING_PER_SENDER
+                && queue.criticalPendingCount(playerA) == ServerTaskQueue.MAX_CRITICAL_PENDING_PER_SENDER,
+            "Both sender queues retain independent counts");
+        serverTick();
+        check(priorityOrder.subList(0, 5).equals(Arrays.asList("C", "C", "C", "C", "N")),
+            "Critical work leads while normal work receives bounded service");
+        check(priorityOrder.contains("N"), "Critical traffic cannot starve normal work");
 
         queue.clear();
         Player[] players = new Player[8];
@@ -1665,6 +1837,17 @@ public final class NetworkVerificationTest {
             "Global pending memory remains bounded across many senders");
 
         queue.clear();
+        int criticalAccepted = 0;
+        for (int sender = 0; sender < ServerTaskQueue.MAX_CRITICAL_PENDING_GLOBAL
+                / ServerTaskQueue.MAX_CRITICAL_PENDING_PER_SENDER + 1; sender++) {
+            Player current = player(world, sender + 100, 0, 0);
+            for (int task = 0; task < ServerTaskQueue.MAX_CRITICAL_PENDING_PER_SENDER; task++)
+                if (queue.enqueue(current, ServerTaskQueue.Priority.CRITICAL, () -> {})) criticalAccepted++;
+        }
+        check(criticalAccepted == ServerTaskQueue.MAX_CRITICAL_PENDING_GLOBAL,
+            "Critical work has an independent global bound");
+
+        queue.clear();
         final boolean[] survivedFailure = {false, false};
         queue.enqueue(playerA, () -> { throw new RuntimeException("expected queue test failure"); });
         queue.enqueue(playerB, () -> survivedFailure[0] = true);
@@ -1676,6 +1859,7 @@ public final class NetworkVerificationTest {
         queue.clear();
         survivedFailure[0] = false;
         queue.enqueue(playerA, () -> { throw new AssertionError("logged-out task ran"); });
+        queue.enqueue(playerA, ServerTaskQueue.Priority.CRITICAL, () -> { throw new AssertionError("logged-out critical task ran"); });
         queue.enqueue(playerB, () -> survivedFailure[0] = true);
         queue.logout(new PlayerEvent.PlayerLoggedOutEvent(playerA));
         check(queue.pendingCount(playerA) == 0 && queue.pendingCount(playerB) == 1 && queue.pendingCount() == 1,
@@ -1684,11 +1868,13 @@ public final class NetworkVerificationTest {
         check(survivedFailure[0], "Logout cleanup does not discard another player's task");
 
         queue.enqueue(playerA, () -> {});
+        queue.enqueue(playerA, ServerTaskQueue.Priority.CRITICAL, () -> {});
         queue.changedDimension(new PlayerEvent.PlayerChangedDimensionEvent(playerA, 0, 1));
         check(queue.pendingCount(playerA) == 0, "Dimension change discards stale client tasks");
         queue.enqueue(playerA, () -> {});
+        queue.enqueue(playerA, ServerTaskQueue.Priority.CRITICAL, () -> {});
         queue.respawn(new PlayerEvent.PlayerRespawnEvent(playerA));
-        check(queue.pendingCount(playerA) == 0, "Respawn discards stale client tasks");
+        check(queue.pendingCount(playerA) == 0, "Respawn discards both priority queues");
 
         queue.enqueue(playerA, () -> {});
         queue.enqueue(playerB, () -> {});
@@ -1761,6 +1947,14 @@ public final class NetworkVerificationTest {
             PacketSpeakerFallback maxFallback = new PacketSpeakerFallback(1);
             for (int i = 0; i < PacketLimits.SESSION_TARGETS; i++) maxFallback.targets.add(new PacketSpeakerFallback.Target(i, 16, 1));
             buf.clear(); maxFallback.toBytes(buf); check(buf.readableBytes() == 8204, "Fallback payload capped at 8204 bytes");
+            PacketSessionTimeline timeline = new PacketSessionTimeline(7, 40, 12);
+            buf.clear(); timeline.toBytes(buf); PacketSessionTimeline decodedTimeline = new PacketSessionTimeline();
+            decodedTimeline.fromBytes(buf);
+            check(decodedTimeline.sessionId == 7 && decodedTimeline.elapsedTicks == 40
+                    && decodedTimeline.releaseElapsedTicks == 12,
+                "Session timeline round trip preserves server elapsed and release ticks");
+            buf.clear(); buf.writeLong(7).writeLong(4).writeLong(5);
+            expectInvalid(() -> new PacketSessionTimeline().fromBytes(buf));
         } finally { buf.release(); }
 
         ServerSessions.clear(); ServerTaskQueue.INSTANCE.clear();
@@ -1801,20 +1995,23 @@ public final class NetworkVerificationTest {
             ServerTaskQueue.INSTANCE.enqueue(player, () -> ran[0]++);
         new NetworkHandler.FinishedHandler().onMessage(new PacketSessionFinished(id), context(player));
         serverTick();
-        check(ran[0] == ServerTaskQueue.MAX_PER_SENDER_PER_TICK && sessions() == 1,
-            "Per-sender overflow drops that sender's ACK and bounds work per tick");
+        check(ran[0] == ServerTaskQueue.MAX_PER_SENDER_PER_TICK - 1 && sessions() == 0,
+            "Critical FINISHED bypasses saturated normal work within the sender tick bound");
         for (int i = 0; i < 5; i++) serverTick();
-        check(ran[0] == ServerTaskQueue.MAX_PENDING_PER_SENDER && sessions() == 1,
-            "Per-sender overflow tasks are not retained indefinitely");
+        check(ran[0] == ServerTaskQueue.MAX_PENDING_PER_SENDER && sessions() == 0,
+            "Saturated normal tasks drain without retaining the completed session");
         ServerSessions.expireSessions(ServerSessions.SESSION_TTL_TICKS);
-        check(sessions() == 0, "TTL guarantees cleanup after queue-dropped ACK");
+        check(sessions() == 0, "TTL sweep remains safe after critical ACK cleanup");
 
         ServerSessions.start(owner, start(0)); out.clear();
         ServerSessions.INSTANCE.respawn(new PlayerEvent.PlayerRespawnEvent(player));
-        check(sessions() == 0 && out.messages.get(0) instanceof PacketAnnounceStop, "Respawn stops and releases old session");
+        check(sessions() == 1 && out.messages.get(0) instanceof PacketAnnounceStop
+                && out.count(PacketSessionTimeline.class) == 1,
+            "Respawn stops stale client state and reattaches the active session");
         ServerSessions.start(owner, start(0)); owner.onChunkUnload(); check(sessions() == 0, "Owner unload cleans sessions"); owner.validate();
-        ServerSessions.start(owner, start(0)); ServerSessions.INSTANCE.logout(new PlayerEvent.PlayerLoggedOutEvent(player)); check(sessions() == 0, "Logout cleans session");
-        ServerSessions.start(owner, start(0)); ServerSessions.INSTANCE.changedWorld(new PlayerEvent.PlayerChangedDimensionEvent(player, 0, 1)); check(sessions() == 0, "Dimension change cleans session");
+        ServerSessions.clear(); ServerSessions.start(owner, start(0));
+        ServerSessions.INSTANCE.logout(new PlayerEvent.PlayerLoggedOutEvent(player));
+        check(sessions() == 1, "Logout detaches the recipient while preserving the active timeline");
         ServerSessions.start(owner, start(0)); ServerSessions.INSTANCE.unload(new net.minecraftforge.event.world.WorldEvent.Unload(world));
         check(sessions() == 0 && SpeakerRegistry.findByKey(world, "A").isEmpty(), "World unload clears sessions and speakers");
         PacketAnnounce local = start(0); local.playLocalSound = true;

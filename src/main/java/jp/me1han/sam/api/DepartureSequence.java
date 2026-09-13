@@ -29,6 +29,70 @@ public final class DepartureSequence {
         output.play(Channel.MELODY, program.melody);
     }
 
+    /** Restore a late participant without replaying the sound already in progress. */
+    public DepartureSequence(DepartureProgram program, Output output, long elapsedTicks, long releaseElapsedTicks) {
+        this.program = program;
+        this.output = output;
+        restore(Math.max(0, elapsedTicks), releaseElapsedTicks);
+    }
+
+    private void restore(long elapsed, long releaseElapsed) {
+        if (program.alternate && releaseElapsed < 0) {
+            on = true;
+            phase = Phase.MELODY;
+            melodyPlaying = true;
+            melodyRemaining = remainingInCycle(elapsed, program.melodyTicks);
+            return;
+        }
+
+        on = false;
+        long closingStart = program.alternate ? Math.max(0, releaseElapsed) : program.melodyTicks;
+        if (program.alternate) {
+            melodyPlaying = program.finishChorus && elapsed < nextBoundary(closingStart, program.melodyTicks);
+            if (melodyPlaying) melodyRemaining = safeInt(nextBoundary(closingStart, program.melodyTicks) - elapsed);
+        } else {
+            melodyPlaying = elapsed < program.melodyTicks;
+            if (melodyPlaying) melodyRemaining = safeInt(program.melodyTicks - elapsed);
+        }
+
+        if (elapsed < closingStart) {
+            phase = Phase.MELODY;
+            return;
+        }
+        long closingElapsed = elapsed - closingStart;
+        if (closingElapsed < program.intervalTicks) {
+            phase = Phase.INTERVAL;
+            closingRemaining = safeInt(program.intervalTicks - closingElapsed);
+            return;
+        }
+        closingElapsed -= program.intervalTicks;
+        phase = Phase.DOOR_CLOSE;
+        while (closingIndex < program.doorCloseDurations.size()) {
+            int duration = program.doorCloseDurations.get(closingIndex);
+            if (closingElapsed < duration) {
+                closingRemaining = safeInt(duration - closingElapsed);
+                closingPlaying = !program.doorCloseSounds.get(closingIndex).isEmpty();
+                return;
+            }
+            closingElapsed -= duration;
+            closingIndex++;
+        }
+        closingDone = true;
+        finishIfDone();
+    }
+
+    private static int remainingInCycle(long elapsed, int cycle) {
+        long offset = elapsed % cycle;
+        return offset == 0 ? cycle : safeInt(cycle - offset);
+    }
+
+    private static long nextBoundary(long elapsed, int cycle) {
+        long remainder = elapsed % cycle;
+        return elapsed + (remainder == 0 ? cycle : cycle - remainder);
+    }
+
+    private static int safeInt(long value) { return (int)Math.min(Integer.MAX_VALUE, Math.max(0, value)); }
+
     public boolean isOn() { return on; }
     public boolean isFinished() { return phase == Phase.FINISHED; }
     public Phase getPhase() { return phase; }

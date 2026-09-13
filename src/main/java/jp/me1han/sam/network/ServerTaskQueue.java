@@ -15,40 +15,65 @@ import net.minecraft.entity.player.EntityPlayerMP;
 /** Forge 1.7.10 logical-server dispatch with bounded per-sender fair scheduling. */
 public final class ServerTaskQueue {
     public static final ServerTaskQueue INSTANCE = new ServerTaskQueue();
+    public enum Priority { CRITICAL, NORMAL }
 
-    /** 64 tolerates short GUI bursts; 32 leaves the 256-task tick budget shared by up to eight busy senders. */
     public static final int MAX_PENDING = 1024;
     public static final int MAX_PENDING_PER_SENDER = 64;
+    public static final int MAX_CRITICAL_PENDING_GLOBAL = 128;
+    public static final int MAX_CRITICAL_PENDING_PER_SENDER = 8;
     public static final int MAX_PER_TICK = 256;
     public static final int MAX_PER_SENDER_PER_TICK = 32;
+    public static final int MAX_CRITICAL_BURST_PER_SENDER = 4;
 
     private final Object lock = new Object();
     private final Map<UUID, SenderQueue> senders = new HashMap<>();
     private final ArrayDeque<SenderQueue> activeSenders = new ArrayDeque<>();
     private int pendingCount;
+    private int normalPendingCount;
+    private int criticalPendingCount;
 
     private static final class SenderQueue {
         final UUID sender;
-        final ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        final ArrayDeque<Runnable> normal = new ArrayDeque<>();
+        final ArrayDeque<Runnable> critical = new ArrayDeque<>();
+        int criticalBurst;
         boolean scheduled;
-
         SenderQueue(UUID sender) { this.sender = sender; }
+        boolean isEmpty() { return normal.isEmpty() && critical.isEmpty(); }
+        int size() { return normal.size() + critical.size(); }
     }
 
-    /** Sender identity is obtained from the server-side MessageContext, never packet data. */
+    /** NORMAL is the concise default for existing GUI/config handlers. */
     public boolean enqueue(EntityPlayerMP player, Runnable task) {
+        return enqueue(player, Priority.NORMAL, task);
+    }
+
+    /** Sender identity comes from the server-side MessageContext, never packet data. */
+    public boolean enqueue(EntityPlayerMP player, Priority priority, Runnable task) {
         if (player == null || task == null) return false;
+        if (priority == null) priority = Priority.NORMAL;
         UUID sender = player.getUniqueID();
         if (sender == null) return false;
         synchronized (lock) {
             SenderQueue queue = senders.get(sender);
-            if (queue != null && queue.tasks.size() >= MAX_PENDING_PER_SENDER) return false;
-            if (pendingCount >= MAX_PENDING) return false;
+            if (priority == Priority.CRITICAL) {
+                if (queue != null && queue.critical.size() >= MAX_CRITICAL_PENDING_PER_SENDER) return false;
+                if (criticalPendingCount >= MAX_CRITICAL_PENDING_GLOBAL) return false;
+            } else {
+                if (queue != null && queue.normal.size() >= MAX_PENDING_PER_SENDER) return false;
+                if (normalPendingCount >= MAX_PENDING) return false;
+            }
             if (queue == null) {
                 queue = new SenderQueue(sender);
                 senders.put(sender, queue);
             }
-            queue.tasks.addLast(task);
+            if (priority == Priority.CRITICAL) {
+                queue.critical.addLast(task);
+                criticalPendingCount++;
+            } else {
+                queue.normal.addLast(task);
+                normalPendingCount++;
+            }
             pendingCount++;
             schedule(queue);
             return true;
@@ -56,7 +81,7 @@ public final class ServerTaskQueue {
     }
 
     private void schedule(SenderQueue queue) {
-        if (queue.scheduled || queue.tasks.isEmpty()) return;
+        if (queue.scheduled || queue.isEmpty()) return;
         queue.scheduled = true;
         activeSenders.addLast(queue);
     }
@@ -64,9 +89,7 @@ public final class ServerTaskQueue {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
-        synchronized (lock) {
-            if (activeSenders.isEmpty()) return;
-        }
+        synchronized (lock) { if (activeSenders.isEmpty()) return; }
         Map<UUID, Integer> processed = new HashMap<>();
         List<SenderQueue> deferred = new ArrayList<>();
         try {
@@ -76,7 +99,17 @@ public final class ServerTaskQueue {
                     SenderQueue queue = activeSenders.pollFirst();
                     if (queue == null) break;
                     queue.scheduled = false;
-                    task = queue.tasks.pollFirst();
+                    boolean takeCritical = !queue.critical.isEmpty()
+                        && (queue.normal.isEmpty() || queue.criticalBurst < MAX_CRITICAL_BURST_PER_SENDER);
+                    if (takeCritical) {
+                        task = queue.critical.pollFirst();
+                        queue.criticalBurst++;
+                        criticalPendingCount--;
+                    } else {
+                        task = queue.normal.pollFirst();
+                        queue.criticalBurst = 0;
+                        normalPendingCount--;
+                    }
                     if (task == null) {
                         senders.remove(queue.sender, queue);
                         i--;
@@ -86,22 +119,19 @@ public final class ServerTaskQueue {
                     int senderProcessed = processed.containsKey(queue.sender)
                         ? processed.get(queue.sender) + 1 : 1;
                     processed.put(queue.sender, senderProcessed);
-                    if (queue.tasks.isEmpty()) senders.remove(queue.sender, queue);
+                    if (queue.isEmpty()) senders.remove(queue.sender, queue);
                     else if (senderProcessed >= MAX_PER_SENDER_PER_TICK) {
                         queue.scheduled = true;
                         deferred.add(queue);
                     } else schedule(queue);
                 }
-                try {
-                    task.run();
-                } catch (RuntimeException e) {
-                    StationAnnounceModCore.logger.error("[SAM] Server task failed", e);
-                }
+                try { task.run(); }
+                catch (RuntimeException e) { StationAnnounceModCore.logger.error("[SAM] Server task failed", e); }
             }
         } finally {
             synchronized (lock) {
                 for (SenderQueue queue : deferred) {
-                    if (senders.get(queue.sender) != queue || queue.tasks.isEmpty()) continue;
+                    if (senders.get(queue.sender) != queue || queue.isEmpty()) continue;
                     queue.scheduled = false;
                     schedule(queue);
                 }
@@ -119,8 +149,11 @@ public final class ServerTaskQueue {
             SenderQueue queue = senders.remove(sender);
             if (queue == null) return;
             activeSenders.remove(queue);
-            pendingCount -= queue.tasks.size();
-            queue.tasks.clear();
+            pendingCount -= queue.size();
+            normalPendingCount -= queue.normal.size();
+            criticalPendingCount -= queue.critical.size();
+            queue.normal.clear();
+            queue.critical.clear();
             queue.scheduled = false;
         }
     }
@@ -129,7 +162,7 @@ public final class ServerTaskQueue {
         synchronized (lock) {
             senders.clear();
             activeSenders.clear();
-            pendingCount = 0;
+            pendingCount = normalPendingCount = criticalPendingCount = 0;
         }
     }
 
@@ -138,7 +171,21 @@ public final class ServerTaskQueue {
         if (player == null || player.getUniqueID() == null) return 0;
         synchronized (lock) {
             SenderQueue queue = senders.get(player.getUniqueID());
-            return queue == null ? 0 : queue.tasks.size();
+            return queue == null ? 0 : queue.size();
+        }
+    }
+    int normalPendingCount(EntityPlayerMP player) {
+        if (player == null || player.getUniqueID() == null) return 0;
+        synchronized (lock) {
+            SenderQueue queue = senders.get(player.getUniqueID());
+            return queue == null ? 0 : queue.normal.size();
+        }
+    }
+    int criticalPendingCount(EntityPlayerMP player) {
+        if (player == null || player.getUniqueID() == null) return 0;
+        synchronized (lock) {
+            SenderQueue queue = senders.get(player.getUniqueID());
+            return queue == null ? 0 : queue.critical.size();
         }
     }
     int activeSenderCount() { synchronized (lock) { return senders.size(); } }

@@ -38,6 +38,7 @@ public class NetworkHandler {
         INSTANCE.registerMessage(SpeakerFallbackHandler.class, PacketSpeakerFallback.class, 16, Side.CLIENT);
         INSTANCE.registerMessage(PacketDepartureSwitchItemConfig.Handler.class, PacketDepartureSwitchItemConfig.class, 17, Side.SERVER);
         INSTANCE.registerMessage(SessionSpeakerRoutesHandler.class, PacketSessionSpeakerRoutes.class, 18, Side.CLIENT);
+        INSTANCE.registerMessage(SessionTimelineHandler.class, PacketSessionTimeline.class, 19, Side.CLIENT);
     }
 
     // --- クライアント側受信 ---
@@ -70,7 +71,8 @@ public class NetworkHandler {
     public static class FinishedHandler implements IMessageHandler<PacketSessionFinished, IMessage> {
         @Override public IMessage onMessage(PacketSessionFinished message, MessageContext ctx) {
             final net.minecraft.entity.player.EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-            ServerTaskQueue.INSTANCE.enqueue(player, () -> ServerSessions.finished(player, message.sessionId));
+            ServerTaskQueue.INSTANCE.enqueue(player, ServerTaskQueue.Priority.CRITICAL,
+                () -> ServerSessions.finished(player, message.sessionId));
             return null;
         }
     }
@@ -88,6 +90,11 @@ public class NetworkHandler {
     }
     public static class SessionSpeakerRoutesHandler implements IMessageHandler<PacketSessionSpeakerRoutes, IMessage> {
         @Override public IMessage onMessage(PacketSessionSpeakerRoutes message, MessageContext ctx) {
+            jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message); return null;
+        }
+    }
+    public static class SessionTimelineHandler implements IMessageHandler<PacketSessionTimeline, IMessage> {
+        @Override public IMessage onMessage(PacketSessionTimeline message, MessageContext ctx) {
             jp.me1han.sam.client.AnnounceManager.INSTANCE.receive(message); return null;
         }
     }

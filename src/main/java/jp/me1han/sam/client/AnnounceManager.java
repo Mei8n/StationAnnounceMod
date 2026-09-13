@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class AnnounceManager {
     public static final AnnounceManager INSTANCE = new AnnounceManager();
     public static final int MAX_PENDING = 1024;
+    public static final int MAX_PENDING_PER_TICK = 128;
 
     private final Map<Long, AnnounceSession> activeSessions = new ConcurrentHashMap<>();
     private final ArrayBlockingQueue<Runnable> pending = new ArrayBlockingQueue<>(MAX_PENDING);
@@ -109,6 +110,13 @@ public class AnnounceManager {
         });
     }
 
+    public void receive(final jp.me1han.sam.network.PacketSessionTimeline packet) {
+        enqueueClientAction(() -> {
+            AnnounceSession session = activeSessions.get(packet.sessionId);
+            if (session != null) session.synchronize(packet.elapsedTicks, packet.releaseElapsedTicks);
+        });
+    }
+
     private class AnnounceSession {
         final long sessionId;
         final String linkKey;
@@ -123,6 +131,7 @@ public class AnnounceManager {
         final int startMeloTicks;
         final List<String> bodySounds;
         final List<Integer> bodyPartTicks;
+        final int repeatCount;
         int repeatsRemaining;
         String loopSound;
         int loopTicks;
@@ -142,6 +151,11 @@ public class AnnounceManager {
         boolean audibleThisTick;
         boolean priorityArbitrated;
         boolean departureReleased;
+        long synchronizedElapsed;
+        long synchronizedRelease = -1;
+        long synchronizedAtClientTick;
+        boolean timelineReceived;
+        boolean timelineAdjustedForRoutes;
 
         final class RouteAssembly {
             final long revision;
@@ -187,6 +201,11 @@ public class AnnounceManager {
             routeRevision = routeAssembly.revision;
             routeAssembly = null;
             audibleTick = Long.MIN_VALUE;
+            if (timelineReceived && !timelineAdjustedForRoutes) {
+                long routingDelay = Math.max(0, clientTick - synchronizedAtClientTick);
+                synchronize(synchronizedElapsed + routingDelay, synchronizedRelease);
+                timelineAdjustedForRoutes = true;
+            }
             if (!priorityArbitrated) arbitrateInitialPriority(this);
         }
 
@@ -207,8 +226,9 @@ public class AnnounceManager {
                 ? java.util.Collections.<String>emptyList() : new ArrayList<>(msg.bodySounds);
             this.bodyPartTicks = msg.bodyPartTicks == null
                 ? java.util.Collections.<Integer>emptyList() : new ArrayList<>(msg.bodyPartTicks);
+            this.repeatCount = jp.me1han.sam.api.AnnounceData.normalizeRepeatCount(msg.repeatCount);
             this.repeatsRemaining = departure == null
-                ? jp.me1han.sam.api.AnnounceData.normalizeRepeatCount(msg.repeatCount) : 0;
+                ? repeatCount : 0;
             this.playLocalSound = msg.playLocalSound;
             this.x = msg.x;
             this.y = msg.y;
@@ -217,6 +237,43 @@ public class AnnounceManager {
             enqueueNextRepeat();
             this.loopSound = (msg.arrMelo != null && !msg.arrMelo.isEmpty()) ? msg.arrMelo : null;
             this.loopTicks = msg.arrMeloTicks;
+        }
+
+        void synchronize(long elapsed, long releaseElapsed) {
+            if (!timelineReceived) synchronizedAtClientTick = clientTick;
+            timelineReceived = true;
+            synchronizedElapsed = Math.max(0, elapsed);
+            synchronizedRelease = releaseElapsed;
+            if (departure != null) {
+                departureReleased = releaseElapsed >= 0;
+                return;
+            }
+            queue.clear();
+            repeatsRemaining = 0;
+            List<AnnouncePart> timeline = new ArrayList<>();
+            for (int repeat = 0; repeat < repeatCount; repeat++) {
+                if (startMelo != null && !startMelo.isEmpty())
+                    timeline.add(new AnnouncePart(startMelo, startMeloTicks));
+                for (int i = 0; i < bodySounds.size(); i++)
+                    timeline.add(new AnnouncePart(bodySounds.get(i), bodyPartTicks.get(i)));
+            }
+            long remainingElapsed = synchronizedElapsed;
+            int index = 0;
+            while (index < timeline.size() && remainingElapsed >= timeline.get(index).durationTicks) {
+                remainingElapsed -= timeline.get(index).durationTicks;
+                index++;
+            }
+            if (index < timeline.size()) {
+                AnnouncePart current = timeline.get(index);
+                if (remainingElapsed == 0) queue.add(current);
+                else waitTicks = (int)Math.min(Integer.MAX_VALUE, current.durationTicks - remainingElapsed);
+                for (int i = index + 1; i < timeline.size(); i++) queue.add(timeline.get(i));
+            } else if (loopSound != null && loopTicks > 0) {
+                long offset = remainingElapsed % loopTicks;
+                if (offset != 0) waitTicks = (int)(loopTicks - offset);
+            } else {
+                isPlaying = false;
+            }
         }
 
         boolean enqueueNextRepeat() {
@@ -334,8 +391,11 @@ public class AnnounceManager {
         }
         if (world == null) { pending.clear(); return; }
         clientTick++;
-        Runnable action;
-        while ((action = pending.poll()) != null) action.run();
+        for (int handled = 0; handled < MAX_PENDING_PER_TICK; handled++) {
+            Runnable action = pending.poll();
+            if (action == null) break;
+            action.run();
+        }
 
         Iterator<Map.Entry<Long, AnnounceSession>> it = activeSessions.entrySet().iterator();
         while (it.hasNext()) {
@@ -397,8 +457,7 @@ public class AnnounceManager {
     private void initializeDeparture(final AnnounceSession session) {
         if (session.sequence != null || !session.routingReady()) return;
         session.sequenceChangedThisTick = true;
-        session.sequence = new jp.me1han.sam.api.DepartureSequence(session.departure,
-            new jp.me1han.sam.api.DepartureSequence.Output() {
+        jp.me1han.sam.api.DepartureSequence.Output output = new jp.me1han.sam.api.DepartureSequence.Output() {
                 public void play(jp.me1han.sam.api.DepartureSequence.Channel channel, String sound) {
                     session.playbackChannel = channel;
                     try { playDepartureInSession(session, sound); }
@@ -406,7 +465,11 @@ public class AnnounceManager {
                 }
                 public void stop(jp.me1han.sam.api.DepartureSequence.Channel channel) { session.stopChannel(channel); }
                 public void finished() { session.isPlaying = false; }
-            });
+            };
+        if (session.synchronizedElapsed > 0 || session.synchronizedRelease >= 0)
+            session.sequence = new jp.me1han.sam.api.DepartureSequence(session.departure, output,
+                session.synchronizedElapsed, session.synchronizedRelease);
+        else session.sequence = new jp.me1han.sam.api.DepartureSequence(session.departure, output);
         releaseDeparture(session);
     }
 

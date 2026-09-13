@@ -53,6 +53,26 @@ public final class DeparturePlaybackTest {
         void expect(String... expected) { check(events.equals(Arrays.asList(expected)), events.toString()); }
     }
 
+    private static final class RestoredTimeline implements DepartureSequence.Output {
+        final List<String> events = new ArrayList<>();
+        final java.util.Set<DepartureSequence.Channel> playing =
+            java.util.EnumSet.noneOf(DepartureSequence.Channel.class);
+        int time;
+        final DepartureSequence sequence;
+        RestoredTimeline(DepartureProgram program, long elapsed, long release) {
+            time = (int)elapsed;
+            sequence = new DepartureSequence(program.resolve(lengths(20, 5)), this, elapsed, release);
+        }
+        public void play(DepartureSequence.Channel channel, String sound) {
+            playing.add(channel); events.add(time + ":" + sound);
+        }
+        public void stop(DepartureSequence.Channel channel) {
+            playing.remove(channel); events.add(time + ":stop-" + channel);
+        }
+        public void finished() { events.add(time + ":finished"); }
+        void ticks(int count) { for (int i = 0; i < count; i++) { time++; sequence.tick(); } }
+    }
+
     private static DepartureProgram program(boolean alternate) {
         return program(alternate, "test:door");
     }
@@ -102,6 +122,24 @@ public final class DeparturePlaybackTest {
         Timeline noDoor = new Timeline(program(false, new String[0]).interval(0), lengths(1, 5));
         noDoor.ticks(1);
         noDoor.expect("0:test:melody", "1:stop", "1:finished");
+
+        RestoredTimeline restoredOn = new RestoredTimeline(program(true), 5, -1);
+        check(restoredOn.events.isEmpty() && restoredOn.sequence.isOn(),
+            "Late toggle restore does not replay the chorus already in progress");
+        restoredOn.ticks(15);
+        check(restoredOn.events.contains("20:test:melody"),
+            "Late toggle restore starts at the next logical chorus boundary");
+
+        RestoredTimeline restoredReleased = new RestoredTimeline(program(true), 7, 5);
+        restoredReleased.ticks(8);
+        check(restoredReleased.events.contains("15:test:door") && !restoredReleased.events.toString().contains("test:melody"),
+            "Released restore observes the remaining interval without replaying melody");
+
+        RestoredTimeline restoredFinishChorus = new RestoredTimeline(program(true).tachikawa(true), 7, 5);
+        restoredFinishChorus.ticks(13);
+        check(restoredFinishChorus.events.contains("15:test:door")
+                && restoredFinishChorus.events.contains("20:finished"),
+            "finishChorus restore advances melody and door-close channels to their shared logical finish");
 
         for (int stopAt : new int[]{1, 22, 31}) {
             Timeline canceled = new Timeline(program(false));
