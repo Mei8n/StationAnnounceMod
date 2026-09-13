@@ -24,16 +24,21 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
     public boolean allowOverlap = false;
     public boolean playAfterDeparture = false;
     public int departureDelayTicks = 0;
+    public boolean requireRedstone = false;
 
     private int ticksUntilNext = 1200;
     private int pendingDepartureTicks = -1;
     private int nextSoundIndex = 0;
+    private boolean redstonePowered = false;
+    private boolean redstoneInitialized = false;
 
     @Override
     public void updateEntity() {
         if (this.worldObj == null || this.worldObj.isRemote) {
             return;
         }
+
+        if (!isEnabledByRedstone()) return;
 
         if (this.pendingDepartureTicks >= 0) {
             if (this.pendingDepartureTicks > 0) {
@@ -64,6 +69,13 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
     public void applyConfig(AwarenessMode mode, String linkKey, String soundList, String scriptName,
                             int intervalTicks, boolean randomOrder, boolean allowOverlap,
                             boolean playAfterDeparture, int departureDelayTicks) {
+        applyConfig(mode, linkKey, soundList, scriptName, intervalTicks, randomOrder, allowOverlap,
+            playAfterDeparture, departureDelayTicks, false);
+    }
+
+    public void applyConfig(AwarenessMode mode, String linkKey, String soundList, String scriptName,
+                            int intervalTicks, boolean randomOrder, boolean allowOverlap,
+                            boolean playAfterDeparture, int departureDelayTicks, boolean requireRedstone) {
         this.mode = mode == null ? AwarenessMode.DIRECT : mode;
         this.setLinkKey(linkKey);
         this.soundList = normalizeSoundList(soundList);
@@ -73,15 +85,38 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
         this.allowOverlap = allowOverlap;
         this.playAfterDeparture = playAfterDeparture;
         this.departureDelayTicks = Math.max(0, departureDelayTicks);
+        this.requireRedstone = requireRedstone;
         this.ticksUntilNext = getSafeIntervalTicks();
         this.pendingDepartureTicks = -1;
         this.nextSoundIndex = 0;
+        this.redstoneInitialized = false;
     }
 
     public void scheduleAfterDeparture() {
-        if (this.playAfterDeparture) {
+        if (this.playAfterDeparture && isEnabledByRedstone()) {
             this.pendingDepartureTicks = Math.max(0, this.departureDelayTicks);
         }
+    }
+
+    public void onRedstoneUpdate(boolean powered) {
+        if (this.redstoneInitialized && this.redstonePowered == powered) return;
+        boolean wasPowered = this.redstonePowered;
+        boolean wasInitialized = this.redstoneInitialized;
+        this.redstonePowered = powered;
+        this.redstoneInitialized = true;
+        if (this.requireRedstone && wasInitialized && wasPowered && !powered) {
+            this.pendingDepartureTicks = -1;
+        }
+    }
+
+    private boolean isEnabledByRedstone() {
+        if (!this.requireRedstone) return true;
+        if (!this.redstoneInitialized) {
+            this.redstonePowered = this.worldObj != null
+                && this.worldObj.isBlockIndirectlyGettingPowered(this.xCoord, this.yCoord, this.zCoord);
+            this.redstoneInitialized = true;
+        }
+        return this.redstonePowered;
     }
 
     public String getNormalizedLinkKey() {
@@ -188,6 +223,7 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
         nbt.setBoolean("allowOverlap", this.allowOverlap);
         nbt.setBoolean("playAfterDeparture", this.playAfterDeparture);
         nbt.setInteger("departureDelayTicks", this.departureDelayTicks);
+        nbt.setBoolean("requireRedstone", this.requireRedstone);
         nbt.setInteger("ticksUntilNext", this.ticksUntilNext);
         nbt.setInteger("nextSoundIndex", this.nextSoundIndex);
     }
@@ -205,11 +241,14 @@ public class TileEntityAwarenessAnnouncer extends RegisteredTileEntity implement
         this.allowOverlap = nbt.getBoolean("allowOverlap");
         this.playAfterDeparture = nbt.getBoolean("playAfterDeparture");
         this.departureDelayTicks = nbt.hasKey("departureDelayTicks") ? Math.max(0, nbt.getInteger("departureDelayTicks")) : 0;
+        this.requireRedstone = nbt.hasKey("requireRedstone") && nbt.getBoolean("requireRedstone");
         this.ticksUntilNext = nbt.hasKey("ticksUntilNext") ? Math.max(0, nbt.getInteger("ticksUntilNext")) : this.intervalTicks;
         // A pending post-departure announcement belongs only to the live departure event.
         // Deliberately ignore the legacy NBT key so a save/reload cannot revive it.
         this.pendingDepartureTicks = -1;
         this.nextSoundIndex = Math.max(0, nbt.getInteger("nextSoundIndex"));
+        this.redstonePowered = false;
+        this.redstoneInitialized = false;
     }
 
     @Override

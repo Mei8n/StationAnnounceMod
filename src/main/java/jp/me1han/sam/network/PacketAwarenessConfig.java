@@ -15,6 +15,7 @@ public class PacketAwarenessConfig implements IMessage {
     public boolean allowOverlap;
     public boolean playAfterDeparture;
     public int departureDelayTicks;
+    public boolean requireRedstone;
 
     public PacketAwarenessConfig() {}
 
@@ -22,13 +23,21 @@ public class PacketAwarenessConfig implements IMessage {
                                  boolean randomOrder, boolean allowOverlap, boolean playAfterDeparture,
                                  int departureDelayTicks) {
         this(x, y, z, linkKey, soundList, AwarenessMode.DIRECT, "", intervalTicks, randomOrder,
-            allowOverlap, playAfterDeparture, departureDelayTicks);
+            allowOverlap, playAfterDeparture, departureDelayTicks, false);
     }
 
     public PacketAwarenessConfig(int x, int y, int z, String linkKey, String soundList,
                                  AwarenessMode mode, String scriptName, int intervalTicks,
                                  boolean randomOrder, boolean allowOverlap, boolean playAfterDeparture,
                                  int departureDelayTicks) {
+        this(x, y, z, linkKey, soundList, mode, scriptName, intervalTicks, randomOrder, allowOverlap,
+            playAfterDeparture, departureDelayTicks, false);
+    }
+
+    public PacketAwarenessConfig(int x, int y, int z, String linkKey, String soundList,
+                                 AwarenessMode mode, String scriptName, int intervalTicks,
+                                 boolean randomOrder, boolean allowOverlap, boolean playAfterDeparture,
+                                 int departureDelayTicks, boolean requireRedstone) {
         this.x = x;
         this.y = y;
         this.z = z;
@@ -41,6 +50,7 @@ public class PacketAwarenessConfig implements IMessage {
         this.allowOverlap = allowOverlap;
         this.playAfterDeparture = playAfterDeparture;
         this.departureDelayTicks = departureDelayTicks;
+        this.requireRedstone = requireRedstone;
     }
 
     @Override
@@ -57,6 +67,7 @@ public class PacketAwarenessConfig implements IMessage {
         this.allowOverlap = buf.readBoolean();
         this.playAfterDeparture = buf.readBoolean();
         this.departureDelayTicks = buf.readInt();
+        this.requireRedstone = buf.readBoolean();
         PacketLimits.requireDecoded(isValidPayload(), "Invalid Awareness config payload");
     }
 
@@ -84,5 +95,6 @@ public class PacketAwarenessConfig implements IMessage {
         buf.writeBoolean(this.allowOverlap);
         buf.writeBoolean(this.playAfterDeparture);
         buf.writeInt(this.departureDelayTicks);
+        buf.writeBoolean(this.requireRedstone);
     }
 }

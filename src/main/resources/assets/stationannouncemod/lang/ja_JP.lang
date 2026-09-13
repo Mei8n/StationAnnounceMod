@@ -25,6 +25,7 @@ gui.sam.awareness.departure_delay=発車後間隔（秒）
 gui.sam.awareness.random_order=ランダムな順番で再生
 gui.sam.awareness.allow_overlap=ほかの放送と重ねて再生
 gui.sam.awareness.after_departure=発車メロディ終了後にも再生
+gui.sam.awareness.require_redstone=RS入力時のみ動作
 
 # Departure Melody GUI
 gui.sam.departure.title=発車メロディ設定

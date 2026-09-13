@@ -147,9 +147,11 @@ public class NetworkHandler {
                     && mode == tile.mode && scriptName.equals(tile.scriptName)
                     && m.intervalTicks == tile.intervalTicks && m.randomOrder == tile.randomOrder
                     && m.allowOverlap == tile.allowOverlap && m.playAfterDeparture == tile.playAfterDeparture
-                    && m.departureDelayTicks == tile.departureDelayTicks) return;
+                    && m.departureDelayTicks == tile.departureDelayTicks
+                    && m.requireRedstone == tile.requireRedstone) return;
                 ConfigAccess.change(tile, () -> tile.applyConfig(mode, m.linkKey, sounds, scriptName,
-                    m.intervalTicks, m.randomOrder, m.allowOverlap, m.playAfterDeparture, m.departureDelayTicks));
+                    m.intervalTicks, m.randomOrder, m.allowOverlap, m.playAfterDeparture,
+                    m.departureDelayTicks, m.requireRedstone));
             }); return null;
         }
     }

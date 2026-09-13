@@ -26,6 +26,16 @@ public class BlockAwarenessAnnouncer extends Block implements ITileEntityProvide
     }
 
     @Override
+    public void onNeighborBlockChange(World world, int x, int y, int z, Block block) {
+        if (world.isRemote) return;
+        TileEntity tile = world.getTileEntity(x, y, z);
+        if (tile instanceof TileEntityAwarenessAnnouncer) {
+            ((TileEntityAwarenessAnnouncer)tile).onRedstoneUpdate(
+                world.isBlockIndirectlyGettingPowered(x, y, z));
+        }
+    }
+
+    @Override
     public TileEntity createNewTileEntity(World world, int metadata) {
         return new TileEntityAwarenessAnnouncer();
     }
