@@ -1767,6 +1767,7 @@ public final class NetworkVerificationTest {
         FixtureWorld serverWorld = new FixtureWorld();
         TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("A");
         serverWorld.add(owner, 0, 0, 0);
+        Speaker speaker = new Speaker(); speaker.linkKey = "A"; serverWorld.add(speaker, 1, 0, 0);
         Player existing = player(serverWorld, 0, 0, 0);
         RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
 
@@ -1785,24 +1786,66 @@ public final class NetworkVerificationTest {
         high.resolveTiming(Collections.singletonMap("test:high-30", 30));
         receiveReady(client, high, route(0, 16, 1));
         receiveReady(client, awareness, route(0, 16, 1));
-        for (int i = 0; i < 25; i++) { client.tick(); endTick(); }
+        for (int i = 0; i < 10; i++) { client.tick(); endTick(); }
 
-        check(!soundNames(client).contains("test:body") && sessions() == 1
-                && recipientCount(awarenessId) == 1,
-            "A blocked Awareness remains paused and server-managed past its nominal logical end");
+        Player joined = player(serverWorld, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(joined));
+        PacketAnnounce joinedStart = startFor(out, awarenessId);
+        PacketSessionTimeline joinedTimeline = timelineFor(out, awarenessId);
+        PacketSessionSpeakerRoutes joinedRoutes = out.routeFor(awarenessId);
+        check(joinedStart != null && joinedTimeline != null && joinedRoutes != null
+                && joinedTimeline.elapsedTicks == 0,
+            "Pausable Awareness gives a pre-deadline late join its own timeline at zero");
 
-        Player late = player(serverWorld, 0, 0, 0);
-        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(late));
-        check(out.messages.isEmpty() && sessions() == 1 && recipientCount(awarenessId) == 1,
+        TestClient joinedClient = new TestClient(); joinedClient.world = clientWorld;
+        receiveReady(joinedClient, high, route(0, 16, 1));
+        joinedClient.receive(joinedStart);
+        joinedClient.receive(joinedTimeline);
+        joinedClient.receive(joinedRoutes);
+        for (int i = 10; i < 25; i++) { client.tick(); joinedClient.tick(); endTick(); }
+
+        check(!soundNames(client).contains("test:body") && !soundNames(joinedClient).contains("test:body")
+                && sessions() == 1 && recipientCount(awarenessId) == 2,
+            "Both original and late-join Awareness timelines pause behind the audible higher priority");
+
+        out.clear();
+        Player afterEnd = player(serverWorld, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(afterEnd));
+        check(out.messages.isEmpty() && sessions() == 1 && recipientCount(awarenessId) == 2,
             "Late join after nominal end receives nothing without deleting the paused recipient session");
 
         client.receive(new PacketAnnounceStop(high.sessionId));
-        for (int i = 0; i < 30 && !client.ended.contains(awarenessId); i++) client.tick();
+        joinedClient.receive(new PacketAnnounceStop(high.sessionId));
+        for (int i = 0; i < 30 && (!client.ended.contains(awarenessId)
+                || !joinedClient.ended.contains(awarenessId)); i++) {
+            client.tick(); joinedClient.tick();
+        }
         check(soundNames(client).contains("test:body") && client.ended.contains(awarenessId),
-            "Awareness resumes after the higher-priority session and completes normally");
+            "Original Awareness resumes from its paused beginning and completes normally");
+        check(soundNames(joinedClient).contains("test:body") && joinedClient.ended.contains(awarenessId),
+            "Late-join Awareness resumes from its own beginning instead of skipping the sound");
         ServerSessions.finished(existing, awarenessId);
-        check(sessions() == 0,
-            "The final recipient ACK removes an unobserved Awareness after its logical end");
+        check(sessions() == 1 && recipientCount(awarenessId) == 1,
+            "The first completion ACK retains a logically ended Awareness for its other recipient");
+        ServerSessions.finished(joined, awarenessId);
+        check(sessions() == 0, "The final recipient ACK removes an unobserved Awareness after its logical end");
+
+        ServerSessions.clear(); out.clear(); serverWorld.playerEntities.clear();
+        player(serverWorld, 0, 0, 0);
+        PacketAnnounce overlapping = start(0);
+        overlapping.priority = PacketAnnounce.PRIORITY_AWARENESS;
+        overlapping.allowOverlap = true;
+        long overlappingId = ServerSessions.start(owner, overlapping);
+        PacketAnnounce ordinary = start(0);
+        ordinary.priority = PacketAnnounce.PRIORITY_ANNOUNCE;
+        long ordinaryId = ServerSessions.start(owner, ordinary);
+        out.clear();
+        for (int i = 0; i < 10; i++) endTick();
+        Player wallClockJoin = player(serverWorld, 0, 0, 0);
+        ServerSessions.INSTANCE.login(new PlayerEvent.PlayerLoggedInEvent(wallClockJoin));
+        check(timelineFor(out, overlappingId).elapsedTicks == 10
+                && timelineFor(out, ordinaryId).elapsedTicks == 10,
+            "Overlapping Awareness and ordinary announcements retain wall-clock late-join timelines");
         ServerSessions.clear(); SpeakerRegistry.clear(serverWorld);
     }
 

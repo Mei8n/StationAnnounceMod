@@ -124,7 +124,7 @@ public final class ServerSessions {
             }
             session.recipients.add(player);
             BY_PLAYER.computeIfAbsent(playerId, ignored -> new HashSet<>()).add(session.id);
-            long elapsed = Math.max(0, serverTick - session.startTick);
+            long elapsed = attachElapsed(session);
             long releaseElapsed = session.releaseTick < 0 ? -1 : session.releaseTick - session.startTick;
             delivery.send(copy(session.startPacket, new long[0]), player);
             delivery.send(new PacketSessionTimeline(session.id, elapsed, releaseElapsed), player);
@@ -137,6 +137,11 @@ public final class ServerSessions {
         for (EntityPlayerMP recipient : session.recipients)
             if (playerId.equals(recipient.getUniqueID())) return true;
         return false;
+    }
+
+    private static long attachElapsed(Session session) {
+        if (session.priority == PacketAnnounce.PRIORITY_AWARENESS && !session.startPacket.allowOverlap) return 0;
+        return Math.max(0, serverTick - session.startTick);
     }
 
     private static long logicalEndTick(PacketAnnounce packet, long startTick) {
