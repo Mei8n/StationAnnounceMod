@@ -4,6 +4,8 @@ import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketDepartureMelodyConfig;
 import jp.me1han.sam.network.PacketLimits;
 import jp.me1han.sam.render.TileEntityDepartureMelody;
+import jp.me1han.sam.api.ScriptType;
+import jp.me1han.sam.AnnouncePackLoader;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.resources.I18n;
@@ -39,6 +41,7 @@ public class GuiDepartureMelody extends GuiScriptConfig {
         if (button.id == 0) {
             String linkKey = jp.me1han.sam.link.LinkKey.normalize(this.linkKeyField.getText());
             String soundId = this.soundIdField.getText() == null ? "" : this.soundIdField.getText().trim();
+            if (!AnnouncePackLoader.canUseScript(soundId, ScriptType.DEPARTURE_MELODY)) return;
             PacketDepartureMelodyConfig packet = new PacketDepartureMelodyConfig(
                 this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, this.tile.soundId, soundId);
             if (!packet.isValidPayload()) return;
@@ -61,7 +64,8 @@ public class GuiDepartureMelody extends GuiScriptConfig {
         this.linkKeyField.drawTextBox();
         this.soundIdField.drawTextBox();
         super.drawScreen(mouseX, mouseY, partialTicks);
-        drawScriptDisplayName(this.soundIdField.getText(), left, top + 88, mouseX, mouseY);
+        drawScriptDisplayName(this.soundIdField.getText(), ScriptType.DEPARTURE_MELODY,
+            left, top + 88, mouseX, mouseY);
     }
 
     @Override
