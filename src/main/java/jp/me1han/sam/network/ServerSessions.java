@@ -41,13 +41,29 @@ public final class ServerSessions {
         final World world;
         final String key;
         final int priority;
+        final PacketAnnounce startPacket;
+        final long startTick;
+        /** Nominal wall-clock boundary after which new recipients may no longer attach. */
+        final long logicalEndTick;
+        boolean serverCompleted;
+        long releaseTick = -1;
         long routeRevision;
         long expireTick;
         final Set<EntityPlayerMP> recipients = new HashSet<>();
         Session(long id, TileEntityAnnouncer owner, PacketAnnounce packet) {
             this.id = id; this.owner = owner; world = owner.getWorldObj();
             key = SpeakerRegistry.normalize(packet.linkKey); priority = packet.priority;
+            startPacket = copy(packet, new long[0]); startTick = serverTick;
+            logicalEndTick = logicalEndTick(packet, startTick);
             expireTick = serverTick + SESSION_TTL_TICKS;
+        }
+
+        boolean isLogicallyFinished(long now) {
+            return logicalEndTick != Long.MAX_VALUE && now >= logicalEndTick;
+        }
+
+        boolean isClosedToNewRecipients(long now) {
+            return serverCompleted || isLogicallyFinished(now);
         }
     }
     private ServerSessions() {}
@@ -80,18 +96,18 @@ public final class ServerSessions {
             return 0;
         }
         Session session = new Session(packet.sessionId, owner, packet);
+        SESSIONS.put(session.id, session);
         // START describes a logical timeline. Routing is resolved from synchronized
         // client Speaker state at each playback boundary, so every current player in
         // this World must learn about the session even when it is presently inaudible.
         for (Object obj : world.playerEntities) {
             if (!(obj instanceof EntityPlayerMP)) continue;
             EntityPlayerMP player = (EntityPlayerMP)obj;
-            if (player.worldObj != world) continue;
+            if (player.worldObj != world || hasRecipient(session, player.getUniqueID())) continue;
             session.recipients.add(player);
             BY_PLAYER.computeIfAbsent(player.getUniqueID(), id -> new HashSet<>()).add(session.id);
         }
         if (session.recipients.isEmpty()) return session.id;
-        SESSIONS.put(session.id, session);
         // One logical START followed by one complete, chunked routing revision.
         List<PacketSessionSpeakerRoutes> routes = routeSnapshot(session);
         for (EntityPlayerMP player : session.recipients) {
@@ -99,6 +115,48 @@ public final class ServerSessions {
             for (PacketSessionSpeakerRoutes route : routes) delivery.send(route, player);
         }
         return session.id;
+    }
+
+    private static void attach(EntityPlayerMP player) {
+        if (player == null || player.worldObj == null || player.worldObj.isRemote) return;
+        UUID playerId = player.getUniqueID();
+        if (playerId == null) return;
+        for (Session session : new ArrayList<>(SESSIONS.values())) {
+            if (session.world != player.worldObj || hasRecipient(session, playerId)) continue;
+            if (session.isClosedToNewRecipients(serverTick)) {
+                removeIfCompletedAndUnobserved(session, serverTick);
+                continue;
+            }
+            session.recipients.add(player);
+            BY_PLAYER.computeIfAbsent(playerId, ignored -> new HashSet<>()).add(session.id);
+            long elapsed = attachElapsed(session);
+            long releaseElapsed = session.releaseTick < 0 ? -1 : session.releaseTick - session.startTick;
+            delivery.send(copy(session.startPacket, new long[0]), player);
+            delivery.send(new PacketSessionTimeline(session.id, elapsed, releaseElapsed), player);
+            for (PacketSessionSpeakerRoutes route : routeSnapshot(session)) delivery.send(route, player);
+        }
+    }
+
+    private static boolean hasRecipient(Session session, UUID playerId) {
+        if (playerId == null) return false;
+        for (EntityPlayerMP recipient : session.recipients)
+            if (playerId.equals(recipient.getUniqueID())) return true;
+        return false;
+    }
+
+    private static long attachElapsed(Session session) {
+        if (session.priority == PacketAnnounce.PRIORITY_AWARENESS && !session.startPacket.allowOverlap) return 0;
+        return Math.max(0, serverTick - session.startTick);
+    }
+
+    private static long logicalEndTick(PacketAnnounce packet, long startTick) {
+        if (packet instanceof PacketDepartureStart || (packet.arrMelo != null && !packet.arrMelo.isEmpty()))
+            return Long.MAX_VALUE;
+        long repeatTicks = packet.startMeloTicks;
+        if (packet.bodyPartTicks != null)
+            for (Integer ticks : packet.bodyPartTicks) repeatTicks += ticks == null ? 0 : ticks;
+        long duration = repeatTicks * (long)packet.repeatCount;
+        return duration >= Long.MAX_VALUE - startTick ? Long.MAX_VALUE : startTick + duration;
     }
 
     private static List<PacketSessionSpeakerRoutes> routeSnapshot(Session session) {
@@ -183,7 +241,10 @@ public final class ServerSessions {
         if (session == null || session.priority != PacketAnnounce.PRIORITY_DEPARTURE_MELODY) return;
         send(session, new PacketDepartureControl(id, cancel));
         if (cancel) remove(session);
-        else session.expireTick = serverTick + SESSION_TTL_TICKS;
+        else if (session.releaseTick < 0) {
+            session.releaseTick = serverTick;
+            session.expireTick = serverTick + SESSION_TTL_TICKS;
+        }
     }
     private static void stop(Session session) {
         send(session, new PacketAnnounceStop(session.id)); remove(session);
@@ -208,9 +269,18 @@ public final class ServerSessions {
     }
     public static void finished(EntityPlayerMP player, long id) {
         Session session = SESSIONS.get(id);
-        if (session == null || !session.recipients.remove(player)) return;
-        forgetPlayer(player.getUniqueID(), id);
-        if (session.recipients.isEmpty()) SESSIONS.remove(id);
+        UUID playerId = player == null ? null : player.getUniqueID();
+        if (session == null || playerId == null
+            || !session.recipients.removeIf(recipient -> playerId.equals(recipient.getUniqueID()))) return;
+        forgetPlayer(playerId, id);
+        removeIfCompletedAndUnobserved(session, serverTick);
+    }
+    /** Close a naturally completed server sequence to new recipients without stopping existing clients. */
+    public static void complete(long id) {
+        Session session = SESSIONS.get(id);
+        if (session == null) return;
+        session.serverCompleted = true;
+        removeIfCompletedAndUnobserved(session, serverTick);
     }
     private static void forgetPlayer(UUID player, long id) {
         Set<Long> ids = BY_PLAYER.get(player);
@@ -228,17 +298,24 @@ public final class ServerSessions {
             Session session = SESSIONS.get(id);
             if (session == null) continue;
             session.recipients.removeIf(p -> p.getUniqueID().equals(player.getUniqueID()));
-            if (session.recipients.isEmpty()) SESSIONS.remove(id);
+            removeIfCompletedAndUnobserved(session, serverTick);
         }
     }
+    @SubscribeEvent public void login(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.player instanceof EntityPlayerMP) attach((EntityPlayerMP)event.player);
+    }
     @SubscribeEvent public void logout(PlayerEvent.PlayerLoggedOutEvent event) { detach(event.player); }
-    @SubscribeEvent public void changedWorld(PlayerEvent.PlayerChangedDimensionEvent event) { detach(event.player); }
+    @SubscribeEvent public void changedWorld(PlayerEvent.PlayerChangedDimensionEvent event) {
+        detach(event.player);
+        if (event.player instanceof EntityPlayerMP) attach((EntityPlayerMP)event.player);
+    }
     @SubscribeEvent public void respawn(PlayerEvent.PlayerRespawnEvent event) {
         // Same-dimension respawn can retain WorldClient. Stop its old sessions explicitly.
         Set<Long> ids = BY_PLAYER.get(event.player.getUniqueID());
         if (ids != null && event.player instanceof EntityPlayerMP)
             for (Long id : ids) delivery.send(new PacketAnnounceStop(id), (EntityPlayerMP) event.player);
         detach(event.player);
+        if (event.player instanceof EntityPlayerMP) attach((EntityPlayerMP)event.player);
     }
     @SubscribeEvent public void unload(WorldEvent.Unload event) {
         if (event.world.isRemote) return;
@@ -254,7 +331,18 @@ public final class ServerSessions {
     @SubscribeEvent public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         flushDirtyRoutes();
-        if (++serverTick % CLEANUP_INTERVAL_TICKS == 0) expireSessions(serverTick);
+        serverTick++;
+        completeFiniteSessions(serverTick);
+        if (serverTick % CLEANUP_INTERVAL_TICKS == 0) expireSessions(serverTick);
+    }
+
+    private static void completeFiniteSessions(long now) {
+        for (Session session : new ArrayList<>(SESSIONS.values()))
+            removeIfCompletedAndUnobserved(session, now);
+    }
+
+    private static void removeIfCompletedAndUnobserved(Session session, long now) {
+        if (session.recipients.isEmpty() && session.isClosedToNewRecipients(now)) remove(session);
     }
 
     // Package access also permits testing expiry without simulating a day of game ticks.

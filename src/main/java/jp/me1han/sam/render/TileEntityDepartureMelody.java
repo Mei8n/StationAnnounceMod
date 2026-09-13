@@ -137,10 +137,14 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
         phaseStartedTick = worldObj.getTotalWorldTime();
         parent.startDeparture(program);
         sessionId = parent.getDepartureSessionId();
+        final long startedSessionId = sessionId;
         sequence = new DepartureSequence(program, new DepartureSequence.Output() {
             public void play(DepartureSequence.Channel channel, String sound) { }
             public void stop(DepartureSequence.Channel channel) { }
-            public void finished() { parent.notifyDepartureMelodyFinished(); }
+            public void finished() {
+                jp.me1han.sam.network.ServerSessions.complete(startedSessionId);
+                parent.notifyDepartureMelodyFinished();
+            }
         });
     }
 
