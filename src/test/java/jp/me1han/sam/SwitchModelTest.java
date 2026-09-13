@@ -252,6 +252,12 @@ public final class SwitchModelTest {
         redstoneMelody.onRedstoneUpdate(false);
         check(!redstoneMelody.isOn() && redstoneMelody.releases == 1,
             "Redstone OFF releases playback when no switch remains");
+        redstoneMelody.onRedstoneUpdate(true);
+        check(redstoneMelody.isOn() && redstoneMelody.reengages == 1 && redstoneParent.starts == 1,
+            "Redstone OFF to ON reengages the existing alternate session");
+        redstoneMelody.onRedstoneUpdate(false);
+        check(!redstoneMelody.isOn() && redstoneMelody.releases == 2,
+            "Redstone uses the same second-release transition as a linked switch");
         redstoneMelody.cancelPlayback();
 
         FixtureWorld unloadWorld = new FixtureWorld();
@@ -368,9 +374,17 @@ public final class SwitchModelTest {
             "Toggle OFF enters its tail with no active switch source");
         tailMelody.click(tailButton);
         check(tailMelody.getActiveSwitchCount() == 1 && tailButton.controlOwner() == tailMelody
-            && tailParent.starts == 2 && tailMelody.isOn(),
-            "Re-ON during the OFF tail retains the new owner while replacing the sequence");
-        tailMelody.cancelPlayback();
+            && tailParent.starts == 1 && tailMelody.reengages == 1 && tailMelody.isOn(),
+            "Re-ON during the OFF tail retains its owner and reengages the same session");
+        for (tailWorld.time = 1; tailWorld.time <= 5; tailWorld.time++) tailMelody.updateEntity();
+        check(tailParent.finishes == 0 && tailMelody.isPlaying() && tailMelody.isOn(),
+            "Completing the first tail does not finish a reengaged melody session");
+        tailMelody.click(tailButton);
+        for (tailWorld.time = 6; tailWorld.time <= 11; tailWorld.time++) tailMelody.updateEntity();
+        check(tailParent.finishes == 1 && !tailMelody.isPlaying() && tailMelody.releases == 2,
+            "The final OFF starts a fresh tail and completes the logical session once");
+        tailMelody.updateEntity();
+        check(tailParent.finishes == 1, "Retrigger completion notification cannot fire twice");
 
         FixtureWorld pulseWorld = new FixtureWorld();
         Parent pulseParent = new Parent(); pulseParent.setLinkKey("pulse");
@@ -566,7 +580,8 @@ public final class SwitchModelTest {
         melody.updateEntity();
         check(parent.finishes == 1, "Server completion fires once");
         melody.click(button); melody.click(button); melody.click(button);
-        check(parent.starts == 3 && melody.isOn(), "Re-ON replaces the overlapping sequence");
+        check(parent.starts == 2 && melody.reengages == 1 && melody.isOn(),
+            "Re-ON retains and reengages the active logical sequence");
         melody.cancelPlayback();
         for (world.time = 22; world.time < 60; world.time++) melody.updateEntity();
         check(parent.finishes == 1, "Canceled server sequence never notifies completion");
@@ -667,8 +682,11 @@ public final class SwitchModelTest {
         @Override public void markDirty() {}
     }
     private static class Melody extends TileEntityDepartureMelody {
-        int releases;
-        @Override protected void sendControl(boolean cancel) { if (!cancel) releases++; }
+        int releases, reengages;
+        @Override protected void sendControl(jp.me1han.sam.network.PacketDepartureControl.Action action) {
+            if (action == jp.me1han.sam.network.PacketDepartureControl.Action.RELEASE) releases++;
+            if (action == jp.me1han.sam.network.PacketDepartureControl.Action.REENGAGE) reengages++;
+        }
         @Override public void markDirty() {}
     }
     private static class FixtureWorld extends World {

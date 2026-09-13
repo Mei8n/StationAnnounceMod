@@ -9,6 +9,7 @@ import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import jp.me1han.sam.SpeakerRegistry;
 import jp.me1han.sam.LoadedSamTiles;
 import jp.me1han.sam.render.TileEntityAnnouncer;
+import jp.me1han.sam.api.DepartureSequence;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.world.World;
 import net.minecraftforge.event.world.WorldEvent;
@@ -47,6 +48,7 @@ public final class ServerSessions {
         final long logicalEndTick;
         boolean serverCompleted;
         long releaseTick = -1;
+        DepartureSequence departureSequence;
         long routeRevision;
         long expireTick;
         final Set<EntityPlayerMP> recipients = new HashSet<>();
@@ -130,9 +132,13 @@ public final class ServerSessions {
             session.recipients.add(player);
             BY_PLAYER.computeIfAbsent(playerId, ignored -> new HashSet<>()).add(session.id);
             long elapsed = attachElapsed(session);
-            long releaseElapsed = session.releaseTick < 0 ? -1 : session.releaseTick - session.startTick;
             delivery.send(copy(session.startPacket, new long[0]), player);
-            delivery.send(new PacketSessionTimeline(session.id, elapsed, releaseElapsed), player);
+            DepartureSequence.Snapshot snapshot = session.departureSequence == null
+                ? null : session.departureSequence.snapshot();
+            long releaseElapsed = session.releaseTick < 0 ? -1 : session.releaseTick - session.startTick;
+            delivery.send(snapshot == null
+                ? new PacketSessionTimeline(session.id, elapsed, releaseElapsed)
+                : new PacketSessionTimeline(session.id, elapsed, snapshot), player);
             for (PacketSessionSpeakerRoutes route : routeSnapshot(session)) delivery.send(route, player);
         }
     }
@@ -236,16 +242,26 @@ public final class ServerSessions {
                 && player.playerNetServerHandler.netManager.isChannelOpen())
                 delivery.send(message, player);
     }
-    public static void control(long id, boolean cancel) {
+    public static void bindDepartureSequence(long id, DepartureSequence sequence) {
         Session session = SESSIONS.get(id);
-        if (session == null || session.priority != PacketAnnounce.PRIORITY_DEPARTURE_MELODY) return;
-        send(session, new PacketDepartureControl(id, cancel));
-        if (cancel) remove(session);
-        else if (session.releaseTick < 0) {
+        if (session != null && session.priority == PacketAnnounce.PRIORITY_DEPARTURE_MELODY)
+            session.departureSequence = sequence;
+    }
+
+    public static void control(long id, PacketDepartureControl.Action action) {
+        Session session = SESSIONS.get(id);
+        if (session == null || session.priority != PacketAnnounce.PRIORITY_DEPARTURE_MELODY || action == null) return;
+        send(session, new PacketDepartureControl(id, action));
+        if (action == PacketDepartureControl.Action.CANCEL) remove(session);
+        else if (action == PacketDepartureControl.Action.RELEASE) {
             session.releaseTick = serverTick;
+            session.expireTick = serverTick + SESSION_TTL_TICKS;
+        } else {
+            session.releaseTick = -1;
             session.expireTick = serverTick + SESSION_TTL_TICKS;
         }
     }
+
     private static void stop(Session session) {
         send(session, new PacketAnnounceStop(session.id)); remove(session);
     }
