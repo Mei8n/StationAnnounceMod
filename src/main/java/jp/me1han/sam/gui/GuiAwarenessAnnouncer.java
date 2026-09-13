@@ -25,6 +25,7 @@ public class GuiAwarenessAnnouncer extends GuiScriptConfig {
     private GuiCheckBox randomOrderCheck;
     private GuiCheckBox allowOverlapCheck;
     private GuiCheckBox playAfterDepartureCheck;
+    private GuiCheckBox requireRedstoneCheck;
     private GuiButton modeButton;
 
     public GuiAwarenessAnnouncer(TileEntityAwarenessAnnouncer tile) {
@@ -61,9 +62,12 @@ public class GuiAwarenessAnnouncer extends GuiScriptConfig {
         this.departureDelayField = new GuiTextField(this.fontRendererObj, left + 130, top + 135, 110, 20);
         this.departureDelayField.setText(formatSeconds(this.tile.departureDelayTicks));
 
-        this.randomOrderCheck = new GuiCheckBox(1, left, top + 163, I18n.format("gui.sam.awareness.random_order"), this.tile.randomOrder);
-        this.allowOverlapCheck = new GuiCheckBox(2, left, top + 181, I18n.format("gui.sam.awareness.allow_overlap"), this.tile.allowOverlap);
-        this.playAfterDepartureCheck = new GuiCheckBox(3, left, top + 199, I18n.format("gui.sam.awareness.after_departure"), this.tile.playAfterDeparture);
+        this.requireRedstoneCheck = new GuiCheckBox(5, left, top + 158,
+            I18n.format("gui.sam.awareness.require_redstone"), this.tile.requireRedstone);
+        this.randomOrderCheck = new GuiCheckBox(1, left, top + 174, I18n.format("gui.sam.awareness.random_order"), this.tile.randomOrder);
+        this.allowOverlapCheck = new GuiCheckBox(2, left, top + 190, I18n.format("gui.sam.awareness.allow_overlap"), this.tile.allowOverlap);
+        this.playAfterDepartureCheck = new GuiCheckBox(3, left, top + 206, I18n.format("gui.sam.awareness.after_departure"), this.tile.playAfterDeparture);
+        this.buttonList.add(this.requireRedstoneCheck);
         this.buttonList.add(this.randomOrderCheck);
         this.buttonList.add(this.allowOverlapCheck);
         this.buttonList.add(this.playAfterDepartureCheck);
@@ -95,13 +99,15 @@ public class GuiAwarenessAnnouncer extends GuiScriptConfig {
                 this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, soundList,
                 this.mode, scriptName, intervalTicks,
                 this.randomOrderCheck.isChecked(), this.allowOverlapCheck.isChecked(),
-                this.playAfterDepartureCheck.isChecked(), departureDelayTicks
+                this.playAfterDepartureCheck.isChecked(), departureDelayTicks,
+                this.requireRedstoneCheck.isChecked()
             );
             if (!packet.isValidPayload()) return;
             NetworkHandler.INSTANCE.sendToServer(packet);
             this.tile.applyConfig(this.mode, linkKey, soundList, scriptName, intervalTicks,
                 this.randomOrderCheck.isChecked(),
-                this.allowOverlapCheck.isChecked(), this.playAfterDepartureCheck.isChecked(), departureDelayTicks);
+                this.allowOverlapCheck.isChecked(), this.playAfterDepartureCheck.isChecked(), departureDelayTicks,
+                this.requireRedstoneCheck.isChecked());
             this.mc.thePlayer.closeScreen();
         } catch (NumberFormatException e) {
             StationAnnounceModCore.logger.warn("[SAM] Interval and delay must be numbers", e);

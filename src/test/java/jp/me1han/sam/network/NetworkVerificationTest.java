@@ -13,6 +13,7 @@ import io.netty.buffer.*;
 import io.netty.handler.codec.DecoderException;
 import jp.me1han.sam.*;
 import jp.me1han.sam.api.*;
+import jp.me1han.sam.block.BlockAwarenessAnnouncer;
 import jp.me1han.sam.client.AnnounceManager;
 import jp.me1han.sam.client.ClientSpeakerRegistry;
 import jp.me1han.sam.compat.TrainCompat;
@@ -52,10 +53,11 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityTrainTypeSelector.class, "network-test-selector");
         mapping.invoke(null, TileEntityDebugReceiver.class, "network-test-debug");
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
+        mapping.invoke(null, CountingDispatchAwareness.class, "network-test-awareness-counting");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
         AnnouncePackLoader.soundTicks.put("test:b", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); awarenessScriptMode(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); awarenessScriptMode(); awarenessRedstoneGate(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -554,16 +556,17 @@ public final class NetworkVerificationTest {
             buf.clear(); awareness.toBytes(buf);
             PacketAwarenessConfig awarenessRead = new PacketAwarenessConfig(); awarenessRead.fromBytes(buf);
             check(awarenessRead.soundList.equals(maxSounds) && awarenessRead.mode == AwarenessMode.DIRECT.id
-                    && awarenessRead.scriptName.isEmpty(),
+                    && awarenessRead.scriptName.isEmpty() && !awarenessRead.requireRedstone,
                 "Awareness sound, mode and tick boundaries round trip");
 
             PacketAwarenessConfig scriptAwareness = new PacketAwarenessConfig(1, 2, 3, "key", maxSounds,
-                AwarenessMode.SCRIPT, "awareness.js", 20, false, true, false, 0);
+                AwarenessMode.SCRIPT, "awareness.js", 20, false, true, false, 0, true);
             buf.clear(); scriptAwareness.toBytes(buf);
             PacketAwarenessConfig scriptAwarenessRead = new PacketAwarenessConfig(); scriptAwarenessRead.fromBytes(buf);
             check(scriptAwarenessRead.mode == AwarenessMode.SCRIPT.id
-                    && "awareness.js".equals(scriptAwarenessRead.scriptName) && buf.readableBytes() == 0,
-                "Awareness SCRIPT mode and script name round trip");
+                    && "awareness.js".equals(scriptAwarenessRead.scriptName)
+                    && scriptAwarenessRead.requireRedstone && buf.readableBytes() == 0,
+                "Awareness SCRIPT mode, script name and Redstone gate round trip");
             scriptAwareness.mode = 99;
             buf.clear(); expectEncodeInvalid(() -> scriptAwareness.toBytes(buf));
             scriptAwareness.mode = AwarenessMode.SCRIPT.id;
@@ -574,7 +577,7 @@ public final class NetworkVerificationTest {
             PacketLimits.writeString(buf, "sound", PacketLimits.SOUND_LIST);
             buf.writeInt(99);
             PacketLimits.writeString(buf, "script.js", PacketLimits.NAME);
-            buf.writeInt(20).writeBoolean(false).writeBoolean(false).writeBoolean(false).writeInt(0);
+            buf.writeInt(20).writeBoolean(false).writeBoolean(false).writeBoolean(false).writeInt(0).writeBoolean(false);
             expectInvalid(() -> new PacketAwarenessConfig().fromBytes(buf));
 
             String wireSoundId = String.join("", Collections.nCopies(21, "\u754c"));
@@ -614,7 +617,7 @@ public final class NetworkVerificationTest {
             PacketLimits.writeString(buf, maxSounds + ",extra", PacketLimits.SOUND_LIST);
             buf.writeInt(AwarenessMode.DIRECT.id);
             PacketLimits.writeString(buf, "", PacketLimits.NAME);
-            buf.writeInt(20).writeBoolean(false).writeBoolean(false).writeBoolean(false).writeInt(0);
+            buf.writeInt(20).writeBoolean(false).writeBoolean(false).writeBoolean(false).writeInt(0).writeBoolean(false);
             expectInvalid(() -> new PacketAwarenessConfig().fromBytes(buf));
 
             PacketDepartureMelodyConfig melody = new PacketDepartureMelodyConfig(1, 2, 3, "key",
@@ -1214,6 +1217,133 @@ public final class NetworkVerificationTest {
             AnnouncePackLoader.availableScripts.removeIf(info -> info.fileName.equals(name));
         }
         ServerSessions.clear(); SpeakerRegistry.clear(world); SamLinkRegistry.clear(world); LoadedSamTiles.clear(world);
+    }
+
+    private static void awarenessRedstoneGate() throws Exception {
+        String scriptName = "awareness-redstone.js";
+        ScriptEngine engine = registerScript(scriptName, ScriptType.AWARENESS,
+            "var calls=0; function samMain(tile){calls++; return sam.build('', ['test:a'], '');}");
+        ServerSessions.clear(); SpeakerRegistry.clear();
+        FixtureWorld world = new FixtureWorld();
+        TileEntityAnnouncer parent = new TileEntityAnnouncer(); parent.setLinkKey("A"); world.add(parent, 0, 0, 0);
+        CountingDispatchAwareness tile = new CountingDispatchAwareness(); world.add(tile, 1, 0, 0);
+        Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 2, 0, 0);
+        Player player = player(world, 1, 0, 0);
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+
+        NBTTagCompound legacy = new NBTTagCompound();
+        TileEntityAwarenessAnnouncer legacyTile = new TileEntityAwarenessAnnouncer(); legacyTile.readFromNBT(legacy);
+        check(!legacyTile.requireRedstone, "Awareness NBT without requireRedstone remains ungated");
+
+        tile.applyConfig(AwarenessMode.DIRECT, "A", "test:a,test:b", scriptName,
+            20, false, false, true, 3, true);
+        for (int i = 0; i < 50; i++) tile.updateEntity();
+        NBTTagCompound paused = new NBTTagCompound(); tile.writeToNBT(paused);
+        check(world.powerQueries == 1, "A gated Awareness Tile queries World power only once after load");
+        check(paused.getInteger("ticksUntilNext") == 20 && paused.getInteger("nextSoundIndex") == 0,
+            "RS OFF pauses the interval and preserves DIRECT sequence state");
+        check(tile.soundListReads == 0 && out.messages.isEmpty(),
+            "RS OFF performs no sound-list selection and starts no DIRECT session");
+
+        world.powered = true; tile.onRedstoneUpdate(true);
+        for (int i = 0; i < 20; i++) tile.updateEntity();
+        check(out.messages.isEmpty(), "RS rising edge resumes the remaining timer without immediate playback");
+        tile.updateEntity();
+        check(out.count(PacketAnnounce.class) == 1 && tile.soundListReads == 1,
+            "DIRECT playback occurs only when the resumed interval reaches its normal trigger");
+        NBTTagCompound afterDirect = new NBTTagCompound(); tile.writeToNBT(afterDirect);
+        check(afterDirect.getInteger("nextSoundIndex") == 1,
+            "DIRECT sequence advances only for an actual powered trigger");
+
+        int active = sessions(); out.clear();
+        world.powered = false; tile.onRedstoneUpdate(false);
+        for (int i = 0; i < 40; i++) tile.updateEntity();
+        NBTTagCompound fallen = new NBTTagCompound(); tile.writeToNBT(fallen);
+        check(sessions() == active && out.messages.isEmpty(),
+            "RS falling edge leaves an already-started Awareness session running");
+        check(fallen.getInteger("ticksUntilNext") == 20 && fallen.getInteger("nextSoundIndex") == 1,
+            "RS OFF suppresses only future triggers and retains interval and sequence position");
+        world.powered = true; tile.onRedstoneUpdate(true); tile.updateEntity();
+        NBTTagCompound resumed = new NBTTagCompound(); tile.writeToNBT(resumed);
+        check(resumed.getInteger("ticksUntilNext") == 19 && out.messages.isEmpty(),
+            "RS ON continues from the preserved timer without resetting it");
+        tile.onRedstoneUpdate(false);
+        for (int i = 0; i < 10; i++) tile.updateEntity();
+        NBTTagCompound partiallyPaused = new NBTTagCompound(); tile.writeToNBT(partiallyPaused);
+        check(partiallyPaused.getInteger("ticksUntilNext") == 19,
+            "A falling edge preserves a partially elapsed interval exactly");
+        tile.onRedstoneUpdate(true);
+        for (int i = 0; i < 19; i++) tile.updateEntity();
+        check(out.messages.isEmpty(), "A resumed partial interval does not fire one tick early");
+        tile.updateEntity();
+        check(out.count(PacketAnnounce.class) == 1,
+            "A resumed partial interval fires at its original remaining boundary");
+
+        ServerSessions.clear(); out.clear(); world.powered = false;
+        tile.applyConfig(AwarenessMode.SCRIPT, "A", "test:a", scriptName,
+            20, true, false, false, 0, true);
+        for (int i = 0; i < 40; i++) tile.updateEntity();
+        check(((Number)engine.eval("calls")).intValue() == 0 && out.messages.isEmpty(),
+            "RS OFF prevents SCRIPT dispatch and Nashorn invocation");
+        int queriesAfterScriptInit = world.powerQueries;
+        for (int i = 0; i < 40; i++) tile.updateEntity();
+        check(world.powerQueries == queriesAfterScriptInit,
+            "Steady-state SCRIPT gating performs no per-tick World power lookup");
+
+        tile.applyConfig(AwarenessMode.SCRIPT, "A", "test:a", scriptName,
+            20, true, false, false, 0, false);
+        for (int i = 0; i <= 20; i++) tile.updateEntity();
+        check(((Number)engine.eval("calls")).intValue() == 1 && out.count(PacketAnnounce.class) == 1,
+            "requireRedstone=false preserves SCRIPT interval playback while RS is OFF");
+
+        ServerSessions.clear(); out.clear();
+        tile.applyConfig(AwarenessMode.DIRECT, "A", "test:a", scriptName,
+            20, false, false, true, 3, true);
+        tile.onRedstoneUpdate(false); tile.scheduleAfterDeparture();
+        for (int i = 0; i < 5; i++) tile.updateEntity();
+        check(out.messages.isEmpty(), "DEPARTURE_FINISHED while RS is OFF creates no pending playback");
+
+        world.powered = true; tile.onRedstoneUpdate(true); tile.scheduleAfterDeparture();
+        tile.updateEntity();
+        world.powered = false; tile.onRedstoneUpdate(false);
+        world.powered = true; tile.onRedstoneUpdate(true);
+        for (int i = 0; i < 5; i++) tile.updateEntity();
+        check(out.messages.isEmpty(), "RS OFF during departure delay cancels the event without later revival");
+        tile.scheduleAfterDeparture();
+        tile.updateEntity(); tile.updateEntity(); tile.updateEntity();
+        check(out.count(PacketAnnounce.class) == 1,
+            "A new powered DEPARTURE_FINISHED event schedules normally after cancellation");
+
+        NBTTagCompound saved = new NBTTagCompound(); tile.writeToNBT(saved);
+        check(saved.getBoolean("requireRedstone") && !saved.hasKey("redstonePowered")
+                && !saved.hasKey("redstoneInitialized"),
+            "NBT stores only the Redstone requirement, not derived runtime state");
+        TileEntityAwarenessAnnouncer restored = new TileEntityAwarenessAnnouncer(); restored.readFromNBT(saved);
+        check(restored.requireRedstone, "requireRedstone survives NBT and description-packet state");
+
+        PacketAwarenessConfig config = new PacketAwarenessConfig(1, 0, 0, "A", "test:a",
+            AwarenessMode.DIRECT, scriptName, 20, false, false, false, 0, true);
+        NetworkHandler.AwarenessConfigHandler handler = new NetworkHandler.AwarenessConfigHandler();
+        handler.onMessage(config, context(player)); serverTick();
+        check(tile.requireRedstone, "Server Awareness config stores requireRedstone");
+        int updates = world.updates;
+        handler.onMessage(config, context(player)); serverTick();
+        check(world.updates == updates, "Identical Redstone-gate config causes no redundant Tile update");
+
+        FixtureWorld eventWorld = new FixtureWorld(); eventWorld.powered = true;
+        TileEntityAwarenessAnnouncer eventTile = new TileEntityAwarenessAnnouncer();
+        eventTile.applyConfig(AwarenessMode.DIRECT, "A", "test:a", "", 20,
+            false, false, false, 0, true);
+        eventWorld.add(eventTile, 4, 0, 0);
+        new BlockAwarenessAnnouncer().onNeighborBlockChange(eventWorld, 4, 0, 0, net.minecraft.init.Blocks.redstone_block);
+        eventTile.updateEntity();
+        check(eventWorld.powerQueries == 1,
+            "Awareness block neighbor notification supplies cached power without a tick lookup");
+
+        AnnouncePackLoader.scriptEngines.remove(scriptName);
+        AnnouncePackLoader.availableScripts.removeIf(info -> info.fileName.equals(scriptName));
+        ServerSessions.clear(); SpeakerRegistry.clear(world); SamLinkRegistry.clear(world); LoadedSamTiles.clear(world);
+        SamLinkRegistry.clear(eventWorld); LoadedSamTiles.clear(eventWorld);
     }
     private static void serverTick() { ServerTaskQueue.INSTANCE.onServerTick(new TickEvent.ServerTickEvent(TickEvent.Phase.START)); }
 
@@ -2812,8 +2942,14 @@ public final class NetworkVerificationTest {
         int scheduled;
         @Override public void scheduleAfterDeparture() { scheduled++; }
     }
+    private static class CountingDispatchAwareness extends TileEntityAwarenessAnnouncer {
+        int soundListReads;
+        @Override public List<String> getSounds() { soundListReads++; return super.getSounds(); }
+    }
     private static class FixtureWorld extends World {
         int updates, entityScans;
+        int powerQueries;
+        boolean powered;
         long time;
         final Map<Long, TileEntity> tiles = new HashMap<>();
         FixtureWorld() {
@@ -2841,7 +2977,10 @@ public final class NetworkVerificationTest {
             throw new AssertionError("Detector performed a per-query World entity search");
         }
         @Override public boolean blockExists(int x, int y, int z) { return true; }
-        @Override public boolean isBlockIndirectlyGettingPowered(int x, int y, int z) { return false; }
+        @Override public boolean isBlockIndirectlyGettingPowered(int x, int y, int z) {
+            powerQueries++;
+            return powered;
+        }
         @Override public TileEntity getTileEntity(int x, int y, int z) { return tiles.get(SpeakerRegistry.position(x, y, z)); }
         @Override public void markBlockForUpdate(int x, int y, int z) { updates++; }
         @Override public int getBlockMetadata(int x, int y, int z) { return 0; }
