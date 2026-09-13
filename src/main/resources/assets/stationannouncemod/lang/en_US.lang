@@ -12,6 +12,10 @@ gui.sam.link_key=Link Key
 
 # Awareness Announcer GUI
 gui.sam.awareness.title=Awareness Announcer Config
+gui.sam.awareness.mode=Mode: %s
+gui.sam.awareness.mode.direct=Direct sounds
+gui.sam.awareness.mode.script=JavaScript
+gui.sam.awareness.script=Awareness JS filename (.js)
 gui.sam.awareness.sound_ids=Sound IDs (comma-separated, one complete file each)
 gui.sam.awareness.sound_ids_example=e.g. pack:sound1, pack:sound2
 gui.sam.awareness.interval=Interval (seconds)

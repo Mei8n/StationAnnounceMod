@@ -2,25 +2,30 @@ package jp.me1han.sam.gui;
 
 import cpw.mods.fml.client.config.GuiCheckBox;
 import jp.me1han.sam.StationAnnounceModCore;
+import jp.me1han.sam.AnnouncePackLoader;
+import jp.me1han.sam.api.AwarenessMode;
+import jp.me1han.sam.api.ScriptType;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.network.PacketAwarenessConfig;
 import jp.me1han.sam.network.PacketLimits;
 import jp.me1han.sam.render.TileEntityAwarenessAnnouncer;
 import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.resources.I18n;
 import org.lwjgl.input.Keyboard;
 
-public class GuiAwarenessAnnouncer extends GuiScreen {
+public class GuiAwarenessAnnouncer extends GuiScriptConfig {
     private final TileEntityAwarenessAnnouncer tile;
+    private AwarenessMode mode;
     private GuiTextField linkKeyField;
     private GuiTextField soundListField;
+    private GuiTextField scriptNameField;
     private GuiTextField intervalField;
     private GuiTextField departureDelayField;
     private GuiCheckBox randomOrderCheck;
     private GuiCheckBox allowOverlapCheck;
     private GuiCheckBox playAfterDepartureCheck;
+    private GuiButton modeButton;
 
     public GuiAwarenessAnnouncer(TileEntityAwarenessAnnouncer tile) {
         this.tile = tile;
@@ -30,35 +35,49 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
         this.buttonList.clear();
+        this.mode = this.tile.mode == null ? AwarenessMode.DIRECT : this.tile.mode;
 
         int left = this.width / 2 - 120;
         int top = this.height / 2 - 120;
 
-        this.linkKeyField = new GuiTextField(this.fontRendererObj, left, top + 20, 240, 20);
+        this.modeButton = new GuiButton(4, left, top + 15, 240, 20, "");
+        this.buttonList.add(this.modeButton);
+
+        this.linkKeyField = new GuiTextField(this.fontRendererObj, left, top + 52, 240, 20);
         this.linkKeyField.setMaxStringLength(PacketLimits.LINK_KEY);
         this.linkKeyField.setText(this.tile.getLinkKey());
 
-        this.soundListField = new GuiTextField(this.fontRendererObj, left, top + 60, 240, 20);
+        this.soundListField = new GuiTextField(this.fontRendererObj, left, top + 89, 240, 20);
         this.soundListField.setMaxStringLength(PacketLimits.SOUND_LIST);
         this.soundListField.setText(this.tile.soundList == null ? "" : this.tile.soundList);
 
-        this.intervalField = new GuiTextField(this.fontRendererObj, left, top + 100, 110, 20);
+        this.scriptNameField = new GuiTextField(this.fontRendererObj, left, top + 89, 240, 20);
+        this.scriptNameField.setMaxStringLength(PacketLimits.NAME);
+        this.scriptNameField.setText(this.tile.scriptName == null ? "" : this.tile.scriptName);
+
+        this.intervalField = new GuiTextField(this.fontRendererObj, left, top + 135, 110, 20);
         this.intervalField.setText(formatSeconds(this.tile.intervalTicks));
 
-        this.departureDelayField = new GuiTextField(this.fontRendererObj, left + 130, top + 100, 110, 20);
+        this.departureDelayField = new GuiTextField(this.fontRendererObj, left + 130, top + 135, 110, 20);
         this.departureDelayField.setText(formatSeconds(this.tile.departureDelayTicks));
 
-        this.randomOrderCheck = new GuiCheckBox(1, left, top + 130, I18n.format("gui.sam.awareness.random_order"), this.tile.randomOrder);
-        this.allowOverlapCheck = new GuiCheckBox(2, left, top + 150, I18n.format("gui.sam.awareness.allow_overlap"), this.tile.allowOverlap);
-        this.playAfterDepartureCheck = new GuiCheckBox(3, left, top + 170, I18n.format("gui.sam.awareness.after_departure"), this.tile.playAfterDeparture);
+        this.randomOrderCheck = new GuiCheckBox(1, left, top + 163, I18n.format("gui.sam.awareness.random_order"), this.tile.randomOrder);
+        this.allowOverlapCheck = new GuiCheckBox(2, left, top + 181, I18n.format("gui.sam.awareness.allow_overlap"), this.tile.allowOverlap);
+        this.playAfterDepartureCheck = new GuiCheckBox(3, left, top + 199, I18n.format("gui.sam.awareness.after_departure"), this.tile.playAfterDeparture);
         this.buttonList.add(this.randomOrderCheck);
         this.buttonList.add(this.allowOverlapCheck);
         this.buttonList.add(this.playAfterDepartureCheck);
-        this.buttonList.add(new GuiButton(0, left, top + 200, 240, 20, I18n.format("gui.done")));
+        this.buttonList.add(new GuiButton(0, left, top + 220, 240, 20, I18n.format("gui.done")));
+        updateModeControls();
     }
 
     @Override
     protected void actionPerformed(GuiButton button) {
+        if (button.id == 4) {
+            this.mode = this.mode == AwarenessMode.DIRECT ? AwarenessMode.SCRIPT : AwarenessMode.DIRECT;
+            updateModeControls();
+            return;
+        }
         if (button.id != 0) {
             return;
         }
@@ -68,15 +87,20 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
             int departureDelayTicks = secondsToTicks(this.departureDelayField.getText(), 0.0D, 0);
             String linkKey = jp.me1han.sam.link.LinkKey.normalize(this.linkKeyField.getText());
             String soundList = this.soundListField.getText() == null ? "" : this.soundListField.getText().trim();
+            String scriptName = this.scriptNameField.getText() == null ? "" : this.scriptNameField.getText().trim();
+            if (this.mode == AwarenessMode.SCRIPT
+                && !AnnouncePackLoader.canUseScript(scriptName, ScriptType.AWARENESS)) return;
 
             PacketAwarenessConfig packet = new PacketAwarenessConfig(
-                this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, soundList, intervalTicks,
+                this.tile.xCoord, this.tile.yCoord, this.tile.zCoord, linkKey, soundList,
+                this.mode, scriptName, intervalTicks,
                 this.randomOrderCheck.isChecked(), this.allowOverlapCheck.isChecked(),
                 this.playAfterDepartureCheck.isChecked(), departureDelayTicks
             );
             if (!packet.isValidPayload()) return;
             NetworkHandler.INSTANCE.sendToServer(packet);
-            this.tile.applyConfig(linkKey, soundList, intervalTicks, this.randomOrderCheck.isChecked(),
+            this.tile.applyConfig(this.mode, linkKey, soundList, scriptName, intervalTicks,
+                this.randomOrderCheck.isChecked(),
                 this.allowOverlapCheck.isChecked(), this.playAfterDepartureCheck.isChecked(), departureDelayTicks);
             this.mc.thePlayer.closeScreen();
         } catch (NumberFormatException e) {
@@ -91,20 +115,29 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
         int top = this.height / 2 - 120;
 
         drawCenteredString(this.fontRendererObj, I18n.format("gui.sam.awareness.title"), this.width / 2, top, 0xFFFFFF);
-        drawString(this.fontRendererObj, I18n.format("gui.sam.link_key"), left, top + 10, 0xA0A0A0);
-        drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.sound_ids"), left, top + 50, 0xA0A0A0);
-        drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.interval"), left, top + 90, 0xA0A0A0);
-        drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.departure_delay"), left + 130, top + 90, 0xA0A0A0);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.link_key"), left, top + 42, 0xA0A0A0);
+        drawString(this.fontRendererObj, I18n.format(this.mode == AwarenessMode.DIRECT
+            ? "gui.sam.awareness.sound_ids" : "gui.sam.awareness.script"), left, top + 79, 0xA0A0A0);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.interval"), left, top + 125, 0xA0A0A0);
+        drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.departure_delay"), left + 130, top + 125, 0xA0A0A0);
 
         this.linkKeyField.drawTextBox();
-        this.soundListField.drawTextBox();
-        if (this.soundListField.getText().isEmpty() && !this.soundListField.isFocused()) {
-            drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.sound_ids_example"),
-                left + 4, top + 66, 0x707070);
+        if (this.mode == AwarenessMode.DIRECT) {
+            this.soundListField.drawTextBox();
+            if (this.soundListField.getText().isEmpty() && !this.soundListField.isFocused()) {
+                drawString(this.fontRendererObj, I18n.format("gui.sam.awareness.sound_ids_example"),
+                    left + 4, top + 95, 0x707070);
+            }
+        } else {
+            this.scriptNameField.drawTextBox();
         }
         this.intervalField.drawTextBox();
         this.departureDelayField.drawTextBox();
         super.drawScreen(mouseX, mouseY, partialTicks);
+        if (this.mode == AwarenessMode.SCRIPT) {
+            drawScriptDisplayName(this.scriptNameField.getText(), ScriptType.AWARENESS,
+                left, top + 112, mouseX, mouseY);
+        }
     }
 
     @Override
@@ -114,7 +147,8 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
             return;
         }
         if (this.linkKeyField.textboxKeyTyped(c, keyCode)) return;
-        if (this.soundListField.textboxKeyTyped(c, keyCode)) return;
+        if (this.mode == AwarenessMode.DIRECT && this.soundListField.textboxKeyTyped(c, keyCode)) return;
+        if (this.mode == AwarenessMode.SCRIPT && this.scriptNameField.textboxKeyTyped(c, keyCode)) return;
         if (this.intervalField.textboxKeyTyped(c, keyCode)) return;
         if (this.departureDelayField.textboxKeyTyped(c, keyCode)) return;
         super.keyTyped(c, keyCode);
@@ -124,7 +158,8 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
     protected void mouseClicked(int x, int y, int button) {
         super.mouseClicked(x, y, button);
         this.linkKeyField.mouseClicked(x, y, button);
-        this.soundListField.mouseClicked(x, y, button);
+        if (this.mode == AwarenessMode.DIRECT) this.soundListField.mouseClicked(x, y, button);
+        else this.scriptNameField.mouseClicked(x, y, button);
         this.intervalField.mouseClicked(x, y, button);
         this.departureDelayField.mouseClicked(x, y, button);
     }
@@ -132,6 +167,15 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
     @Override
     public void onGuiClosed() {
         Keyboard.enableRepeatEvents(false);
+    }
+
+    @Override
+    public void updateScreen() {
+        this.linkKeyField.updateCursorCounter();
+        this.intervalField.updateCursorCounter();
+        this.departureDelayField.updateCursorCounter();
+        if (this.mode == AwarenessMode.DIRECT) this.soundListField.updateCursorCounter();
+        else this.scriptNameField.updateCursorCounter();
     }
 
     @Override
@@ -151,5 +195,14 @@ public class GuiAwarenessAnnouncer extends GuiScreen {
     private String formatSeconds(int ticks) {
         double seconds = Math.max(0, ticks) / 20.0D;
         return seconds == Math.floor(seconds) ? String.valueOf((int) seconds) : String.valueOf(seconds);
+    }
+
+    private void updateModeControls() {
+        this.modeButton.displayString = I18n.format("gui.sam.awareness.mode",
+            I18n.format(this.mode == AwarenessMode.DIRECT
+                ? "gui.sam.awareness.mode.direct" : "gui.sam.awareness.mode.script"));
+        this.randomOrderCheck.visible = this.mode == AwarenessMode.DIRECT;
+        if (this.mode == AwarenessMode.DIRECT) this.scriptNameField.setFocused(false);
+        else this.soundListField.setFocused(false);
     }
 }
