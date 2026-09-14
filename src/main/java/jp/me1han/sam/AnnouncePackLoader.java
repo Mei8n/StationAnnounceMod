@@ -110,6 +110,9 @@ public class AnnouncePackLoader {
     }
 
     private static void parseJavaScript(InputStream is, String scriptName) {
+        // A later pack owns this name even if its replacement cannot be loaded.
+        scriptEngines.remove(scriptName);
+        availableScripts.removeIf(info -> info.fileName.equals(scriptName));
         if (!PacketLimits.string(scriptName, PacketLimits.NAME)) {
             logScriptFailure(scriptName, "load", new IllegalArgumentException("Script filename is too long"));
             return;
@@ -148,7 +151,9 @@ public class AnnouncePackLoader {
 
         ScriptType scriptType = ScriptType.UNKNOWN;
         try {
-            if (Boolean.TRUE.equals(engine.eval("typeof getScriptType === 'function'"))) {
+            if (Boolean.TRUE.equals(engine.eval("'getScriptType' in this"))) {
+                if (!Boolean.TRUE.equals(engine.eval("typeof getScriptType === 'function'")))
+                    throw new IllegalArgumentException("getScriptType must be a function");
                 Object result = ((Invocable) engine).invokeFunction("getScriptType");
                 if (!(result instanceof Number)) throw new IllegalArgumentException("getScriptType() must return an integer");
                 double number = ((Number)result).doubleValue();
@@ -160,10 +165,10 @@ public class AnnouncePackLoader {
         } catch (Throwable error) {
             rethrowFatal(error);
             logScriptFailure(scriptName, "getScriptType", error);
+            return;
         }
 
         scriptEngines.put(scriptName, engine);
-        availableScripts.removeIf(info -> info.fileName.equals(scriptName));
         availableScripts.add(new AnnounceScriptInfo(scriptName, displayName, scriptType));
         StationAnnounceModCore.logger.info("[SAM] Registered: " + displayName);
     }

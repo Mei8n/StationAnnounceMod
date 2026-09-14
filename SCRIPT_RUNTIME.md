@@ -28,6 +28,10 @@ scriptへ渡す`tile`は実際のMinecraft `TileEntity`ではなく、呼び出�
 
 `getScriptType()`は任意です。未宣言のscriptは`UNKNOWN`として後方互換で使用でき、既知の型を宣言したscriptは、要求する実行系と一致する場合だけGUI選択・server設定・実行が許可されます。整数IDは次のとおりです。
 
+未宣言の場合だけ`UNKNOWN`へ補完します。`getScriptType()`を定義した場合は、有効な整数IDを返す必要があります。例外、`null`、Number以外、非整数、未定義ID、関数以外の宣言はload failureとなり、scriptを登録しません。不正な宣言を`UNKNOWN`へ降格させることはありません。
+
+同名scriptは後から読み込んだパックが優先されます。後のscriptがeval失敗、`samMain`欠落、不正な型宣言、engine生成不能で読み込めない場合、以前の同名scriptも使用不能になります。`getDisplayName()`だけの省略・失敗は引き続きfilenameへ補完し、script自体は登録します。
+
 | ScriptType | ID | 使用先 |
 | --- | ---: | --- |
 | `UNKNOWN` | -1 | 型未宣言の旧script。各実行系で使用可能 |

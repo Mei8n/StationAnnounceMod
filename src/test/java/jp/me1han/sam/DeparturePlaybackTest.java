@@ -530,8 +530,8 @@ public final class DeparturePlaybackTest {
                     && AnnouncePackLoader.runScript("legacy-ordinary.js", null) != null
                     && AnnouncePackLoader.runDepartureScript("legacy-departure.js", null).melodyTicks == 25,
                 "Scripts without getScriptType remain UNKNOWN and executable by either matching runtime");
-            check(AnnouncePackLoader.getScriptType("invalid-type.js") == ScriptType.UNKNOWN,
-                "Invalid getScriptType falls back to the cached UNKNOWN policy");
+            check(!AnnouncePackLoader.scriptEngines.containsKey("invalid-type.js"),
+                "Invalid getScriptType is rejected at load time");
             check(AnnouncePackLoader.runScript("departure.js", null) == null,
                 "Known departure scripts are rejected by the approach execution path");
             try {
@@ -566,7 +566,75 @@ public final class DeparturePlaybackTest {
             try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(path.toFile())) { AnnouncePackLoader.loadScripts(zip); }
             check(((Invocable) AnnouncePackLoader.scriptEngines.get("shared.js")).invokeFunction("getDisplayName").equals("later"),
                 "Later pack overrides earlier pack");
+            verifyScriptLoadFailures(path);
         } finally { java.nio.file.Files.deleteIfExists(path); }
+    }
+
+    private static void verifyScriptLoadFailures(java.nio.file.Path path) throws Exception {
+        String main = "function samMain(t) { return sam.build(null, [], null); }";
+        for (ScriptType type : new ScriptType[]{ScriptType.UNKNOWN, ScriptType.APPROACH, ScriptType.ARRIVAL,
+                ScriptType.STATION_NAME, ScriptType.DEPARTURE_MELODY, ScriptType.AWARENESS}) {
+            loadTestScript(path, "typed.js", "function getScriptType(){return " + type.id + ";}" + main);
+            check(AnnouncePackLoader.scriptEngines.containsKey("typed.js")
+                    && AnnouncePackLoader.getScriptType("typed.js") == type,
+                "Valid declared ID is registered: " + type);
+        }
+        String[] broken = {
+            "function getScriptType(){return 99;}" + main,
+            "function getScriptType(){return 0.5;}" + main,
+            "function getScriptType(){return '0';}" + main,
+            "function getScriptType(){return null;}" + main,
+            "function getScriptType(){throw new Error('invalid type');}" + main,
+            "function getScriptType(){return NaN;}" + main,
+            "function getScriptType(){return Infinity;}" + main,
+            "function getScriptType(){}" + main,
+            "var getScriptType = 0;" + main,
+            "var getScriptType = undefined;" + main,
+            "function samMain( {",
+            "function getScriptType(){return 0;}"
+        };
+        for (int i = 0; i < broken.length; i++) {
+            loadTestScript(path, "override.js", main);
+            check(AnnouncePackLoader.runScript("override.js", null) != null,
+                "Earlier legacy override is executable before replacement " + i);
+            loadTestScript(path, "override.js", broken[i]);
+            check(!AnnouncePackLoader.scriptEngines.containsKey("override.js"),
+                "Broken override removes earlier engine " + i);
+            check(AnnouncePackLoader.availableScripts.stream().noneMatch(s -> s.fileName.equals("override.js")),
+                "Broken override is absent from GUI metadata " + i);
+            for (ScriptType type : new ScriptType[]{ScriptType.APPROACH, ScriptType.STATION_NAME,
+                    ScriptType.AWARENESS, ScriptType.DEPARTURE_MELODY})
+                check(!AnnouncePackLoader.canUseScript("override.js", type),
+                    "Broken override cannot pass compatibility: " + i + "/" + type);
+            check(AnnouncePackLoader.runAnnounceScript("override.js", null, ScriptType.STATION_NAME) == null,
+                "Broken override cannot execute through ordinary announcement runtime " + i);
+            try {
+                AnnouncePackLoader.runDepartureScript("override.js", null);
+                throw new AssertionError("Broken override ran through departure runtime");
+            } catch (IllegalArgumentException expected) { checks++; }
+        }
+        loadTestScript(path, "override.js", "function getDisplayName(){throw new Error('display');}" + main);
+        check(AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.fileName.equals("override.js")
+                && s.displayName.equals("override.js")), "Display exception uses filename fallback");
+        check(AnnouncePackLoader.runScript("override.js", null) != null,
+            "Display exception remains non-fatal and a later valid pack restores the name");
+        loadTestScript(path, "override.js", "function getScriptType(){return 4;}"
+            + "function getDisplayName(){return 'replacement';}" + main);
+        check(AnnouncePackLoader.getScriptType("override.js") == ScriptType.AWARENESS
+                && AnnouncePackLoader.availableScripts.stream().filter(s -> s.fileName.equals("override.js")).count() == 1
+                && AnnouncePackLoader.availableScripts.stream().anyMatch(s -> s.fileName.equals("override.js")
+                    && s.displayName.equals("replacement")), "Valid override replaces type and display metadata exactly once");
+        check(AnnouncePackLoader.runAnnounceScript("override.js", null, ScriptType.AWARENESS) != null,
+            "Valid override executes with its new type");
+    }
+
+    private static void loadTestScript(java.nio.file.Path path, String name, String source) throws Exception {
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(path))) {
+            scriptEntry(zip, "scripts/" + name, source);
+        }
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(path.toFile())) {
+            AnnouncePackLoader.loadScripts(zip);
+        }
     }
 
     private static void scriptEntry(java.util.zip.ZipOutputStream zip, String name, String source) throws Exception {

@@ -154,6 +154,10 @@ jar {
         include 'howtoDepartureMelody.md'
         include 'howtoAddAnnounce.md'
         include 'SCRIPT_RUNTIME.md'
+        include 'CHANGELOG.md'
+        include 'howtoAwarenessAnnouncer.md'
+        include 'howtoSpeakerModels.md'
+        include 'howtoStationNameAnnouncer.md'
         include 'LICENSE'
     }
 
@@ -227,10 +231,16 @@ tasks.register('verifyReleaseMetadata') {
                 ? metadata.modList[0].version : null
             if (embeddedVersion != releaseVersion)
                 throw new GradleException("mcmod.info version mismatch: ${embeddedVersion} != ${releaseVersion}")
+            ['README.md', 'howtoDepartureMelody.md', 'howtoAddAnnounce.md', 'SCRIPT_RUNTIME.md',
+             'CHANGELOG.md', 'howtoAwarenessAnnouncer.md', 'howtoSpeakerModels.md',
+             'howtoStationNameAnnouncer.md', 'LICENSE'].each { document ->
+                if (zip.getEntry(document) == null)
+                    throw new GradleException("Release artifact has no document: ${document}")
+            }
         } finally {
             zip.close()
         }
-        logger.lifecycle("Verified release metadata: ${releaseJar.name}, version ${releaseVersion}")
+        logger.lifecycle("Verified release metadata: ${releaseJar.name}, version ${releaseVersion}, 9 documents")
     }
 }
 
