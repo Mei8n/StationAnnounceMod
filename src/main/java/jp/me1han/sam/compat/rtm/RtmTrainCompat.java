@@ -83,6 +83,13 @@ public final class RtmTrainCompat implements TrainCompat {
         return entity.getEntityId();
     }
 
+    private float getSpeed(Entity entity) {
+        Method method = this.trainAccessors.getSpeed;
+        if (method == null) method = this.accessorsFor(entity.getClass()).getSpeed;
+        Object value = invokeNoArgs(entity, method);
+        return value instanceof Number ? ((Number)value).floatValue() : Float.NaN;
+    }
+
     @SuppressWarnings("unchecked")
     private static Class<? extends Entity> resolveTrainClass() {
         try {
@@ -132,6 +139,11 @@ public final class RtmTrainCompat implements TrainCompat {
         @Override
         public long getFormationId() {
             return RtmTrainCompat.this.getFormationId(this.entity);
+        }
+
+        @Override
+        public float getSpeed() {
+            return RtmTrainCompat.this.getSpeed(this.entity);
         }
 
         @Override
@@ -378,6 +390,7 @@ public final class RtmTrainCompat implements TrainCompat {
     private static final class Accessors {
         private final Method isControlCar;
         private final Method getFormation;
+        private final Method getSpeed;
         private final Method getResourceState;
         private final Method getTrainStateData;
         private final Method getDataMap;
@@ -394,6 +407,7 @@ public final class RtmTrainCompat implements TrainCompat {
         private Accessors(Class<?> type) {
             this.isControlCar = findNoArgMethod(type, "isControlCar");
             this.getFormation = findNoArgMethod(type, "getFormation");
+            this.getSpeed = findNoArgMethod(type, "getSpeed");
             this.getResourceState = findNoArgMethod(type, "getResourceState");
             this.getTrainStateData = findNoArgMethod(type, "getTrainStateData");
             this.getDataMap = findNoArgMethod(type, "getDataMap");

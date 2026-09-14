@@ -34,6 +34,7 @@ public class StationAnnounceModCore {
     public static final int GUI_ID_DEPARTURE_SWITCH = 9;
     public static final int GUI_ID_DEPARTURE_SWITCH_ITEM = 10;
     public static final int GUI_ID_SPEAKER_ITEM = 11;
+    public static final int GUI_ID_STATION_NAME = 12;
 
     public static java.io.File samPacksDir;
 
@@ -56,6 +57,8 @@ public class StationAnnounceModCore {
     public static Block blockAwarenessAnnouncer;
     public static Block blockDepartureMelody;
     public static Block blockDepartureSwitch;
+    public static Block blockStationNameRedstone;
+    public static Block blockStationNameStopDetector;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
@@ -89,6 +92,11 @@ public class StationAnnounceModCore {
         blockDepartureSwitch = new BlockDepartureSwitch();
         GameRegistry.registerBlock(blockDepartureSwitch, jp.me1han.sam.item.ItemDepartureSwitch.class, "blockDepartureSwitch");
 
+        blockStationNameRedstone = new BlockStationNameRedstone();
+        GameRegistry.registerBlock(blockStationNameRedstone, "blockStationNameRedstone");
+        blockStationNameStopDetector = new BlockStationNameStopDetector();
+        GameRegistry.registerBlock(blockStationNameStopDetector, "blockStationNameStopDetector");
+
         GameRegistry.registerTileEntity(TileEntityAnnouncer.class, "tileEntityAnnouncer");
         GameRegistry.registerTileEntity(TileEntityStartAnnouncer.class, "tileStartAnnouncer");
         GameRegistry.registerTileEntity(TileEntityStopAnnouncer.class, "tileStopAnnouncer");
@@ -98,6 +106,8 @@ public class StationAnnounceModCore {
         GameRegistry.registerTileEntity(TileEntityAwarenessAnnouncer.class, "tileAwarenessAnnouncer");
         GameRegistry.registerTileEntity(TileEntityDepartureMelody.class, "tileDepartureMelody");
         GameRegistry.registerTileEntity(TileEntityDepartureSwitch.class, "tileDepartureSwitch");
+        GameRegistry.registerTileEntity(TileEntityStationNameRedstone.class, "tileStationNameRedstone");
+        GameRegistry.registerTileEntity(TileEntityStationNameStopDetector.class, "tileStationNameStopDetector");
 
         NetworkHandler.init();
         proxy.preInit(event);

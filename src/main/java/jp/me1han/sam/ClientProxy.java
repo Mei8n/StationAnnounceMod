@@ -117,6 +117,9 @@ public class ClientProxy extends CommonProxy {
         if (ID == StationAnnounceModCore.GUI_ID_DEPARTURE_SWITCH && DepartureSwitchLink.isSwitch(tile)) {
             return new jp.me1han.sam.gui.GuiDepartureSwitch(tile);
         }
+        if (ID == StationAnnounceModCore.GUI_ID_STATION_NAME && tile instanceof TileEntityStationNameAnnouncer) {
+            return new jp.me1han.sam.gui.GuiStationNameAnnouncer((TileEntityStationNameAnnouncer)tile);
+        }
         return null;
     }
 }

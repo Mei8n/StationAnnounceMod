@@ -223,3 +223,5 @@ function samMain(tile) {
 | パーツ間の無音 | `sam.interval(秒数)` | `sam.interval(秒数)` |
 
 発車用の具体例と再生モードは、[発車メロディの設定](howtoDepartureMelody.md)にまとめています。
+
+駅名連呼も同じ`AnnounceData`形式を使いますが、`getScriptType()`は`STATION_NAME`（2）です。RS入力式・RTM停車検知式の設定とJS例は[駅名連呼ブロック](howtoStationNameAnnouncer.md)を参照してください。SCRIPTモードの啓発放送は`AWARENESS`（4）を使用し、詳細は[啓発放送ブロック](howtoAwarenessAnnouncer.md)を参照してください。型未宣言の`UNKNOWN`は後方互換のため各用途で使用できますが、既知の異なる型は拒否されます。

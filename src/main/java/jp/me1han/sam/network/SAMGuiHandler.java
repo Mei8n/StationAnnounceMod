@@ -66,6 +66,9 @@ public class SAMGuiHandler implements IGuiHandler {
         if (ID == StationAnnounceModCore.GUI_ID_DEPARTURE_SWITCH && jp.me1han.sam.DepartureSwitchLink.isSwitch(tile)) {
             return new ContainerDepartureSwitch(tile);
         }
+        if (ID == StationAnnounceModCore.GUI_ID_STATION_NAME && tile instanceof TileEntityStationNameAnnouncer) {
+            return new ContainerStationNameAnnouncer((TileEntityStationNameAnnouncer)tile);
+        }
         return null;
     }
 

@@ -8,6 +8,10 @@ tile.sam.speaker=スピーカー
 # Issue #7 blocks
 tile.sam.awareness_announcer.name=啓発放送ブロック
 tile.sam.departure_melody.name=発車メロディブロック
+tile.sam.station_name_redstone.name=RS式駅名連呼ブロック
+tile.sam.station_name_stop_detector.name=RTM停車検知式駅名連呼ブロック
+gui.sam.station_name.title=駅名連呼設定
+gui.sam.station_name.script=駅名連呼用JSファイル名 (.js)
 
 # Common GUI
 gui.sam.link_key=Link Key

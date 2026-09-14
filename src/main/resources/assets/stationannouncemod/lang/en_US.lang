@@ -6,6 +6,10 @@ tile.trainTypeSelector.name=Train Type Selector
 tile.sam.speaker=Speaker
 tile.sam.awareness_announcer.name=Awareness Announcer
 tile.sam.departure_melody.name=Departure Melody Block
+tile.sam.station_name_redstone.name=Redstone Station Name Announcer
+tile.sam.station_name_stop_detector.name=RTM Stop Station Name Announcer
+gui.sam.station_name.title=Station Name Announcer Config
+gui.sam.station_name.script=Station-name JS filename (.js)
 
 # Common GUI
 gui.sam.link_key=Link Key
