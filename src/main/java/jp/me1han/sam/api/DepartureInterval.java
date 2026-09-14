@@ -5,13 +5,17 @@ public final class DepartureInterval {
     public final int ticks;
 
     public DepartureInterval(double seconds) {
-        if (Double.isNaN(seconds) || Double.isInfinite(seconds) || seconds <= 0 || seconds > 3600) {
-            throw new IllegalArgumentException("Part interval must be >0 to 3600 seconds");
-        }
+        ticks = secondsToTicks(seconds, false, "Part interval");
+    }
+
+    static int secondsToTicks(double seconds, boolean allowZero, String label) {
+        if (Double.isNaN(seconds) || Double.isInfinite(seconds) || seconds < 0 || (!allowZero && seconds == 0) || seconds > 3600)
+            throw new IllegalArgumentException(label + " must be " + (allowZero ? ">=0" : ">0") + " to 3600 seconds");
         java.math.BigDecimal hundredths = java.math.BigDecimal.valueOf(seconds)
             .setScale(2, java.math.RoundingMode.DOWN);
-        ticks = hundredths.multiply(java.math.BigDecimal.valueOf(20))
+        int result = hundredths.multiply(java.math.BigDecimal.valueOf(20))
             .setScale(0, java.math.RoundingMode.CEILING).intValueExact();
-        if (ticks == 0) throw new IllegalArgumentException("Part interval must be at least 0.01 seconds");
+        if (!allowZero && result == 0) throw new IllegalArgumentException(label + " must be at least 0.01 seconds");
+        return result;
     }
 }

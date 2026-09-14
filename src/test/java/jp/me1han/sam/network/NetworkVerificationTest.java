@@ -57,7 +57,7 @@ public final class NetworkVerificationTest {
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
         AnnouncePackLoader.soundTicks.put("test:b", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); awarenessScriptMode(); awarenessRedstoneGate(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); arrivalAnnouncements(); awarenessScriptMode(); awarenessRedstoneGate(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -1077,6 +1077,122 @@ public final class NetworkVerificationTest {
         AnnouncePackLoader.availableScripts.removeIf(info -> info.fileName.equals(name));
         AnnouncePackLoader.availableScripts.add(new AnnounceScriptInfo(name, name, type));
         return engine;
+    }
+
+    private static void arrivalAnnouncements() throws Exception {
+        ServerSessions.clear(); SamLinkRegistry.clear();
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        FixtureWorld world = new FixtureWorld(); player(world, 0, 0, 0);
+        TileEntityAnnouncer owner = new TileEntityAnnouncer(); owner.setLinkKey("arrival"); world.add(owner, 0, 0, 0);
+        String name = "arrival-test.js";
+        ScriptEngine engine = registerScript(name, ScriptType.APPROACH,
+            "var calls=0; var delay=0.15; var saved; function samMain(tile){ calls++;"
+            + "saved=sam.build(null,[tile.getReceivedData().get('trainType')=='rapid'?'test:b':'test:a',sam.interval(.1),'test:a'],null,2);"
+            + "return sam.build(null,['test:body'],null,sam.arrival(delay,saved));}");
+        owner.setScriptName(name); owner.receivedData.put("trainType", "rapid"); owner.startAnnounce();
+        check(owner.hasArmedArrival() && !owner.hasPendingArrival(), "Arrival is armed only after successful approach START");
+        check(owner.receivedData.isEmpty(), "Approach consumes receivedData after snapshot");
+        check(out.count(PacketAnnounce.class) == 1 && out.count(PacketSessionSpeakerRoutes.class) == 1,
+            "Arming arrival adds no packet or routing snapshot");
+        for (int i=0;i<5;i++) { world.nextTick(); owner.updateEntity(); }
+        check(out.count(PacketAnnounce.class) == 1, "Arrival never starts before ANNOUNCE_STOP");
+        out.clear();
+        SamTriggerDispatcher.dispatch(world, SamTrigger.from(owner, SamTriggerType.ANNOUNCE_STOP,
+            owner.getLinkKey(), SamTriggerSourceType.INTERNAL, SamTrigger.NO_FORMATION));
+        check(out.count(PacketAnnounceStop.class) == 1 && sessions() == 0, "Live STOP stops the approach session first");
+        check(!owner.hasArmedArrival() && owner.getPendingArrivalTicks() == 3, "STOP consumes armed plan and starts three-tick delay");
+        owner.updateEntity();
+        check(owner.getPendingArrivalTicks() == 3, "Same-tick Tile update does not shorten arrival delay");
+        world.nextTick(); owner.updateEntity(); owner.onAnnounceStopTrigger();
+        check(owner.getPendingArrivalTicks() == 2, "Repeated STOP does not reset pending deadline");
+        world.nextTick(); owner.updateEntity();
+        check(out.count(PacketAnnounce.class) == 0, "No arrival before exact deadline");
+        engine.eval("saved.bodySounds.set(0,'test:a');");
+        world.nextTick(); owner.updateEntity();
+        check(out.count(PacketAnnounce.class) == 1 && sessions() == 1, "Arrival starts once at deadline using existing session path");
+        PacketAnnounce arrival = (PacketAnnounce)out.messages.stream().filter(m -> m instanceof PacketAnnounce).findFirst().get();
+        check(arrival.bodySounds.get(0).equals("test:b"), "Arrival keeps initial receivedData and does not alias retained JS data");
+        check(arrival.repeatCount == 2 && arrival.bodySounds.size() == 3 && arrival.bodyPartTicks.get(1) == 2,
+            "Arrival preserves repeat and interval with authoritative timing");
+        check(arrival.priority == PacketAnnounce.PRIORITY_ANNOUNCE && !arrival.allowOverlap,
+            "Arrival uses ordinary announcement priority and arbitration");
+        check(((Number)engine.get("calls")).intValue() == 1, "STOP and delay never reinvoke JS");
+        check(!owner.hasPendingArrival() && !owner.hasArmedArrival(), "Arrival reservation consumed after playback starts");
+        owner.onAnnounceStopTrigger(); world.nextTick(); owner.updateEntity();
+        check(out.count(PacketAnnounce.class) == 1, "STOP after completion cannot replay arrival");
+
+        engine.put("delay", 0); owner.startAnnounce(); out.clear(); owner.onAnnounceStopTrigger();
+        check(out.messages.get(0) instanceof PacketAnnounceStop && out.messages.get(1) instanceof PacketAnnounce,
+            "Zero delay sends STOP before immediate arrival START");
+        check(!owner.hasPendingArrival(), "Zero delay leaves no pending state");
+        engine.put("delay", .15); owner.startAnnounce(); owner.onAnnounceStopTrigger(); world.nextTick();
+        owner.startAnnounce(); out.clear();
+        for(int i=0;i<4;i++){world.nextTick();owner.updateEntity();}
+        check(owner.hasArmedArrival() && !owner.hasPendingArrival() && out.count(PacketAnnounce.class)==0,
+            "New approach replaces pending arrival without playing stale content");
+        owner.receivedData.put("trainType", "rapid"); owner.startAnnounce();
+        owner.receivedData.put("trainType", "local"); owner.startAnnounce(); out.clear(); owner.onAnnounceStopTrigger();
+        for(int i=0;i<3;i++){world.nextTick();owner.updateEntity();}
+        PacketAnnounce replaced = (PacketAnnounce)out.messages.stream().filter(m -> m instanceof PacketAnnounce).findFirst().get();
+        check(replaced.bodySounds.get(0).equals("test:a"), "New approach replaces previously armed arrival");
+
+        for (int reason=0; reason<7; reason++) {
+            owner.validate(); owner.startAnnounce(); owner.onAnnounceStopTrigger(); out.clear();
+            if(reason==0) owner.forceStop();
+            if(reason==1) owner.onChunkUnload();
+            if(reason==2) owner.invalidate();
+            if(reason==3) ServerSessions.stopAll();
+            if(reason==4) ServerSessions.INSTANCE.unload(new net.minecraftforge.event.world.WorldEvent.Unload(world));
+            if(reason==5) ServerSessions.clear();
+            if(reason==6) { NBTTagCompound nbt=new NBTTagCompound(); owner.writeToNBT(nbt); owner.readFromNBT(nbt); }
+            for(int i=0;i<4;i++){world.nextTick();owner.updateEntity();}
+            check(!owner.hasPendingArrival() && !owner.hasArmedArrival() && out.count(PacketAnnounce.class)==0,
+                "Cancellation/reload never emits arrival, reason="+reason);
+        }
+        owner.validate(); owner.startAnnounce(); owner.forceStop(); owner.onAnnounceStopTrigger();
+        check(!owner.hasPendingArrival(), "Generic forceStop discards armed arrival as well");
+        NBTTagCompound nbt=new NBTTagCompound(); owner.startAnnounce(); owner.writeToNBT(nbt);
+        TileEntityAnnouncer restored=new TileEntityAnnouncer(); restored.readFromNBT(nbt);
+        check(!restored.hasArmedArrival() && !restored.hasPendingArrival() && restored.getScriptName().equals(name),
+            "NBT retains configuration only, never live reservation");
+        String legacy="arrival-legacy.js";
+        registerScript(legacy, ScriptType.UNKNOWN, "function samMain(tile){return sam.build('', ['test:a'], '', 2);}");
+        owner.setScriptName(legacy); owner.startAnnounce(); out.clear(); owner.onAnnounceStopTrigger();
+        check(!owner.hasArmedArrival() && !owner.hasPendingArrival() && out.count(PacketAnnounce.class)==0,
+            "Legacy UNKNOWN script and numeric repeat overload retain stop-only behavior");
+        check(AnnouncePackLoader.runScript(legacy,owner).repeatCount==2, "Legacy public runScript remains AnnounceData-compatible");
+        for(String source : new String[] {
+            "throw new Error('test failure');", "return 3;",
+            "return sam.build('', ['test:a'], '', sam.arrival(.1,sam.build('', ['test:missing-arrival'], '')));",
+            "return sam.build('', ['test:a'], '', sam.arrival(-1,sam.build('', ['test:a'], '')));",
+            "return sam.build('', ['test:a'], '', sam.arrival(.1,sam.build('', [sam.interval(0)], '')));"
+        }) {
+            registerScript("arrival-invalid.js",ScriptType.APPROACH,"function samMain(tile){"+source+"}");
+            owner.setScriptName("arrival-invalid.js"); out.clear(); owner.startAnnounce();
+            check(!owner.hasArmedArrival() && out.count(PacketAnnounce.class)==0, "Invalid script/arrival rejected before approach starts");
+        }
+        owner.setScriptName("arrival-missing.js"); owner.startAnnounce();
+        check(!owner.hasArmedArrival(), "Missing script cannot arm arrival");
+        registerScript("arrival-wrong.js",ScriptType.ARRIVAL,"function samMain(tile){return sam.build('', ['test:a'], '');}");
+        owner.setScriptName("arrival-wrong.js"); out.clear(); owner.startAnnounce();
+        check(!owner.hasArmedArrival() && out.count(PacketAnnounce.class)==0, "Reserved ARRIVAL type cannot bypass APPROACH guard");
+        check(ScriptType.ARRIVAL.id==1, "ARRIVAL ID remains reserved and unchanged");
+        SAMScriptAPI api=new SAMScriptAPI(); AnnounceData data=new AnnounceData("",Collections.singletonList("test:a"),"");
+        check(api.arrival(0,data).delayTicks==0 && api.arrival(.019,data).delayTicks==1
+            && api.arrival(3600,data).delayTicks==72000, "Arrival seconds use existing hundredth-second conversion with zero and max bounds");
+        for(double value:new double[]{-1,3600.01,Double.NaN,Double.POSITIVE_INFINITY}) {
+            boolean rejected=false; try{api.arrival(value,data);}catch(IllegalArgumentException expected){rejected=true;}
+            check(rejected,"Invalid arrival delay rejected: "+value);
+        }
+        owner.setScriptName(name); owner.startAnnounce(); owner.onAnnounceStopTrigger(); out.clear();
+        new jp.me1han.sam.block.BlockAnnouncer().breakBlock(world,0,0,0,net.minecraft.init.Blocks.air,0);
+        for(int i=0;i<4;i++){world.nextTick();owner.updateEntity();}
+        check(!owner.hasPendingArrival() && out.count(PacketAnnounce.class)==0, "Block destruction cancels pending arrival without replay");
+        world.add(owner,0,0,0); owner.startAnnounce(); owner.onAnnounceStopTrigger();
+        owner.setScriptName("arrival-missing.js"); out.clear(); owner.startAnnounce();
+        for(int i=0;i<4;i++){world.nextTick();owner.updateEntity();}
+        check(!owner.hasPendingArrival() && out.count(PacketAnnounce.class)==0, "Failed replacement approach cancels old pending plan");
+        owner.forceStop(); ServerSessions.clear(); SamLinkRegistry.clear();
     }
 
     private static void awarenessScriptMode() throws Exception {
@@ -2944,6 +3060,7 @@ public final class NetworkVerificationTest {
         int starts, stops, dataReceives;
         @Override public void startAnnounce() { starts++; }
         @Override public void forceStop() { stops++; }
+        @Override public void onAnnounceStopTrigger() { stops++; }
         @Override public void onDataReceived(Map<String, String> data, String sourcePos) {
             dataReceives++;
             super.onDataReceived(data, sourcePos);
@@ -3024,6 +3141,10 @@ public final class NetworkVerificationTest {
             return powered;
         }
         @Override public TileEntity getTileEntity(int x, int y, int z) { return tiles.get(SpeakerRegistry.position(x, y, z)); }
+        @Override public void removeTileEntity(int x, int y, int z) {
+            TileEntity tile = tiles.remove(SpeakerRegistry.position(x,y,z));
+            if (tile != null) tile.invalidate();
+        }
         @Override public void markBlockForUpdate(int x, int y, int z) { updates++; }
         @Override public int getBlockMetadata(int x, int y, int z) { return 0; }
         @Override public net.minecraft.block.Block getBlock(int x, int y, int z) { return net.minecraft.init.Blocks.air; }

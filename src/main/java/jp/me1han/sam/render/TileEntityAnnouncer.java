@@ -1,6 +1,8 @@
 package jp.me1han.sam.render;
 
 import jp.me1han.sam.api.AnnounceData;
+import jp.me1han.sam.api.ApproachProgram;
+import jp.me1han.sam.api.ArrivalPlan;
 import jp.me1han.sam.network.PacketAnnounce;
 import jp.me1han.sam.network.NetworkHandler;
 import jp.me1han.sam.AnnouncePackLoader;
@@ -24,6 +26,12 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
     private boolean lastPowered = false;
     private String scriptName = "";
     private String linkKey = "";
+    private ArrivalPlan armedArrival;
+    private ArrivalPlan pendingArrival;
+    private long pendingArrivalDeadline = -1;
+    // Only owners with a live reservation; visited on explicit cleanup events, never per tick.
+    private static final java.util.Set<TileEntityAnnouncer> ARRIVAL_OWNERS =
+        Collections.newSetFromMap(new java.util.IdentityHashMap<TileEntityAnnouncer, Boolean>());
 
     public boolean playLocalSound = false;
 
@@ -43,15 +51,27 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
 
     public void startAnnounce() {
         if (worldObj == null || worldObj.isRemote) return;
+        clearArrivalState();
         if (scriptName == null || scriptName.isEmpty()) return;
 
-        AnnounceData data = AnnouncePackLoader.runScript(scriptName, this);
+        ApproachProgram program = AnnouncePackLoader.runApproachScript(scriptName, this);
 
         this.receivedData.clear();
         this.lastDataReceivedTime = System.currentTimeMillis();
         this.markDirty();
 
-        if (data != null) sendStart(new PacketAnnounce(data, getLinkKey(), playLocalSound, xCoord, yCoord, zCoord));
+        if (program == null) return;
+        long sessionId = sendStart(new PacketAnnounce(program.approach, getLinkKey(), playLocalSound,
+            xCoord, yCoord, zCoord));
+        if (sessionId != 0 && program.arrival != null) {
+            armedArrival = program.arrival.copy();
+            ARRIVAL_OWNERS.add(this);
+        }
+    }
+
+    @Override public void updateEntity() {
+        if (worldObj == null || worldObj.isRemote || pendingArrival == null) return;
+        if (worldObj.getTotalWorldTime() >= pendingArrivalDeadline) playPendingArrival();
     }
 
     public void startDirectSound(String soundId, int priority, boolean allowOverlap) {
@@ -93,18 +113,71 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
     }
 
     @Override public void invalidate() {
+        clearArrivalState();
         jp.me1han.sam.network.ServerSessions.stopOwner(this);
         super.invalidate();
     }
     @Override public void onChunkUnload() {
+        clearArrivalState();
         jp.me1han.sam.network.ServerSessions.stopOwner(this);
         super.onChunkUnload();
     }
 
     public void forceStop() {
-        if (this.worldObj.isRemote) return;
+        clearArrivalState();
+        stopLinkedPlayback();
+    }
+
+    /** Stop Announcer live event: stop first, then arm the already-snapshotted arrival delay. */
+    public void onAnnounceStopTrigger() {
+        if (worldObj == null || worldObj.isRemote) return;
+        ArrivalPlan arrival = armedArrival;
+        armedArrival = null;
+        stopLinkedPlayback();
+        if (arrival == null) return; // A repeated STOP cannot reset an existing pending delay.
+        pendingArrival = arrival;
+        pendingArrivalDeadline = worldObj.getTotalWorldTime() + arrival.delayTicks;
+        if (arrival.delayTicks == 0) playPendingArrival();
+    }
+
+    private void stopLinkedPlayback() {
+        if (worldObj == null || worldObj.isRemote) return;
         TileEntityDepartureMelody.cancelLinked(this.worldObj, this.getLinkKey());
         jp.me1han.sam.network.ServerSessions.stopKey(worldObj, getLinkKey());
+    }
+
+    private void playPendingArrival() {
+        ArrivalPlan arrival = pendingArrival;
+        clearArrivalState();
+        if (arrival != null)
+            startAnnouncement(arrival.announcement, PacketAnnounce.PRIORITY_ANNOUNCE, false);
+    }
+
+    private void clearArrivalState() {
+        armedArrival = null;
+        pendingArrival = null;
+        pendingArrivalDeadline = -1;
+        if (worldObj != null && !worldObj.isRemote) ARRIVAL_OWNERS.remove(this);
+    }
+
+    public boolean hasArmedArrival() { return armedArrival != null; }
+    public boolean hasPendingArrival() { return pendingArrival != null; }
+    public int getPendingArrivalTicks() {
+        return pendingArrival == null ? -1 : (int)Math.max(0, pendingArrivalDeadline - worldObj.getTotalWorldTime());
+    }
+
+    /** World/server shutdown and global stop also cancel plans whose approach session has ended. */
+    public static void clearArrivals(net.minecraft.world.World world) {
+        java.util.Iterator<TileEntityAnnouncer> owners = ARRIVAL_OWNERS.iterator();
+        while (owners.hasNext()) {
+            TileEntityAnnouncer owner = owners.next();
+            if (world == null || owner.worldObj == world) {
+                owner.armedArrival = null;
+                owner.pendingArrival = null;
+                owner.pendingArrivalDeadline = -1;
+                owners.remove();
+            }
+        }
     }
 
     public void onDataReceived(Map<String, String> data, String sourcePos) {
@@ -116,11 +189,13 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
 
     public String getScriptName() { return this.scriptName; }
     public void setScriptName(String name) {
+        clearArrivalState();
         this.scriptName = name;
     }
 
     @Override public String getLinkKey() { return this.linkKey; }
     @Override public void setLinkKey(String key) {
+        if (!this.linkKey.equals(LinkKey.normalize(key))) clearArrivalState();
         this.linkKey = LinkKey.normalize(key);
         SamLinkRegistry.reindex(this);
     }
@@ -135,6 +210,7 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
 
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
+        clearArrivalState();
         super.readFromNBT(nbt);
         this.scriptName = nbt.getString("scriptName");
         this.setLinkKey(nbt.getString("linkKey"));
