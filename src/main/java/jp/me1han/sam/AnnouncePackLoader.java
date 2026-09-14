@@ -158,7 +158,7 @@ public class AnnouncePackLoader {
                 if (!(result instanceof Number)) throw new IllegalArgumentException("getScriptType() must return an integer");
                 double number = ((Number)result).doubleValue();
                 int id = ((Number)result).intValue();
-                if (number != id || !ScriptType.isDeclaredId(id))
+                if (number != id || id == ScriptType.UNKNOWN.id || !ScriptType.isDeclaredId(id))
                     throw new IllegalArgumentException("Invalid getScriptType() value: " + result);
                 scriptType = ScriptType.fromId(id);
             }

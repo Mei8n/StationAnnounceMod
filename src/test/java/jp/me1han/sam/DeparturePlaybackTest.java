@@ -572,7 +572,7 @@ public final class DeparturePlaybackTest {
 
     private static void verifyScriptLoadFailures(java.nio.file.Path path) throws Exception {
         String main = "function samMain(t) { return sam.build(null, [], null); }";
-        for (ScriptType type : new ScriptType[]{ScriptType.UNKNOWN, ScriptType.APPROACH, ScriptType.ARRIVAL,
+        for (ScriptType type : new ScriptType[]{ScriptType.APPROACH, ScriptType.ARRIVAL,
                 ScriptType.STATION_NAME, ScriptType.DEPARTURE_MELODY, ScriptType.AWARENESS}) {
             loadTestScript(path, "typed.js", "function getScriptType(){return " + type.id + ";}" + main);
             check(AnnouncePackLoader.scriptEngines.containsKey("typed.js")
@@ -580,6 +580,7 @@ public final class DeparturePlaybackTest {
                 "Valid declared ID is registered: " + type);
         }
         String[] broken = {
+            "function getScriptType(){return -1;}" + main,
             "function getScriptType(){return 99;}" + main,
             "function getScriptType(){return 0.5;}" + main,
             "function getScriptType(){return '0';}" + main,
