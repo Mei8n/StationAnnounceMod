@@ -102,10 +102,35 @@ public final class SpeakerModelTest {
     }
     private static void registry() throws Exception {
         SpeakerModelRegistry.reset();
-        check(SpeakerModelRegistry.list().isEmpty(), "Empty Speaker registry is valid");
+        SpeakerModelDefinition sample = SpeakerModelRegistry.get(SpeakerModelRegistry.SAMPLE_MODEL);
+        check(sample != null && SpeakerModelRegistry.list().size() == 1,
+            "Bundled lighting Speaker sample is registered without becoming the default selection");
+        check(sample.displayName.equals("\u7167\u660e\u578b\u30b9\u30d4\u30fc\u30ab\u30fc")
+            && sample.tags.contains("lighting"),
+            "Bundled Speaker sample exposes searchable metadata");
+        check(sample.scale == .01 && Arrays.equals(sample.modelOffset, new double[]{0,0,0}),
+            "Bundled Speaker sample uses Metasequoia centimeters with no origin correction");
+        check(Arrays.equals(sample.bounds, new double[]{.14,.25,.12,.81,1.01,.88}),
+            "Bundled Speaker sample bounds cover its MQO geometry");
+        try (InputStream model = SpeakerModelTest.class.getResourceAsStream("/assets/stationannouncemod/speakers/speaker_light_sample.mqo");
+             InputStream texture = SpeakerModelTest.class.getResourceAsStream("/assets/stationannouncemod/speakers/speaker_light_sample.png")) {
+            check(model != null && texture != null, "Bundled Speaker MQO and PNG resources exist");
+            MqoMesh mesh = MqoMesh.read(new InputStreamReader(model, StandardCharsets.UTF_8));
+            sample.validateParts(mesh.parts.keySet());
+            check(mesh.parts.size() == 2 && mesh.materials.size() == 1,
+                "Bundled RTM lighting MQO is readable without modifying its structure");
+            boolean positive = false, negative = false;
+            for (MqoMesh.Triangle triangle : mesh.parts.get("obj2")) for (double[] vertex : triangle.vertices) {
+                if (Math.abs(vertex[0] - 30) < 1e-6) positive = true;
+                if (Math.abs(vertex[0] + 30) < 1e-6) negative = true;
+            }
+            check(positive && negative, "Bundled MQO mirror is expanded across its X axis");
+        }
+        check(sample.textures.get("mat1").equals("stationannouncemod:speakers/speaker_light_sample.png"),
+            "Bundled sample uses the SAM JSON texture mapping");
         Path zipPath = zip(new String[][]{{"assets/stationannouncemod/speakers/platform.json", VALID}});
         try (ZipFile zip = new ZipFile(zipPath.toFile())) { SpeakerModelRegistry.loadPack(zip); }
-        check(SpeakerModelRegistry.get("platform") != null && SpeakerModelRegistry.list().size() == 1, "Pack model loads");
+        check(SpeakerModelRegistry.get("platform") != null && SpeakerModelRegistry.list().size() == 2, "Pack model loads beside bundled sample");
         Files.delete(zipPath);
         Path duplicate = zip(new String[][]{
             {"assets/stationannouncemod/speakers/a.json", VALID},
@@ -113,7 +138,7 @@ public final class SpeakerModelTest {
         });
         SpeakerModelRegistry.reset();
         try (ZipFile zip = new ZipFile(duplicate.toFile())) { SpeakerModelRegistry.loadPack(zip); }
-        check(SpeakerModelRegistry.list().size() == 1 && SpeakerModelRegistry.get("platform").modelFile.endsWith("platform.mqo"),
+        check(SpeakerModelRegistry.list().size() == 2 && SpeakerModelRegistry.get("platform").modelFile.endsWith("platform.mqo"),
             "Duplicate name is rejected without replacing the first definition");
         Files.delete(duplicate);
     }

@@ -30,7 +30,7 @@ public final class MqoMesh {
         List<Triangle> faces = null;
         String section = "";
         String line;
-        int number = 0, triangleCount = 0;
+        int number = 0, triangleCount = 0, mirrorMode = 0, mirrorAxis = 1;
         boolean signature = false;
         try {
             while ((line = reader.readLine()) != null) {
@@ -46,13 +46,26 @@ public final class MqoMesh {
                     faces = new ArrayList<>();
                     if (mesh.parts.put(name, faces) != null) throw new IllegalArgumentException("Duplicate object: " + name);
                     vertices = new ArrayList<>();
+                    mirrorMode = 0;
+                    mirrorAxis = 1;
                     section = "";
                     continue;
                 }
                 if (line.startsWith("vertex ")) { section = "vertex"; continue; }
                 if (line.startsWith("face ")) { section = "face"; continue; }
                 if (line.startsWith("BVertex")) throw new IllegalArgumentException("Use text MQO, not binary vertices");
-                if (line.matches("(mirror|patch)\\s+[1-9].*")) throw new IllegalArgumentException("Freeze mirrors/subdivision before exporting MQO");
+                if (line.startsWith("mirror ")) {
+                    mirrorMode = Integer.parseInt(line.substring("mirror ".length()).trim());
+                    if (mirrorMode < 0 || mirrorMode > 2) throw new IllegalArgumentException("Unsupported mirror mode");
+                    continue;
+                }
+                if (line.startsWith("mirror_axis ")) {
+                    mirrorAxis = Integer.parseInt(line.substring("mirror_axis ".length()).trim());
+                    if (mirrorAxis != 1 && mirrorAxis != 2 && mirrorAxis != 4)
+                        throw new IllegalArgumentException("Freeze multi-axis mirrors before exporting MQO");
+                    continue;
+                }
+                if (line.matches("patch\\s+[1-9].*")) throw new IllegalArgumentException("Freeze subdivision before exporting MQO");
                 if (section.equals("material")) {
                     Material material = new Material();
                     material.name = quoted(line);
@@ -88,6 +101,10 @@ public final class MqoMesh {
                         normal(triangle);
                         faces.add(triangle);
                         if (++triangleCount > 200000) throw new IllegalArgumentException("Too many MQO triangles");
+                        if (mirrorMode != 0) {
+                            faces.add(mirror(triangle, mirrorAxis));
+                            if (++triangleCount > 200000) throw new IllegalArgumentException("Too many MQO triangles");
+                        }
                     }
                 }
             }
@@ -130,5 +147,22 @@ public final class MqoMesh {
         n[0] = y1 * z2 - z1 * y2; n[1] = z1 * x2 - x1 * z2; n[2] = x1 * y2 - y1 * x2;
         double length = Math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
         if (length > 0) for (int i = 0; i < 3; i++) n[i] /= length;
+    }
+
+    private static Triangle mirror(Triangle source, int axes) {
+        Triangle result = new Triangle();
+        result.material = source.material;
+        boolean reverse = Integer.bitCount(axes) % 2 != 0;
+        for (int i = 0; i < 3; i++) {
+            int from = reverse && i > 0 ? 3 - i : i;
+            result.vertices[i] = source.vertices[from].clone();
+            if ((axes & 1) != 0) result.vertices[i][0] = -result.vertices[i][0];
+            if ((axes & 2) != 0) result.vertices[i][1] = -result.vertices[i][1];
+            if ((axes & 4) != 0) result.vertices[i][2] = -result.vertices[i][2];
+            result.uv[i][0] = source.uv[from][0];
+            result.uv[i][1] = source.uv[from][1];
+        }
+        normal(result);
+        return result;
     }
 }

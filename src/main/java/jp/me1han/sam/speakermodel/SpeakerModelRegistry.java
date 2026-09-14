@@ -6,12 +6,18 @@ import java.util.*;
 import java.util.zip.*;
 import jp.me1han.sam.StationAnnounceModCore;
 
-/** Speaker-only model namespace. Empty is valid and means that only No Model is available. */
+/** Speaker-only model namespace. An empty model name remains the independent No Model choice. */
 public final class SpeakerModelRegistry {
     public static final String ROOT = "assets/stationannouncemod/speakers/";
+    public static final String SAMPLE_MODEL = "speaker_light_sample";
     private static final Map<String, SpeakerModelDefinition> MODELS = new LinkedHashMap<>();
     private SpeakerModelRegistry() {}
-    public static void reset() { MODELS.clear(); }
+    public static void reset() {
+        MODELS.clear();
+        String file = SAMPLE_MODEL + ".json";
+        load(SpeakerModelRegistry.class.getResourceAsStream("/" + ROOT + file),
+            "stationannouncemod:speakers/" + file);
+    }
     public static void loadPack(ZipFile zip) throws IOException {
         Enumeration<? extends ZipEntry> entries = zip.entries();
         while (entries.hasMoreElements()) {
