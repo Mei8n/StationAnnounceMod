@@ -16,6 +16,8 @@ public final class SpeakerModelDefinition implements StaticModelDefinition {
     public String modelFile;
     public double scale = 0.01;
     public double[] modelOffset = {0, 0, 0};
+    public boolean smoothing;
+    public boolean doCulling;
     public double[] bounds = {0.25, 0, 0.25, 0.75, 1, 0.75};
     public final Map<String, String> textures = new LinkedHashMap<>();
 
@@ -33,6 +35,8 @@ public final class SpeakerModelDefinition implements StaticModelDefinition {
         if (model.has("scale")) result.scale = model.get("scale").getAsDouble();
         if (!finite(result.scale) || result.scale <= 0 || result.scale > 100) throw new IllegalArgumentException("Invalid model scale");
         if (model.has("offset")) result.modelOffset = vector(model.getAsJsonArray("offset"), 3);
+        if (json.has("smoothing")) result.smoothing = json.get("smoothing").getAsBoolean();
+        if (json.has("doCulling")) result.doCulling = json.get("doCulling").getAsBoolean();
         ModelTextureResolver.parse(model, resource, result.textures);
         if (json.has("bounds")) result.bounds = vector(json.getAsJsonArray("bounds"), 6);
         for (int i = 0; i < 6; i++) if (Math.abs(result.bounds[i]) > 16)
@@ -60,6 +64,8 @@ public final class SpeakerModelDefinition implements StaticModelDefinition {
     @Override public String getModelFile() { return modelFile; }
     @Override public double getScale() { return scale; }
     @Override public double[] getModelOffset() { return modelOffset; }
+    @Override public boolean isSmoothing() { return smoothing; }
+    @Override public boolean isCulling() { return doCulling; }
     @Override public Map<String, String> getTextures() { return textures; }
     @Override public void validateParts(Set<String> parts) { if (parts.isEmpty()) throw new IllegalArgumentException("MQO has no parts"); }
     @Override public boolean visible(String part, boolean state) { return true; }

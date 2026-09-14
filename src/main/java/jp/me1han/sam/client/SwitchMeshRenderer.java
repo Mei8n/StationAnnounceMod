@@ -50,11 +50,10 @@ public final class SwitchMeshRenderer implements IResourceManagerReloadListener 
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_TEXTURE_BIT);
         GL11.glPushMatrix();
         try {
-            GL11.glDisable(GL11.GL_LIGHTING);
-            GL11.glDisable(GL11.GL_CULL_FACE);
-            GL11.glEnable(GL11.GL_BLEND);
-            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            if (definition.isCulling()) GL11.glEnable(GL11.GL_CULL_FACE);
+            else GL11.glDisable(GL11.GL_CULL_FACE);
             GL11.glScaled(definition.getScale(), definition.getScale(), definition.getScale());
+            if (definition.isSmoothing()) GL11.glShadeModel(GL11.GL_SMOOTH);
             double[] modelOffset = definition.getModelOffset();
             GL11.glTranslated(modelOffset[0], modelOffset[1], modelOffset[2]);
             for (Map.Entry<String, List<MqoMesh.Triangle>> part : mesh.parts.entrySet()) {
@@ -70,17 +69,21 @@ public final class SwitchMeshRenderer implements IResourceManagerReloadListener 
                     tess.setBrightness(brightness);
                     for (MqoMesh.Triangle face : part.getValue()) {
                         if (face.material != m) continue;
-                        float shade = (float) (0.7 + 0.3 * Math.max(0, face.normal[1]));
-                        tess.setColorRGBA_F((float) material.color[0] * shade, (float) material.color[1] * shade,
-                            (float) material.color[2] * shade, (float) material.color[3]);
-                        tess.setNormal((float) face.normal[0], (float) face.normal[1], (float) face.normal[2]);
-                        for (int i = 0; i < 3; i++) tess.addVertexWithUV(face.vertices[i][0], face.vertices[i][1], face.vertices[i][2], face.uv[i][0], face.uv[i][1]);
+                        tess.setColorRGBA_F(1, 1, 1, 1);
+                        for (int i = 0; i < 3; i++) {
+                            double[] normal = definition.isSmoothing() ? face.vertexNormals[i] : face.normal;
+                            tess.setNormal((float) normal[0], (float) normal[1], (float) normal[2]);
+                            tess.addVertexWithUV(face.vertices[i][0], face.vertices[i][1], face.vertices[i][2], face.uv[i][0], face.uv[i][1]);
+                        }
                     }
                     tess.draw();
                 }
                 GL11.glPopMatrix();
             }
-        } finally { GL11.glPopMatrix(); GL11.glPopAttrib(); }
+        } finally {
+            if (definition.isSmoothing()) GL11.glShadeModel(GL11.GL_FLAT);
+            GL11.glPopMatrix(); GL11.glPopAttrib();
+        }
         return true;
     }
 

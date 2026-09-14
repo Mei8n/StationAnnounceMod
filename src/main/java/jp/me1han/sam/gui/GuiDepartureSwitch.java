@@ -6,6 +6,7 @@ import jp.me1han.sam.network.*;
 import jp.me1han.sam.render.TileEntityDepartureSwitch;
 import jp.me1han.sam.switchmodel.*;
 import net.minecraft.client.gui.*;
+import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.tileentity.TileEntity;
@@ -179,8 +180,12 @@ public class GuiDepartureSwitch extends GuiScreen {
             catch (NumberFormatException ignored) { }
             GL11.glRotatef(35 + previewYaw, 0, 1, 0);
             GL11.glTranslated(-(min[0] + max[0]) / 2, -(min[1] + max[1]) / 2, -(min[2] + max[2]) / 2);
+            RenderHelper.enableGUIStandardItemLighting();
             SwitchMeshRenderer.INSTANCE.render(model, pressedPreview, 0xF000F0);
-        } finally { GL11.glPopMatrix(); GL11.glPopAttrib(); }
+        } finally {
+            RenderHelper.disableStandardItemLighting();
+            GL11.glPopMatrix(); GL11.glPopAttrib();
+        }
     }
     private void texture(int x, int y, int w, int h) {
         Tessellator tess = Tessellator.instance;

@@ -2,6 +2,8 @@
   "name": "sam_speaker1",
   "displayName": "スピーカー1",
   "tags": "",
+  "smoothing": true,
+  "doCulling": true,
   "model": {
     "modelFile": "sam_speaker1.mqo",
     "scale": 0.01,

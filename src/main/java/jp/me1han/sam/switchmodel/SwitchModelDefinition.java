@@ -17,6 +17,8 @@ public final class SwitchModelDefinition implements StaticModelDefinition {
     public String soundOff = "";
     public double scale = 0.01;
     public double[] modelOffset = {0, 0, 0};
+    public boolean smoothing;
+    public boolean doCulling;
     public double[] bounds = {0.25, 0, 0.25, 0.75, 0.3, 0.75};
     public final Map<String, String> textures = new LinkedHashMap<>();
     public final Set<String> normalParts = new LinkedHashSet<>();
@@ -38,6 +40,8 @@ public final class SwitchModelDefinition implements StaticModelDefinition {
         if (!result.modelFile.endsWith(".mqo")) throw new IllegalArgumentException("modelFile must be an .mqo file");
         if (model.has("scale")) result.scale = model.get("scale").getAsDouble();
         if (model.has("offset")) result.modelOffset = vector(model.getAsJsonArray("offset"), 3);
+        if (json.has("smoothing")) result.smoothing = json.get("smoothing").getAsBoolean();
+        if (json.has("doCulling")) result.doCulling = json.get("doCulling").getAsBoolean();
         if (!Double.isFinite(result.scale) || result.scale <= 0 || result.scale > 100) throw new IllegalArgumentException("Invalid model scale");
         ModelTextureResolver.parse(model, resource, result.textures);
         if (json.has("buttonTexture")) result.buttonTexture = optionalResource(resource, string(json, "buttonTexture", ""));
@@ -94,6 +98,8 @@ public final class SwitchModelDefinition implements StaticModelDefinition {
     @Override public String getModelFile() { return modelFile; }
     @Override public double getScale() { return scale; }
     @Override public double[] getModelOffset() { return modelOffset; }
+    @Override public boolean isSmoothing() { return smoothing; }
+    @Override public boolean isCulling() { return doCulling; }
     @Override public Map<String, String> getTextures() { return textures; }
     @Override public double[] partOffset(String part, boolean state) { return offset(part, state); }
 

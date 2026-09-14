@@ -192,6 +192,8 @@ SamplePack.zip
   "displayName": "サンプル発車メロディスイッチ",
   "tags": "ホーム 発車",
   "switchMode": "alternate",
+  "smoothing": true,
+  "doCulling": true,
   "model": {
     "modelFile": "sample_switch.mqo",
     "scale": 0.01,
@@ -224,6 +226,8 @@ SamplePack.zip
 | `displayName` | モデル一覧での表示名。省略時は`name` |
 | `tags` | 検索用の文字列 |
 | `switchMode` | `alternate`でON/OFF保持、`momentary`で単押し。省略時は`momentary` |
+| `smoothing` | RTMと同じスムーズシェーディング。`true`ではMQO各Objectの`facet`角以内で共有頂点の法線を補間。省略時は`false` |
+| `doCulling` | RTMと同じ片面描画。`true`では裏面を描画しない。省略時は`false` |
 | `model.modelFile` | MQOファイルのパス |
 | `model.scale` | モデル倍率。既定値0.01 |
 | `model.offset` | モデル全体の位置補正`[X, Y, Z]`。倍率を掛ける前のモデル単位 |

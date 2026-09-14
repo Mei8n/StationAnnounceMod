@@ -8,6 +8,8 @@ public interface StaticModelDefinition {
     String getModelFile();
     double getScale();
     double[] getModelOffset();
+    boolean isSmoothing();
+    boolean isCulling();
     Map<String, String> getTextures();
     void validateParts(java.util.Set<String> parts);
     boolean visible(String part, boolean state);

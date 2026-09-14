@@ -8,18 +8,17 @@ import java.util.regex.*;
 public final class MqoMesh {
     public static final class Material {
         public String name;
-        /** Parsed only for MQO compatibility; SAM rendering intentionally ignores this path. */
-        public String texture = "";
-        public double[] color = {1, 1, 1, 1};
     }
     public static final class Triangle {
         public final double[][] vertices = new double[3][];
         public final double[][] uv = new double[3][2];
         public final double[] normal = new double[3];
+        public final double[][] vertexNormals = new double[3][3];
         public int material;
     }
     public final List<Material> materials = new ArrayList<>();
     public final Map<String, List<Triangle>> parts = new LinkedHashMap<>();
+    public final Map<String, Double> smoothingAngles = new LinkedHashMap<>();
     private static final Pattern QUOTED = Pattern.compile("\"([^\"]*)\"");
     private static final Pattern FIELDS = Pattern.compile("([A-Za-z]+)\\(([^)]*)\\)");
 
@@ -31,6 +30,7 @@ public final class MqoMesh {
         String section = "";
         String line;
         int number = 0, triangleCount = 0, mirrorMode = 0, mirrorAxis = 1;
+        String currentPart = null;
         boolean signature = false;
         try {
             while ((line = reader.readLine()) != null) {
@@ -43,12 +43,20 @@ public final class MqoMesh {
                 if (line.startsWith("Material ")) { section = "material"; continue; }
                 if (line.startsWith("Object ")) {
                     String name = quoted(line);
+                    currentPart = name;
                     faces = new ArrayList<>();
                     if (mesh.parts.put(name, faces) != null) throw new IllegalArgumentException("Duplicate object: " + name);
                     vertices = new ArrayList<>();
                     mirrorMode = 0;
                     mirrorAxis = 1;
                     section = "";
+                    continue;
+                }
+                if (line.startsWith("facet ")) {
+                    if (currentPart == null) throw new IllegalArgumentException("Facet outside an object");
+                    double angle = Double.parseDouble(line.substring("facet ".length()).trim());
+                    if (!Double.isFinite(angle) || angle < 0 || angle > 180) throw new IllegalArgumentException("Invalid facet angle");
+                    mesh.smoothingAngles.put(currentPart, angle);
                     continue;
                 }
                 if (line.startsWith("vertex ")) { section = "vertex"; continue; }
@@ -69,9 +77,6 @@ public final class MqoMesh {
                 if (section.equals("material")) {
                     Material material = new Material();
                     material.name = quoted(line);
-                    Map<String, String> fields = fields(line);
-                    if (fields.containsKey("col")) material.color = numbers(fields.get("col"), 4);
-                    if (fields.containsKey("tex")) material.texture = quoted(fields.get("tex")).replace('\\', '/');
                     mesh.materials.add(material);
                 } else if (section.equals("vertex")) {
                     if (vertices.size() >= 200000) throw new IllegalArgumentException("Too many MQO vertices");
@@ -113,8 +118,56 @@ public final class MqoMesh {
             for (List<Triangle> part : mesh.parts.values()) for (Triangle face : part) {
                 if (face.material < 0 || face.material >= mesh.materials.size()) throw new IllegalArgumentException("Invalid material index");
             }
+            mesh.calculateVertexNormals();
             return mesh;
         } catch (RuntimeException e) { throw new IOException("MQO line " + number + ": " + e.getMessage(), e); }
+    }
+
+    /** Matches NGTLib: smooth only shared vertices whose face angle is within the MQO Object facet value. */
+    private void calculateVertexNormals() {
+        for (Map.Entry<String, List<Triangle>> part : parts.entrySet()) {
+            Map<VertexKey, List<Triangle>> adjacent = new HashMap<>();
+            for (Triangle face : part.getValue()) for (double[] vertex : face.vertices) {
+                VertexKey key = new VertexKey(vertex);
+                List<Triangle> faces = adjacent.get(key);
+                if (faces == null) { faces = new ArrayList<>(); adjacent.put(key, faces); }
+                if (!faces.contains(face)) faces.add(face);
+            }
+            double angleCos = Math.cos(Math.toRadians(smoothingAngles.containsKey(part.getKey())
+                ? smoothingAngles.get(part.getKey()) : 0));
+            for (Triangle face : part.getValue()) for (int i = 0; i < 3; i++) {
+                double[] result = face.vertexNormals[i];
+                for (Triangle other : adjacent.get(new VertexKey(face.vertices[i]))) {
+                    if (dot(face.normal, other.normal) + 1.0E-9 >= angleCos) {
+                        result[0] += other.normal[0]; result[1] += other.normal[1]; result[2] += other.normal[2];
+                    }
+                }
+                normalize(result);
+            }
+        }
+    }
+
+    private static double dot(double[] a, double[] b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+    private static void normalize(double[] value) {
+        double length = Math.sqrt(dot(value, value));
+        if (length > 0) for (int i = 0; i < 3; i++) value[i] /= length;
+    }
+
+    private static final class VertexKey {
+        final long x, y, z;
+        VertexKey(double[] value) {
+            x = bits(value[0]); y = bits(value[1]); z = bits(value[2]);
+        }
+        private static long bits(double value) { return Double.doubleToLongBits(value == 0 ? 0 : value); }
+        @Override public int hashCode() {
+            long hash = x * 31L * 31L + y * 31L + z;
+            return (int) (hash ^ (hash >>> 32));
+        }
+        @Override public boolean equals(Object value) {
+            if (!(value instanceof VertexKey)) return false;
+            VertexKey other = (VertexKey) value;
+            return x == other.x && y == other.y && z == other.z;
+        }
     }
 
     private static Map<String, String> fields(String line) {

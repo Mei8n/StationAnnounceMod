@@ -7,6 +7,7 @@ import jp.me1han.sam.render.TileEntitySpeaker;
 import jp.me1han.sam.speakermodel.*;
 import jp.me1han.sam.switchmodel.*;
 import net.minecraft.client.gui.*;
+import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.resources.I18n;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -138,8 +139,12 @@ public class GuiSpeaker extends GuiScreen {
             float yaw = tile.getRotationYaw(); try { yaw = SwitchYaw.parse(rotation.getText()); } catch (RuntimeException ignored) { }
             GL11.glRotatef(35 + yaw, 0, 1, 0);
             GL11.glTranslated(-(min[0]+max[0])/2, -(min[1]+max[1])/2, -(min[2]+max[2])/2);
+            RenderHelper.enableGUIStandardItemLighting();
             SwitchMeshRenderer.INSTANCE.render(model, false, 0xF000F0);
-        } finally { GL11.glPopMatrix(); GL11.glPopAttrib(); }
+        } finally {
+            RenderHelper.disableStandardItemLighting();
+            GL11.glPopMatrix(); GL11.glPopAttrib();
+        }
     }
     @Override public void handleMouseInput() {
         super.handleMouseInput(); int delta = Mouse.getEventDWheel();

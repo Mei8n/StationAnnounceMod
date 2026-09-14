@@ -51,6 +51,7 @@ public final class SpeakerModelTest {
         check(model.modelFile.equals("stationannouncemod:speakers/platform.mqo"), "Relative MQO path");
         check(model.textures.get("mat1").equals("stationannouncemod:speakers/platform.png"), "Relative texture path");
         check(model.scale == .02 && Arrays.equals(model.modelOffset, new double[]{1,2,3}), "Scale and model offset");
+        check(!model.smoothing && !model.doCulling, "RTM shading flags retain false defaults");
         check(Arrays.equals(model.bounds, new double[]{.2,-.1,.3,.8,1.2,.7}), "Bounds");
         check(model.visible("anything", false) && model.visible("anything", true), "Speaker model has one static state");
         for (String json : new String[]{
@@ -109,6 +110,8 @@ public final class SpeakerModelTest {
             "Bundled Speaker sample exposes searchable metadata");
         check(sample.scale == .01 && Arrays.equals(sample.modelOffset, new double[]{0,0,0}),
             "Bundled Speaker sample uses Metasequoia centimeters with no origin correction");
+        check(sample.smoothing && sample.doCulling,
+            "Bundled RTM Speaker sample enables RTM smoothing and back-face culling");
         check(Arrays.equals(sample.bounds, new double[]{.14,.25,.12,.81,1.01,.88}),
             "Bundled Speaker sample bounds cover its MQO geometry");
         try (InputStream model = SpeakerModelTest.class.getResourceAsStream("/assets/stationannouncemod/speakers/sam_speaker1.mqo");
@@ -118,6 +121,8 @@ public final class SpeakerModelTest {
             sample.validateParts(mesh.parts.keySet());
             check(mesh.parts.size() == 2 && mesh.materials.size() == 1,
                 "Bundled RTM lighting MQO is readable without modifying its structure");
+            check(mesh.smoothingAngles.get("obj1") == 59.5 && mesh.smoothingAngles.get("obj2") == 59.5,
+                "Bundled Speaker retains each MQO Object facet angle");
             boolean positive = false, negative = false;
             for (MqoMesh.Triangle triangle : mesh.parts.get("obj2")) for (double[] vertex : triangle.vertices) {
                 if (Math.abs(vertex[0] - 30) < 1e-6) positive = true;
