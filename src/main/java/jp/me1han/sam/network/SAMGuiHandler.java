@@ -16,6 +16,10 @@ public class SAMGuiHandler implements IGuiHandler {
             return jp.me1han.sam.item.ItemDepartureSwitch.isSwitchItem(player.getHeldItem())
                 ? new ContainerDepartureSwitchItem(player) : null;
         }
+        if (ID == StationAnnounceModCore.GUI_ID_SPEAKER_ITEM) {
+            return jp.me1han.sam.item.ItemSpeaker.isSpeakerItem(player.getHeldItem())
+                ? new ContainerSpeakerItem(player) : null;
+        }
         TileEntity tile = world.getTileEntity(x, y, z);
 
         if (ID == StationAnnounceModCore.GUI_ID_ANNOUNCER) {

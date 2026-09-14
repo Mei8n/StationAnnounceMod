@@ -9,7 +9,7 @@ import jp.me1han.sam.StationAnnounceModCore;
 /** Speaker-only model namespace. An empty model name remains the independent No Model choice. */
 public final class SpeakerModelRegistry {
     public static final String ROOT = "assets/stationannouncemod/speakers/";
-    public static final String SAMPLE_MODEL = "speaker_light_sample";
+    public static final String SAMPLE_MODEL = "sam_speaker1";
     private static final Map<String, SpeakerModelDefinition> MODELS = new LinkedHashMap<>();
     private SpeakerModelRegistry() {}
     public static void reset() {

@@ -20,6 +20,7 @@ gui.sam.speaker.volume=Volume
 gui.sam.speaker.empty=No matching models
 gui.sam.speaker.missing=Model not found
 gui.sam.speaker.model_error=Model load error. Check the pack definition and log.
+gui.sam.speaker.item_title=Select Speaker Model to Place
 
 # Awareness Announcer GUI
 gui.sam.awareness.title=Awareness Announcer Config

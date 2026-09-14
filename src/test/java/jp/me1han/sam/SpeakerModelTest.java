@@ -38,7 +38,7 @@ public final class SpeakerModelTest {
     public static void main(String[] args) throws Exception {
         Method mapping = TileEntity.class.getDeclaredMethod("addMapping", Class.class, String.class);
         mapping.setAccessible(true); mapping.invoke(null, TestSpeaker.class, "speaker-model-test");
-        definition(); texturePolicy(); registry(); tileAndPacket(); placement(); cache();
+        definition(); texturePolicy(); registry(); itemSelection(); tileAndPacket(); placement(); cache();
         SwitchModelRegistry.reset();
         check(SwitchModelRegistry.list().size() == 2, "Speaker registry work does not alter switch models");
         System.out.println("Speaker models: " + checks + " checks passed");
@@ -105,15 +105,14 @@ public final class SpeakerModelTest {
         SpeakerModelDefinition sample = SpeakerModelRegistry.get(SpeakerModelRegistry.SAMPLE_MODEL);
         check(sample != null && SpeakerModelRegistry.list().size() == 1,
             "Bundled lighting Speaker sample is registered without becoming the default selection");
-        check(sample.displayName.equals("\u7167\u660e\u578b\u30b9\u30d4\u30fc\u30ab\u30fc")
-            && sample.tags.contains("lighting"),
+        check(sample.displayName.equals("\u30b9\u30d4\u30fc\u30ab\u30fc1") && sample.tags.isEmpty(),
             "Bundled Speaker sample exposes searchable metadata");
         check(sample.scale == .01 && Arrays.equals(sample.modelOffset, new double[]{0,0,0}),
             "Bundled Speaker sample uses Metasequoia centimeters with no origin correction");
         check(Arrays.equals(sample.bounds, new double[]{.14,.25,.12,.81,1.01,.88}),
             "Bundled Speaker sample bounds cover its MQO geometry");
-        try (InputStream model = SpeakerModelTest.class.getResourceAsStream("/assets/stationannouncemod/speakers/speaker_light_sample.mqo");
-             InputStream texture = SpeakerModelTest.class.getResourceAsStream("/assets/stationannouncemod/speakers/speaker_light_sample.png")) {
+        try (InputStream model = SpeakerModelTest.class.getResourceAsStream("/assets/stationannouncemod/speakers/sam_speaker1.mqo");
+             InputStream texture = SpeakerModelTest.class.getResourceAsStream("/assets/stationannouncemod/speakers/sam_speaker1.png")) {
             check(model != null && texture != null, "Bundled Speaker MQO and PNG resources exist");
             MqoMesh mesh = MqoMesh.read(new InputStreamReader(model, StandardCharsets.UTF_8));
             sample.validateParts(mesh.parts.keySet());
@@ -126,7 +125,7 @@ public final class SpeakerModelTest {
             }
             check(positive && negative, "Bundled MQO mirror is expanded across its X axis");
         }
-        check(sample.textures.get("mat1").equals("stationannouncemod:speakers/speaker_light_sample.png"),
+        check(sample.textures.get("mat1").equals("stationannouncemod:speakers/sam_speaker1.png"),
             "Bundled sample uses the SAM JSON texture mapping");
         Path zipPath = zip(new String[][]{{"assets/stationannouncemod/speakers/platform.json", VALID}});
         try (ZipFile zip = new ZipFile(zipPath.toFile())) { SpeakerModelRegistry.loadPack(zip); }
@@ -141,6 +140,38 @@ public final class SpeakerModelTest {
         check(SpeakerModelRegistry.list().size() == 2 && SpeakerModelRegistry.get("platform").modelFile.endsWith("platform.mqo"),
             "Duplicate name is rejected without replacing the first definition");
         Files.delete(duplicate);
+    }
+    private static void itemSelection() {
+        ItemStack stack = new ItemStack(new net.minecraft.item.Item());
+        NBTTagCompound root = new NBTTagCompound(); root.setString("unrelated", "preserved");
+        NBTTagCompound block = new NBTTagCompound(); block.setString("linkKey", "platform-1");
+        root.setTag("BlockEntityTag", block); stack.setTagCompound(root);
+        check(jp.me1han.sam.item.ItemSpeaker.selectedModel(stack).isEmpty(),
+            "Unconfigured Speaker item keeps No Model as its default");
+        check(jp.me1han.sam.item.ItemSpeaker.selectModel(stack, SpeakerModelRegistry.SAMPLE_MODEL)
+            && jp.me1han.sam.item.ItemSpeaker.selectedModel(stack).equals(SpeakerModelRegistry.SAMPLE_MODEL),
+            "Speaker item picker stores an installed model");
+        check(root.getString("unrelated").equals("preserved")
+            && block.getString("linkKey").equals("platform-1"),
+            "Speaker item picker preserves other portable settings");
+        check(!jp.me1han.sam.item.ItemSpeaker.selectModel(stack, "missing-model")
+            && jp.me1han.sam.item.ItemSpeaker.selectedModel(stack).equals(SpeakerModelRegistry.SAMPLE_MODEL),
+            "Speaker item picker rejects an unavailable model");
+        check(jp.me1han.sam.item.ItemSpeaker.selectModel(stack, "")
+            && jp.me1han.sam.item.ItemSpeaker.selectedModel(stack).isEmpty(),
+            "Speaker item picker restores the explicit No Model selection");
+
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            new PacketSpeakerItemConfig(4, SpeakerModelRegistry.SAMPLE_MODEL).toBytes(buffer);
+            PacketSpeakerItemConfig decoded = new PacketSpeakerItemConfig(); decoded.fromBytes(buffer);
+            check(decoded.slot == 4 && decoded.modelName.equals(SpeakerModelRegistry.SAMPLE_MODEL),
+                "Speaker item picker packet round trip");
+            check(new PacketSpeakerItemConfig(8, "").isValidPayload(),
+                "Speaker item picker packet permits No Model");
+            check(!new PacketSpeakerItemConfig(9, SpeakerModelRegistry.SAMPLE_MODEL).isValidPayload(),
+                "Speaker item picker rejects an invalid hotbar slot");
+        } finally { buffer.release(); }
     }
     private static Path zip(String[][] entries) throws Exception {
         Path path = Files.createTempFile(Paths.get("build"), "speaker-model-", ".zip");

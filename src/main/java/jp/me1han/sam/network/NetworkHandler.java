@@ -39,6 +39,7 @@ public class NetworkHandler {
         INSTANCE.registerMessage(PacketDepartureSwitchItemConfig.Handler.class, PacketDepartureSwitchItemConfig.class, 17, Side.SERVER);
         INSTANCE.registerMessage(SessionSpeakerRoutesHandler.class, PacketSessionSpeakerRoutes.class, 18, Side.CLIENT);
         INSTANCE.registerMessage(SessionTimelineHandler.class, PacketSessionTimeline.class, 19, Side.CLIENT);
+        INSTANCE.registerMessage(PacketSpeakerItemConfig.Handler.class, PacketSpeakerItemConfig.class, 20, Side.SERVER);
     }
 
     // --- クライアント側受信 ---

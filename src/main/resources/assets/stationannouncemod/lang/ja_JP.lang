@@ -22,6 +22,7 @@ gui.sam.speaker.volume=音量
 gui.sam.speaker.empty=該当するモデルがありません
 gui.sam.speaker.missing=モデルが見つかりません
 gui.sam.speaker.model_error=モデルを読み込めません。パックの定義とログを確認してください。
+gui.sam.speaker.item_title=設置するスピーカーモデルを選択
 
 # Awareness Announcer GUI
 gui.sam.awareness.title=啓発放送設定

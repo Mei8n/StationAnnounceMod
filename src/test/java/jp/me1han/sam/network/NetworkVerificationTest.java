@@ -675,6 +675,12 @@ public final class NetworkVerificationTest {
             check(modelLimit.equals(maxModelRead.modelName), "Model boundary remains unchanged");
             buf.clear(); expectEncodeInvalid(() -> new PacketDepartureSwitchItemConfig(8, modelLimit + "m").toBytes(buf));
             buf.clear(); expectEncodeInvalid(() -> new PacketDepartureSwitchItemConfig(9, "model").toBytes(buf));
+            PacketSpeakerItemConfig speakerItem = new PacketSpeakerItemConfig(8, modelLimit);
+            buf.clear(); speakerItem.toBytes(buf);
+            PacketSpeakerItemConfig speakerItemRead = new PacketSpeakerItemConfig(); speakerItemRead.fromBytes(buf);
+            check(modelLimit.equals(speakerItemRead.modelName), "Speaker item model boundary remains unchanged");
+            buf.clear(); expectEncodeInvalid(() -> new PacketSpeakerItemConfig(8, modelLimit + "m").toBytes(buf));
+            buf.clear(); expectEncodeInvalid(() -> new PacketSpeakerItemConfig(9, "model").toBytes(buf));
 
             PacketAnnounce announce = start(901);
             announce.bodySounds = Collections.singletonList(String.join("", Collections.nCopies(PacketLimits.NAME + 1, "s")));
