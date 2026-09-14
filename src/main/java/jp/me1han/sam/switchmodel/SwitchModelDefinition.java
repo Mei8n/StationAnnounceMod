@@ -5,7 +5,7 @@ import java.io.Reader;
 import java.util.*;
 
 /** Common-side JSON data. Does not depend on RTM or OpenGL. Offsets use MQO model units. */
-public final class SwitchModelDefinition {
+public final class SwitchModelDefinition implements StaticModelDefinition {
     public enum SwitchMode { ALTERNATE, MOMENTARY }
     public SwitchMode switchMode = SwitchMode.MOMENTARY;
     public String name;
@@ -17,6 +17,8 @@ public final class SwitchModelDefinition {
     public String soundOff = "";
     public double scale = 0.01;
     public double[] modelOffset = {0, 0, 0};
+    public boolean smoothing;
+    public boolean doCulling;
     public double[] bounds = {0.25, 0, 0.25, 0.75, 0.3, 0.75};
     public final Map<String, String> textures = new LinkedHashMap<>();
     public final Set<String> normalParts = new LinkedHashSet<>();
@@ -38,14 +40,10 @@ public final class SwitchModelDefinition {
         if (!result.modelFile.endsWith(".mqo")) throw new IllegalArgumentException("modelFile must be an .mqo file");
         if (model.has("scale")) result.scale = model.get("scale").getAsDouble();
         if (model.has("offset")) result.modelOffset = vector(model.getAsJsonArray("offset"), 3);
+        if (json.has("smoothing")) result.smoothing = json.get("smoothing").getAsBoolean();
+        if (json.has("doCulling")) result.doCulling = json.get("doCulling").getAsBoolean();
         if (!Double.isFinite(result.scale) || result.scale <= 0 || result.scale > 100) throw new IllegalArgumentException("Invalid model scale");
-        if (model.has("textures")) {
-            for (JsonElement element : model.getAsJsonArray("textures")) {
-                JsonArray entry = element.getAsJsonArray();
-                if (entry.size() < 2) throw new IllegalArgumentException("textures entries require material and resource");
-                result.textures.put(entry.get(0).getAsString(), resolveResource(resource, entry.get(1).getAsString()));
-            }
-        }
+        ModelTextureResolver.parse(model, resource, result.textures);
         if (json.has("buttonTexture")) result.buttonTexture = optionalResource(resource, string(json, "buttonTexture", ""));
         if (json.has("sounds")) {
             JsonObject sounds = json.getAsJsonObject("sounds");
@@ -81,7 +79,7 @@ public final class SwitchModelDefinition {
         return result;
     }
 
-    public boolean visible(String part, boolean pressed) {
+    @Override public boolean visible(String part, boolean pressed) {
         return pressed ? !normalParts.contains(part) : !pressedParts.contains(part);
     }
 
@@ -89,12 +87,21 @@ public final class SwitchModelDefinition {
         return pressed && translations.containsKey(part) ? translations.get(part) : new double[3];
     }
 
-    public void validateParts(Set<String> parts) {
+    @Override public void validateParts(Set<String> parts) {
         Set<String> references = new LinkedHashSet<>(normalParts);
         references.addAll(pressedParts);
         references.addAll(translations.keySet());
         for (String part : references) if (!parts.contains(part)) throw new IllegalArgumentException("Unknown MQO part: " + part);
     }
+
+    @Override public String getName() { return name; }
+    @Override public String getModelFile() { return modelFile; }
+    @Override public double getScale() { return scale; }
+    @Override public double[] getModelOffset() { return modelOffset; }
+    @Override public boolean isSmoothing() { return smoothing; }
+    @Override public boolean isCulling() { return doCulling; }
+    @Override public Map<String, String> getTextures() { return textures; }
+    @Override public double[] partOffset(String part, boolean state) { return offset(part, state); }
 
     public static String resolveResource(String base, String path) {
         path = path.trim().replace('\\', '/');

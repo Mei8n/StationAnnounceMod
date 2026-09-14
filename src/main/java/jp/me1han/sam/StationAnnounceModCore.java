@@ -33,6 +33,7 @@ public class StationAnnounceModCore {
     public static final int GUI_ID_DEPARTURE_MELODY = 8;
     public static final int GUI_ID_DEPARTURE_SWITCH = 9;
     public static final int GUI_ID_DEPARTURE_SWITCH_ITEM = 10;
+    public static final int GUI_ID_SPEAKER_ITEM = 11;
 
     public static java.io.File samPacksDir;
 
@@ -75,7 +76,7 @@ public class StationAnnounceModCore {
         GameRegistry.registerBlock(blockTrainTypeSelector, "trainTypeSelector");
 
         blockSpeaker = new BlockSpeaker();
-        GameRegistry.registerBlock(blockSpeaker, "blockSpeaker");
+        GameRegistry.registerBlock(blockSpeaker, jp.me1han.sam.item.ItemSpeaker.class, "blockSpeaker");
 
         blockDebugReceiver = new BlockDebugReceiver();
         GameRegistry.registerBlock(blockDebugReceiver, "blockDebugReceiver");

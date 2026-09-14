@@ -29,20 +29,23 @@ public class BlockSpeaker extends BlockContainer {
 
     @Override
     public void onBlockPlacedBy(World world, int x, int y, int z, net.minecraft.entity.EntityLivingBase entity, ItemStack stack) {
+        if (world.isRemote) return;
+        TileEntity te = world.getTileEntity(x, y, z);
+        if (!(te instanceof TileEntitySpeaker)) return;
+        TileEntitySpeaker speaker = (TileEntitySpeaker)te;
         if (stack.hasTagCompound() && stack.getTagCompound().hasKey("BlockEntityTag")) {
-            TileEntity te = world.getTileEntity(x, y, z);
-            if (te instanceof TileEntitySpeaker) {
-                NBTTagCompound nbt = stack.getTagCompound().getCompoundTag("BlockEntityTag");
+                NBTTagCompound nbt = (NBTTagCompound)stack.getTagCompound().getCompoundTag("BlockEntityTag").copy();
 
                 nbt.setInteger("x", x);
                 nbt.setInteger("y", y);
                 nbt.setInteger("z", z);
 
-                te.readFromNBT(nbt);
-                te.markDirty();
-                world.markBlockForUpdate(x, y, z);
-            }
+                speaker.readFromNBT(nbt);
         }
+        // Placement orientation deliberately overrides the yaw carried by copied settings.
+        speaker.setRotationYaw(jp.me1han.sam.switchmodel.SwitchYaw.placement(entity.rotationYaw, entity.isSneaking()));
+        speaker.markDirty();
+        world.markBlockForUpdate(x, y, z);
     }
 
     @Override

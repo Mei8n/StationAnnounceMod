@@ -273,6 +273,16 @@ tasks.register('verifySwitchModels', JavaExec) {
 }
 check.dependsOn verifySwitchModels
 
+tasks.register('verifySpeakerModels', JavaExec) {
+    group = 'verification'
+    description = 'Check Speaker model JSON, optional rendering configuration and placement metadata.'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'jp.me1han.sam.SpeakerModelTest'
+    workingDir = projectDir
+}
+check.dependsOn verifySpeakerModels
+
 tasks.register('verifyNetwork', JavaExec) {
     group = 'verification'
     description = 'Check speaker lifecycle, bounded packets, recipient routing, GUI validation and client session ordering.'

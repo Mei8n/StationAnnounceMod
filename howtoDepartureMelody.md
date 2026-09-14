@@ -192,6 +192,8 @@ SamplePack.zip
   "displayName": "サンプル発車メロディスイッチ",
   "tags": "ホーム 発車",
   "switchMode": "alternate",
+  "smoothing": true,
+  "doCulling": true,
   "model": {
     "modelFile": "sample_switch.mqo",
     "scale": 0.01,
@@ -224,15 +226,19 @@ SamplePack.zip
 | `displayName` | モデル一覧での表示名。省略時は`name` |
 | `tags` | 検索用の文字列 |
 | `switchMode` | `alternate`でON/OFF保持、`momentary`で単押し。省略時は`momentary` |
+| `smoothing` | RTMと同じスムーズシェーディング。`true`ではMQO各Objectの`facet`角以内で共有頂点の法線を補間。省略時は`false` |
+| `doCulling` | RTMと同じ片面描画。`true`では裏面を描画しない。省略時は`false` |
 | `model.modelFile` | MQOファイルのパス |
 | `model.scale` | モデル倍率。既定値0.01 |
 | `model.offset` | モデル全体の位置補正`[X, Y, Z]`。倍率を掛ける前のモデル単位 |
-| `model.textures` | `["材質名", "画像パス"]`の配列。`default`を材質名にすると、個別指定のない材質に適用 |
+| `model.textures` | `["材質名", "画像パス"]`の配列。SAMで使用するテクスチャはここで指定する。`default`を材質名にすると、個別指定のない材質に適用 |
 | `buttonTexture` | モデル選択一覧の名前に添える画像。省略可 |
 | `sounds.on`／`sounds.off` | 操作時のクリック音の音声ID。省略または空文字で無音 |
 | `pressedState` | 押下・ON状態のパーツ移動や表示切り替え |
 
 MQO・テクスチャ・`buttonTexture`の相対パスは、JSONが置かれたフォルダを基準にします。`stationannouncemod:switches/sample_switch.png`のようなリソースIDでも指定できます。
+
+MQO内の材質に記録された`tex("...")`は使用されません。各材質には`model.textures`の材質名と完全一致する画像が使われ、一致する指定がなければ`default`、それもなければMinecraft標準のmissing textureが表示されます。材質名に対する指定が存在していて、その画像パスが不正またはファイルが存在しない場合は、`default`へ切り替えずmissing textureになります。テクスチャの問題だけでMQO形状全体が表示されなくなることはありません。
 
 ### モデルの大きさ・原点
 

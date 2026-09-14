@@ -27,6 +27,8 @@ public final class SwitchModelTest {
         verifyYaw();
         verifyBundledModels();
         verifySoundResources();
+        verifyTexturePolicy();
+        verifyRtmShading();
         verifyItemModelSelection();
         String config = "{\"name\":\"sample\",\"model\":{\"modelFile\":\"sample.mqo\",\"offset\":[0,-132.60004,-32.25]},"
             + "\"pressedState\":{\"translations\":[{\"parts\":[\"On\"],\"offset\":[0,0,-1.1]}]}}";
@@ -56,6 +58,8 @@ public final class SwitchModelTest {
             "Bundled alternate switch mode");
         check(momentary != null && momentary.switchMode == SwitchModelDefinition.SwitchMode.MOMENTARY,
             "Bundled momentary switch mode");
+        check(alternate.smoothing && alternate.doCulling && momentary.smoothing && momentary.doCulling,
+            "Bundled switches use RTM smoothing and back-face culling");
         check(SwitchModelRegistry.list().size() == 2, "Only the organized switch definitions are registered");
         try (Reader reader = resource("melodysw_alternate_sample.mqo")) {
             MqoMesh mesh = MqoMesh.read(reader);
@@ -73,6 +77,82 @@ public final class SwitchModelTest {
             && alternate.soundOff.equals("stationannouncemod:melodysw_alternate_off"), "RTM activation sound is used both ways");
         check(alternate.offset("On", true)[2] == -1.1, "RTM Point movement is preserved");
         check(alternate.buttonTexture.isEmpty() && momentary.buttonTexture.isEmpty(), "Organized models use text-only lists");
+    }
+
+    private static void verifyTexturePolicy() throws Exception {
+        String base = "{\"name\":\"texture_test\",\"model\":{\"modelFile\":\"test.mqo\",\"textures\":[";
+        SwitchModelDefinition exact = SwitchModelDefinition.parse(new StringReader(base
+            + "[\"body\",\"body.png\"],[\"default\",\"default.png\"]]} }"),
+            "stationannouncemod:switches/test.json");
+        check(ModelTextureResolver.select(exact.textures, "body").endsWith("/body.png"),
+            "Switch exact JSON texture wins");
+        check(ModelTextureResolver.select(exact.textures, "other").endsWith("/default.png"),
+            "Switch absent exact texture uses JSON default");
+        check(ModelTextureResolver.select(Collections.<String,String>emptyMap(), "body") == null,
+            "Switch without JSON texture uses missing texture");
+
+        SwitchModelDefinition invalidExact = SwitchModelDefinition.parse(new StringReader(base
+            + "[\"body\",\"../bad.png\"],[\"default\",\"default.png\"]]} }"),
+            "stationannouncemod:switches/test.json");
+        check(invalidExact.textures.containsKey("body") && invalidExact.textures.get("body").isEmpty(),
+            "Invalid Switch exact texture remains an explicit missing entry");
+        check(ModelTextureResolver.select(invalidExact.textures, "body") == null,
+            "Invalid Switch exact texture does not fall through to default");
+        check(ModelTextureResolver.select(invalidExact.textures, "other").endsWith("/default.png"),
+            "Unspecified Switch material still uses valid default");
+
+        SwitchModelDefinition invalidDefault = SwitchModelDefinition.parse(new StringReader(base
+            + "[\"default\",\"../bad.png\"]]} }"), "stationannouncemod:switches/test.json");
+        check(ModelTextureResolver.select(invalidDefault.textures, "other") == null,
+            "Invalid Switch default uses missing texture");
+        SwitchModelDefinition unused = SwitchModelDefinition.parse(new StringReader(base
+            + "[\"old_part\",\"missing.png\"]]} }"), "stationannouncemod:switches/test.json");
+        check(unused.modelFile.endsWith("test.mqo") && unused.textures.containsKey("old_part"),
+            "Unused missing Switch texture does not invalidate model metadata");
+
+        String source = read(resource("melodysw_momentary_sample.mqo"));
+        for (String path : new String[]{"C:\\\\Users\\\\user\\\\Desktop\\\\texture.png", "../textures/foo.png"}) {
+            String changed = source.replace("melodysw_momentary_sample.png", path);
+            MqoMesh mesh = MqoMesh.read(new StringReader(changed));
+            SwitchModelRegistry.get("melodysw_momentary_sample").validateParts(mesh.parts.keySet());
+            check(mesh.parts.containsKey("obj1"), "MQO internal texture path does not affect Switch geometry: " + path);
+            check(ModelTextureResolver.select(Collections.<String,String>emptyMap(), mesh.materials.get(0).name) == null,
+                "MQO material.texture is ignored by Switch texture selection");
+        }
+    }
+
+    private static void verifyRtmShading() throws Exception {
+        String header = "Metasequoia Document\nFormat Text Ver 1.1\nMaterial 1 {\n\"mat\" col(0.2 0.3 0.4 1) tex(\"C:\\\\ignored.png\")\n}\n"
+            + "Object \"part\" {\nfacet %s\nvertex 4 {\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n}\n"
+            + "face 2 {\n3 V(0 1 2) M(0)\n3 V(0 3 1) M(0)\n}\n}\nEof\n";
+        MqoMesh smooth = MqoMesh.read(new StringReader(String.format(Locale.ROOT, header, "90")));
+        check(smooth.smoothingAngles.get("part") == 90, "MQO Object facet angle is retained");
+        MqoMesh.Triangle first = smooth.parts.get("part").get(0);
+        check(Math.abs(first.vertexNormals[0][1]) > .5 && Math.abs(first.vertexNormals[0][2]) > .5,
+            "RTM-style smoothing averages adjacent face normals at a shared vertex");
+        check(dot(first.vertexNormals[1], first.normal) > .999999,
+            "A vertex without an adjacent face retains its face normal");
+
+        MqoMesh sharp = MqoMesh.read(new StringReader(String.format(Locale.ROOT, header, "45")));
+        check(dot(sharp.parts.get("part").get(0).vertexNormals[0], sharp.parts.get("part").get(0).normal) > .999999,
+            "Faces beyond the MQO facet angle keep a sharp edge");
+
+        SwitchModelDefinition enabled = SwitchModelDefinition.parse(new StringReader(
+            "{\"name\":\"rtm_shading\",\"smoothing\":true,\"doCulling\":true,\"model\":{\"modelFile\":\"test.mqo\"}}"),
+            "stationannouncemod:switches/test.json");
+        check(enabled.isSmoothing() && enabled.isCulling(), "Switch JSON accepts RTM smoothing and culling flags");
+    }
+
+    private static double dot(double[] a, double[] b) {
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    }
+
+    private static String read(Reader source) throws IOException {
+        try (Reader reader = source) {
+            StringBuilder result = new StringBuilder(); char[] buffer = new char[4096]; int count;
+            while ((count = reader.read(buffer)) >= 0) result.append(buffer, 0, count);
+            return result.toString();
+        }
     }
 
     private static void verifySoundResources() throws Exception {

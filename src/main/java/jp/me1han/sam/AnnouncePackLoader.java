@@ -33,6 +33,7 @@ public class AnnouncePackLoader {
 
     public static void loadPacks() {
         jp.me1han.sam.switchmodel.SwitchModelRegistry.reset();
+        jp.me1han.sam.speakermodel.SpeakerModelRegistry.reset();
         availableScripts.clear();
         scriptEngines.clear();
         soundTicks.clear();
@@ -57,6 +58,7 @@ public class AnnouncePackLoader {
 
             try (ZipFile zip = new ZipFile(file)) {
                 jp.me1han.sam.switchmodel.SwitchModelRegistry.loadPack(zip);
+                jp.me1han.sam.speakermodel.SpeakerModelRegistry.loadPack(zip);
                 loadScripts(zip);
                 Enumeration<? extends ZipEntry> entries = zip.entries();
                 while (entries.hasMoreElements()) {

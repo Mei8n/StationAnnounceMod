@@ -2,6 +2,8 @@
   "name": "melodysw_momentary_sample",
   "switchMode": "momentary",
   "displayName": "発車メロディスイッチ (単押し)",
+  "smoothing": true,
+  "doCulling": true,
   "model": {
     "modelFile": "melodysw_momentary_sample.mqo",
     "scale": 0.01,

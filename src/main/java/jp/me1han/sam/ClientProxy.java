@@ -81,6 +81,13 @@ public class ClientProxy extends CommonProxy {
             }
             return null;
         }
+        if (ID == StationAnnounceModCore.GUI_ID_SPEAKER_ITEM) {
+            net.minecraft.item.ItemStack stack = player.getHeldItem();
+            if (jp.me1han.sam.item.ItemSpeaker.isSpeakerItem(stack)) {
+                return new jp.me1han.sam.gui.GuiSpeakerItem(stack, player.inventory.currentItem);
+            }
+            return null;
+        }
         net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
 
         if (ID == jp.me1han.sam.StationAnnounceModCore.GUI_ID_ANNOUNCER) {

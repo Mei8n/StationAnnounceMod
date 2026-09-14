@@ -2,6 +2,8 @@
   "name": "melodysw_alternate_sample",
   "switchMode": "alternate",
   "displayName": "発車メロディスイッチ (ON/OFF)",
+  "smoothing": true,
+  "doCulling": true,
   "model": {
     "modelFile": "melodysw_alternate_sample.mqo",
     "scale": 0.01,

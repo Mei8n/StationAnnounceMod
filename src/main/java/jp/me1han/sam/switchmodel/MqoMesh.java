@@ -8,17 +8,17 @@ import java.util.regex.*;
 public final class MqoMesh {
     public static final class Material {
         public String name;
-        public String texture = "";
-        public double[] color = {1, 1, 1, 1};
     }
     public static final class Triangle {
         public final double[][] vertices = new double[3][];
         public final double[][] uv = new double[3][2];
         public final double[] normal = new double[3];
+        public final double[][] vertexNormals = new double[3][3];
         public int material;
     }
     public final List<Material> materials = new ArrayList<>();
     public final Map<String, List<Triangle>> parts = new LinkedHashMap<>();
+    public final Map<String, Double> smoothingAngles = new LinkedHashMap<>();
     private static final Pattern QUOTED = Pattern.compile("\"([^\"]*)\"");
     private static final Pattern FIELDS = Pattern.compile("([A-Za-z]+)\\(([^)]*)\\)");
 
@@ -29,7 +29,8 @@ public final class MqoMesh {
         List<Triangle> faces = null;
         String section = "";
         String line;
-        int number = 0, triangleCount = 0;
+        int number = 0, triangleCount = 0, mirrorMode = 0, mirrorAxis = 1;
+        String currentPart = null;
         boolean signature = false;
         try {
             while ((line = reader.readLine()) != null) {
@@ -42,22 +43,40 @@ public final class MqoMesh {
                 if (line.startsWith("Material ")) { section = "material"; continue; }
                 if (line.startsWith("Object ")) {
                     String name = quoted(line);
+                    currentPart = name;
                     faces = new ArrayList<>();
                     if (mesh.parts.put(name, faces) != null) throw new IllegalArgumentException("Duplicate object: " + name);
                     vertices = new ArrayList<>();
+                    mirrorMode = 0;
+                    mirrorAxis = 1;
                     section = "";
+                    continue;
+                }
+                if (line.startsWith("facet ")) {
+                    if (currentPart == null) throw new IllegalArgumentException("Facet outside an object");
+                    double angle = Double.parseDouble(line.substring("facet ".length()).trim());
+                    if (!Double.isFinite(angle) || angle < 0 || angle > 180) throw new IllegalArgumentException("Invalid facet angle");
+                    mesh.smoothingAngles.put(currentPart, angle);
                     continue;
                 }
                 if (line.startsWith("vertex ")) { section = "vertex"; continue; }
                 if (line.startsWith("face ")) { section = "face"; continue; }
                 if (line.startsWith("BVertex")) throw new IllegalArgumentException("Use text MQO, not binary vertices");
-                if (line.matches("(mirror|patch)\\s+[1-9].*")) throw new IllegalArgumentException("Freeze mirrors/subdivision before exporting MQO");
+                if (line.startsWith("mirror ")) {
+                    mirrorMode = Integer.parseInt(line.substring("mirror ".length()).trim());
+                    if (mirrorMode < 0 || mirrorMode > 2) throw new IllegalArgumentException("Unsupported mirror mode");
+                    continue;
+                }
+                if (line.startsWith("mirror_axis ")) {
+                    mirrorAxis = Integer.parseInt(line.substring("mirror_axis ".length()).trim());
+                    if (mirrorAxis != 1 && mirrorAxis != 2 && mirrorAxis != 4)
+                        throw new IllegalArgumentException("Freeze multi-axis mirrors before exporting MQO");
+                    continue;
+                }
+                if (line.matches("patch\\s+[1-9].*")) throw new IllegalArgumentException("Freeze subdivision before exporting MQO");
                 if (section.equals("material")) {
                     Material material = new Material();
                     material.name = quoted(line);
-                    Map<String, String> fields = fields(line);
-                    if (fields.containsKey("col")) material.color = numbers(fields.get("col"), 4);
-                    if (fields.containsKey("tex")) material.texture = quoted(fields.get("tex")).replace('\\', '/');
                     mesh.materials.add(material);
                 } else if (section.equals("vertex")) {
                     if (vertices.size() >= 200000) throw new IllegalArgumentException("Too many MQO vertices");
@@ -87,6 +106,10 @@ public final class MqoMesh {
                         normal(triangle);
                         faces.add(triangle);
                         if (++triangleCount > 200000) throw new IllegalArgumentException("Too many MQO triangles");
+                        if (mirrorMode != 0) {
+                            faces.add(mirror(triangle, mirrorAxis));
+                            if (++triangleCount > 200000) throw new IllegalArgumentException("Too many MQO triangles");
+                        }
                     }
                 }
             }
@@ -95,8 +118,56 @@ public final class MqoMesh {
             for (List<Triangle> part : mesh.parts.values()) for (Triangle face : part) {
                 if (face.material < 0 || face.material >= mesh.materials.size()) throw new IllegalArgumentException("Invalid material index");
             }
+            mesh.calculateVertexNormals();
             return mesh;
         } catch (RuntimeException e) { throw new IOException("MQO line " + number + ": " + e.getMessage(), e); }
+    }
+
+    /** Matches NGTLib: smooth only shared vertices whose face angle is within the MQO Object facet value. */
+    private void calculateVertexNormals() {
+        for (Map.Entry<String, List<Triangle>> part : parts.entrySet()) {
+            Map<VertexKey, List<Triangle>> adjacent = new HashMap<>();
+            for (Triangle face : part.getValue()) for (double[] vertex : face.vertices) {
+                VertexKey key = new VertexKey(vertex);
+                List<Triangle> faces = adjacent.get(key);
+                if (faces == null) { faces = new ArrayList<>(); adjacent.put(key, faces); }
+                if (!faces.contains(face)) faces.add(face);
+            }
+            double angleCos = Math.cos(Math.toRadians(smoothingAngles.containsKey(part.getKey())
+                ? smoothingAngles.get(part.getKey()) : 0));
+            for (Triangle face : part.getValue()) for (int i = 0; i < 3; i++) {
+                double[] result = face.vertexNormals[i];
+                for (Triangle other : adjacent.get(new VertexKey(face.vertices[i]))) {
+                    if (dot(face.normal, other.normal) + 1.0E-9 >= angleCos) {
+                        result[0] += other.normal[0]; result[1] += other.normal[1]; result[2] += other.normal[2];
+                    }
+                }
+                normalize(result);
+            }
+        }
+    }
+
+    private static double dot(double[] a, double[] b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+    private static void normalize(double[] value) {
+        double length = Math.sqrt(dot(value, value));
+        if (length > 0) for (int i = 0; i < 3; i++) value[i] /= length;
+    }
+
+    private static final class VertexKey {
+        final long x, y, z;
+        VertexKey(double[] value) {
+            x = bits(value[0]); y = bits(value[1]); z = bits(value[2]);
+        }
+        private static long bits(double value) { return Double.doubleToLongBits(value == 0 ? 0 : value); }
+        @Override public int hashCode() {
+            long hash = x * 31L * 31L + y * 31L + z;
+            return (int) (hash ^ (hash >>> 32));
+        }
+        @Override public boolean equals(Object value) {
+            if (!(value instanceof VertexKey)) return false;
+            VertexKey other = (VertexKey) value;
+            return x == other.x && y == other.y && z == other.z;
+        }
     }
 
     private static Map<String, String> fields(String line) {
@@ -129,5 +200,22 @@ public final class MqoMesh {
         n[0] = y1 * z2 - z1 * y2; n[1] = z1 * x2 - x1 * z2; n[2] = x1 * y2 - y1 * x2;
         double length = Math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
         if (length > 0) for (int i = 0; i < 3; i++) n[i] /= length;
+    }
+
+    private static Triangle mirror(Triangle source, int axes) {
+        Triangle result = new Triangle();
+        result.material = source.material;
+        boolean reverse = Integer.bitCount(axes) % 2 != 0;
+        for (int i = 0; i < 3; i++) {
+            int from = reverse && i > 0 ? 3 - i : i;
+            result.vertices[i] = source.vertices[from].clone();
+            if ((axes & 1) != 0) result.vertices[i][0] = -result.vertices[i][0];
+            if ((axes & 2) != 0) result.vertices[i][1] = -result.vertices[i][1];
+            if ((axes & 4) != 0) result.vertices[i][2] = -result.vertices[i][2];
+            result.uv[i][0] = source.uv[from][0];
+            result.uv[i][1] = source.uv[from][1];
+        }
+        normal(result);
+        return result;
     }
 }
