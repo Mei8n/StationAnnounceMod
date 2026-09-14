@@ -54,10 +54,12 @@ public final class NetworkVerificationTest {
         mapping.invoke(null, TileEntityDebugReceiver.class, "network-test-debug");
         mapping.invoke(null, TileEntityAwarenessAnnouncer.class, "network-test-awareness");
         mapping.invoke(null, CountingDispatchAwareness.class, "network-test-awareness-counting");
+        mapping.invoke(null, TileEntityStationNameRedstone.class, "network-test-station-name-rs");
+        mapping.invoke(null, TileEntityStationNameStopDetector.class, "network-test-station-name-stop");
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
         AnnouncePackLoader.soundTicks.put("test:b", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); arrivalAnnouncements(); awarenessScriptMode(); awarenessRedstoneGate(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); stationNameAnnouncers(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); arrivalAnnouncements(); awarenessScriptMode(); awarenessRedstoneGate(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -331,6 +333,159 @@ public final class NetworkVerificationTest {
         Field field = TrainDetectionManager.class.getDeclaredField("WORLDS");
         field.setAccessible(true);
         return ((Map<?, ?>)field.get(null)).size();
+    }
+
+    private static void stationNameAnnouncers() throws Exception {
+        check(ScriptType.STATION_NAME.id == 2, "STATION_NAME keeps its stable wire ID");
+        String typed = "station-name.js", legacy = "station-name-legacy.js", failing = "station-name-fail.js";
+        String invalidReturn = "station-name-invalid-return.js";
+        ScriptEngine typedEngine = registerScript(typed, ScriptType.STATION_NAME,
+            "var calls=0; function samMain(tile){calls++; return sam.build('', ['test:a',sam.interval(.1),'test:b'], '', 2);}");
+        registerScript(legacy, ScriptType.UNKNOWN,
+            "function samMain(tile){return sam.build('', ['test:a'], '');}");
+        ScriptEngine failureEngine = registerScript(failing, ScriptType.STATION_NAME,
+            "var calls=0; function samMain(tile){calls++; throw new Error('station test');}");
+        registerScript(invalidReturn, ScriptType.STATION_NAME, "function samMain(tile){return 3;}");
+        String[] wrong = {"station-approach.js","station-arrival.js","station-departure.js","station-awareness.js"};
+        ScriptType[] wrongTypes = {ScriptType.APPROACH,ScriptType.ARRIVAL,ScriptType.DEPARTURE_MELODY,ScriptType.AWARENESS};
+        for(int i=0;i<wrong.length;i++) registerScript(wrong[i],wrongTypes[i],
+            "function samMain(tile){return sam.build('', ['test:a'], '');}");
+
+        ServerSessions.clear(); SamLinkRegistry.clear(); TrainDetectionManager.clear();
+        RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        FixtureWorld world = new FixtureWorld(); player(world,0,0,0);
+        TileEntityAnnouncer parent = new TileEntityAnnouncer(); parent.setLinkKey("station"); world.add(parent,0,0,0);
+        TileEntityStationNameRedstone redstone = new TileEntityStationNameRedstone();
+        redstone.applyConfig(" station ", typed); world.add(redstone,1,0,0);
+        check(!redstone.canUpdate(), "Redstone station-name tile never ticks");
+        redstone.onRedstoneUpdate(false); redstone.onRedstoneUpdate(true);
+        check(out.count(PacketAnnounce.class)==1 && sessions()==1, "OFF to ON emits one ordinary START");
+        PacketAnnounce first=(PacketAnnounce)out.messages.stream().filter(m->m instanceof PacketAnnounce).findFirst().get();
+        check(first.priority==PacketAnnounce.PRIORITY_ANNOUNCE && !first.allowOverlap,
+            "Station-name uses ordinary priority without overlap");
+        check(first.repeatCount==2 && first.bodySounds.size()==3 && first.bodyPartTicks.get(1)==2,
+            "Station-name keeps normal build repeat and interval semantics");
+        redstone.onRedstoneUpdate(true); redstone.onRedstoneUpdate(true);
+        check(((Number)typedEngine.get("calls")).intValue()==1 && out.count(PacketAnnounce.class)==1,
+            "Continuous redstone does not retrigger or send packets");
+        redstone.onRedstoneUpdate(false); redstone.onRedstoneUpdate(true);
+        check(((Number)typedEngine.get("calls")).intValue()==2 && out.count(PacketAnnounce.class)==2,
+            "OFF rearms the next rising edge");
+        redstone.applyConfig("missing-parent",typed); out.clear(); redstone.onRedstoneUpdate(false); redstone.onRedstoneUpdate(true);
+        check(out.messages.isEmpty(), "Missing linked parent is a safe no-op");
+        redstone.applyConfig("station",failing); redstone.onRedstoneUpdate(false); redstone.onRedstoneUpdate(true);
+        redstone.onRedstoneUpdate(true);
+        check(((Number)failureEngine.get("calls")).intValue()==1, "Failed script is attempted only once per redstone edge");
+        redstone.applyConfig("station",legacy); redstone.onRedstoneUpdate(false); redstone.onRedstoneUpdate(true);
+        check(out.count(PacketAnnounce.class)==1, "UNKNOWN station-name script remains compatible");
+        for(String name:wrong) {
+            redstone.applyConfig("station",name); out.clear(); redstone.onRedstoneUpdate(false); redstone.onRedstoneUpdate(true);
+            check(out.messages.isEmpty(), "Known mismatched ScriptType is rejected at runtime: "+name);
+        }
+        redstone.applyConfig("station","missing.js"); redstone.onRedstoneUpdate(false); redstone.onRedstoneUpdate(true);
+        check(out.messages.isEmpty(), "Missing script fails closed");
+        redstone.applyConfig("station",invalidReturn); redstone.onRedstoneUpdate(false); redstone.onRedstoneUpdate(true);
+        check(out.messages.isEmpty(), "Invalid station-name return fails closed");
+
+        Field activeField=TrainCompatRegistry.class.getDeclaredField("active"); activeField.setAccessible(true);
+        TrainCompat original=(TrainCompat)activeField.get(null);
+        try {
+            activeField.set(null,new FakeTrainCompat()); TrainDetectionManager.clear();
+            check(new jp.me1han.sam.block.BlockStationNameStopDetector().getCreativeTabToDisplayOn()==StationAnnounceModCore.tabSAM,
+                "RTM stop detector appears in Creative when integration is available");
+            FixtureWorld trainWorld=new FixtureWorld(); player(trainWorld,0,0,0);
+            TileEntityAnnouncer trainParent=new TileEntityAnnouncer(); trainParent.setLinkKey("stop-station"); trainWorld.add(trainParent,4,0,0);
+            TileEntityStationNameStopDetector detector=new TileEntityStationNameStopDetector();
+            detector.applyConfig("stop-station",typed); trainWorld.add(detector,0,0,0);
+            AxisAlignedBB bounds=detector.detectionBounds();
+            check(bounds.minX==0&&bounds.minY==0&&bounds.minZ==0&&bounds.maxX==1&&bounds.maxY==3&&bounds.maxZ==1,
+                "Stop detector uses ATSAssist x..x+1, y..y+3, z..z+1 AABB");
+            FakeTrain middle=trainWorld.addTrain(80,false,800,"middle",.5,.5); middle.speed=0;
+            FakeTrain control=trainWorld.addTrain(81,true,801,"control",.5,.5); control.speed=2;
+            out.clear(); detector.updateEntity();
+            check(out.messages.isEmpty()&&control.controlChecks==1, "Control-car-only lookup ignores stopped middle cars");
+            control.speed=0; detector.updateEntity();
+            check(out.count(PacketAnnounce.class)==1&&detector.wasStopped(), "Exact moving to speed==0 transition triggers once");
+            detector.updateEntity(); detector.updateEntity();
+            check(out.count(PacketAnnounce.class)==1, "Continuous exact stop remains latched");
+            control.speed=.001F; detector.updateEntity();
+            check(!detector.wasStopped(), "Any nonzero speed clears the stop latch without threshold");
+            control.speed=-0.0F; detector.updateEntity();
+            check(out.count(PacketAnnounce.class)==2, "Same formation can trigger again after moving");
+            control.speed=Float.NaN; detector.updateEntity();
+            check(!detector.wasStopped(), "NaN speed is never treated as stopped");
+            trainWorld.loadedEntityList.remove(control); trainWorld.loadedEntityList.remove(middle);
+            FakeTrain replacement=trainWorld.addTrain(82,true,802,"replacement",.5,.5); replacement.speed=0; trainWorld.nextTick();
+            detector.updateEntity();
+            check(out.count(PacketAnnounce.class)==3&&detector.getLastFormationId()==802,
+                "Different formation resets and triggers without an empty tick");
+            trainWorld.loadedEntityList.clear(); trainWorld.nextTick(); detector.updateEntity();
+            check(detector.getLastFormationId()==-1, "No qualifying train resets formation state");
+            trainWorld.loadedEntityList.add(replacement); trainWorld.nextTick(); detector.updateEntity();
+            detector.applyConfig("stop-station",failing); replacement.speed=1; detector.updateEntity();
+            replacement.speed=0; detector.updateEntity(); detector.updateEntity();
+            check(((Number)failureEngine.get("calls")).intValue()==2,
+                "Failed stop event latches and avoids per-tick script retries");
+            check(trainWorld.entityScans==4, "Stop detector uses shared once-per-world-tick train index");
+        } finally { activeField.set(null,original); TrainDetectionManager.clear(); }
+
+        FixtureWorld noRtm=new FixtureWorld(); TileEntityStationNameStopDetector unavailable=new TileEntityStationNameStopDetector();
+        noRtm.add(unavailable,0,0,0); unavailable.updateEntity();
+        check(noRtm.entityScans==0, "Unavailable RTM integration leaves registered detector as safe no-op");
+        check(new jp.me1han.sam.block.BlockStationNameStopDetector().getCreativeTabToDisplayOn()==null,
+            "RTM stop detector is hidden from Creative when integration is unavailable");
+        Constructor<?> compatConstructor=sun.reflect.ReflectionFactory.getReflectionFactory()
+            .newConstructorForSerialization(jp.me1han.sam.compat.rtm.RtmTrainCompat.class,
+                Object.class.getDeclaredConstructor());
+        jp.me1han.sam.compat.rtm.RtmTrainCompat reflectionCompat =
+            (jp.me1han.sam.compat.rtm.RtmTrainCompat)compatConstructor.newInstance();
+        Class<?> accessorsType=Class.forName("jp.me1han.sam.compat.rtm.RtmTrainCompat$Accessors");
+        Constructor<?> accessorsConstructor=accessorsType.getDeclaredConstructor(Class.class);
+        accessorsConstructor.setAccessible(true);
+        Field trainAccessors=jp.me1han.sam.compat.rtm.RtmTrainCompat.class.getDeclaredField("trainAccessors");
+        trainAccessors.setAccessible(true);
+        Method reflectedSpeed=jp.me1han.sam.compat.rtm.RtmTrainCompat.class.getDeclaredMethod("getSpeed",Entity.class);
+        reflectedSpeed.setAccessible(true);
+        FakeSpeedEntity speedEntity=new FakeSpeedEntity(noRtm,7.25F);
+        trainAccessors.set(reflectionCompat,accessorsConstructor.newInstance(FakeSpeedEntity.class));
+        check(((Float)reflectedSpeed.invoke(reflectionCompat,speedEntity))==7.25F,
+            "RTM compat resolves getSpeed by reflection");
+        trainAccessors.set(reflectionCompat,accessorsConstructor.newInstance(FakeBrokenSpeedEntity.class));
+        check(Float.isNaN((Float)reflectedSpeed.invoke(reflectionCompat,new FakeBrokenSpeedEntity(noRtm))),
+            "Failed RTM getSpeed reflection returns NaN rather than stopped zero");
+
+        NBTTagCompound saved=new NBTTagCompound(); redstone.applyConfig(" Ab ",typed); redstone.writeToNBT(saved);
+        TileEntityStationNameRedstone restored=new TileEntityStationNameRedstone(); restored.readFromNBT(saved);
+        check(restored.getLinkKey().equals("Ab")&&restored.getScriptName().equals(typed),
+            "Station-name link and script survive NBT/description state");
+        PacketStationNameConfig packet=new PacketStationNameConfig(1,2,3," A ",typed);
+        ByteBuf buf=Unpooled.buffer(); packet.toBytes(buf); PacketStationNameConfig decoded=new PacketStationNameConfig(); decoded.fromBytes(buf);
+        check(decoded.x==1&&decoded.y==2&&decoded.z==3&&decoded.linkKey.equals(" A ")&&decoded.scriptName.equals(typed),
+            "Shared station-name config packet round trips bounded fields");
+        buf.clear(); expectEncodeInvalid(()->new PacketStationNameConfig(0,0,0,"A",
+            String.join("",Collections.nCopies(PacketLimits.NAME+1,"x"))).toBytes(buf));
+        FixtureWorld configWorld=new FixtureWorld(); TileEntityStationNameRedstone configured=new TileEntityStationNameRedstone();
+        configWorld.add(configured,2,0,0); Player configPlayer=player(configWorld,2,0,0); MessageContext context=context(configPlayer);
+        new PacketStationNameConfig.Handler().onMessage(new PacketStationNameConfig(2,0,0,"KEY",typed),context); serverTick();
+        check(configured.getLinkKey().equals("KEY")&&configured.getScriptName().equals(typed),
+            "Server handler saves valid STATION_NAME config");
+        int unchangedUpdates=configWorld.updates;
+        new PacketStationNameConfig.Handler().onMessage(new PacketStationNameConfig(2,0,0,"KEY",typed),context); serverTick();
+        check(configWorld.updates==unchangedUpdates, "Identical station-name config emits no block update");
+        new PacketStationNameConfig.Handler().onMessage(new PacketStationNameConfig(2,0,0,"BAD",wrong[0]),context); serverTick();
+        check(configured.getLinkKey().equals("KEY")&&configured.getScriptName().equals(typed),
+            "Crafted mismatched config is rejected server-side");
+        TileEntityStartAnnouncer other=new TileEntityStartAnnouncer(); configWorld.add(other,3,0,0);
+        new PacketStationNameConfig.Handler().onMessage(new PacketStationNameConfig(3,0,0,"FAKE",typed),context); serverTick();
+        check(other.getLinkKey().isEmpty(), "Config packet cannot target another TileEntity type");
+        check(AnnouncePackLoader.canUseScript(typed,ScriptType.STATION_NAME)
+            &&AnnouncePackLoader.canUseScript(legacy,ScriptType.STATION_NAME)
+            &&!AnnouncePackLoader.canUseScript(wrong[0],ScriptType.STATION_NAME),
+            "GUI compatibility source includes STATION_NAME/UNKNOWN and excludes known mismatches");
+
+        for(String name:wrong) { AnnouncePackLoader.scriptEngines.remove(name); AnnouncePackLoader.availableScripts.removeIf(i->i.fileName.equals(name)); }
+        for(String name:Arrays.asList(typed,legacy,failing,invalidReturn)) { AnnouncePackLoader.scriptEngines.remove(name); AnnouncePackLoader.availableScripts.removeIf(i->i.fileName.equals(name)); }
+        ServerSessions.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear();
     }
 
     private static int clientSessionCount(AnnounceManager manager) throws Exception {
@@ -3070,6 +3225,7 @@ public final class NetworkVerificationTest {
         final boolean controlCar;
         final long formationId;
         final String name;
+        float speed = Float.NaN;
         int controlChecks, formationChecks, extractChecks;
         FakeTrain(World world, int entityId, boolean controlCar, long formationId, String name, double x, double z) {
             super(world);
@@ -3085,10 +3241,26 @@ public final class NetworkVerificationTest {
         @Override protected void writeEntityToNBT(NBTTagCompound nbt) {}
         @Override public boolean isControlCar() { controlChecks++; return controlCar; }
         @Override public long getFormationId() { formationChecks++; return formationId; }
+        @Override public float getSpeed() { return speed; }
         @Override public String extractData(String key, int type) {
             extractChecks++;
             return "name".equals(key) && type == 0 ? name : null;
         }
+    }
+    public static final class FakeSpeedEntity extends Entity {
+        private final float speed;
+        FakeSpeedEntity(World world,float speed){super(world);this.speed=speed;setSize(1,1);}
+        public float getSpeed(){return speed;}
+        @Override protected void entityInit(){}
+        @Override protected void readEntityFromNBT(NBTTagCompound nbt){}
+        @Override protected void writeEntityToNBT(NBTTagCompound nbt){}
+    }
+    public static final class FakeBrokenSpeedEntity extends Entity {
+        FakeBrokenSpeedEntity(World world){super(world);setSize(1,1);}
+        public float getSpeed(){throw new IllegalStateException("test reflection failure");}
+        @Override protected void entityInit(){}
+        @Override protected void readEntityFromNBT(NBTTagCompound nbt){}
+        @Override protected void writeEntityToNBT(NBTTagCompound nbt){}
     }
     private static final class FakeTrainCompat implements TrainCompat {
         int wraps;

@@ -8,5 +8,8 @@ public interface TrainSnapshot {
 
     long getFormationId();
 
+    /** RTM's exact train speed, or NaN when the optional integration cannot read it. */
+    float getSpeed();
+
     String extractData(String key, int type);
 }

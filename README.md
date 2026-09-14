@@ -108,3 +108,7 @@ Key NameにdataMapの名前を登録し、Typeで適切な型を指定します�
 
 ## 発車メロディ装置について
 [こちら](howtoDepartureMelody.md) を参照してください
+
+### 駅名連呼ブロック
+
+[こちら](howtoStationNameAnnouncer.md) を参照してください
