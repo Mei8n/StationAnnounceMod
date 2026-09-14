@@ -5,6 +5,7 @@ import java.io.Reader;
 import java.util.*;
 import jp.me1han.sam.switchmodel.StaticModelDefinition;
 import jp.me1han.sam.switchmodel.SwitchModelDefinition;
+import jp.me1han.sam.switchmodel.ModelTextureResolver;
 
 /** Common-side metadata for a static Speaker MQO model. */
 public final class SpeakerModelDefinition implements StaticModelDefinition {
@@ -32,12 +33,7 @@ public final class SpeakerModelDefinition implements StaticModelDefinition {
         if (model.has("scale")) result.scale = model.get("scale").getAsDouble();
         if (!finite(result.scale) || result.scale <= 0 || result.scale > 100) throw new IllegalArgumentException("Invalid model scale");
         if (model.has("offset")) result.modelOffset = vector(model.getAsJsonArray("offset"), 3);
-        if (model.has("textures")) for (JsonElement element : model.getAsJsonArray("textures")) {
-            JsonArray entry = element.getAsJsonArray();
-            if (entry.size() < 2) throw new IllegalArgumentException("textures entries require material and resource");
-            result.textures.put(entry.get(0).getAsString(),
-                SwitchModelDefinition.resolveResource(resource, entry.get(1).getAsString()));
-        }
+        ModelTextureResolver.parse(model, resource, result.textures);
         if (json.has("bounds")) result.bounds = vector(json.getAsJsonArray("bounds"), 6);
         for (int i = 0; i < 6; i++) if (Math.abs(result.bounds[i]) > 16)
             throw new IllegalArgumentException("Speaker model bounds exceed 16 blocks");

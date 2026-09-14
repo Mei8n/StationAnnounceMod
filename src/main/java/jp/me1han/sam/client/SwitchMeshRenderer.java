@@ -7,6 +7,7 @@ import jp.me1han.sam.StationAnnounceModCore;
 import jp.me1han.sam.switchmodel.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.texture.TextureUtil;
 import net.minecraft.client.resources.*;
 import net.minecraft.util.ResourceLocation;
 import org.lwjgl.opengl.GL11;
@@ -16,7 +17,11 @@ public final class SwitchMeshRenderer implements IResourceManagerReloadListener 
     public static final SwitchMeshRenderer INSTANCE = new SwitchMeshRenderer();
     private final Map<String, MqoMesh> meshes = new HashMap<>();
     private final Set<String> failed = new HashSet<>();
-    @Override public void onResourceManagerReload(IResourceManager manager) { meshes.clear(); failed.clear(); }
+    private final Set<String> failedTextures = new HashSet<>();
+    private final Map<String, ResourceLocation> textureLocations = new HashMap<>();
+    @Override public void onResourceManagerReload(IResourceManager manager) {
+        meshes.clear(); failed.clear(); failedTextures.clear(); textureLocations.clear();
+    }
 
     public MqoMesh mesh(StaticModelDefinition definition) {
         if (definition == null) return null;
@@ -28,7 +33,6 @@ public final class SwitchMeshRenderer implements IResourceManagerReloadListener 
                     .getResource(new ResourceLocation(definition.getModelFile())).getInputStream(), StandardCharsets.UTF_8)) {
                 mesh = MqoMesh.read(reader);
                 definition.validateParts(mesh.parts.keySet());
-                validateTextures(definition, mesh);
                 meshes.put(cacheKey, mesh);
             } catch (Exception e) {
                 failed.add(cacheKey);
@@ -37,19 +41,6 @@ public final class SwitchMeshRenderer implements IResourceManagerReloadListener 
             }
         }
         return mesh;
-    }
-
-    private void validateTextures(StaticModelDefinition definition, MqoMesh mesh) throws IOException {
-        Set<String> resources = new HashSet<>(definition.getTextures().values());
-        for (MqoMesh.Material material : mesh.materials) {
-            String texture = definition.getTextures().get(material.name);
-            if (texture == null) texture = definition.getTextures().get("default");
-            if (texture == null && !material.texture.isEmpty())
-                texture = SwitchModelDefinition.resolveResource(definition.getModelFile(), material.texture);
-            if (texture != null) resources.add(texture);
-        }
-        for (String resource : resources)
-            Minecraft.getMinecraft().getResourceManager().getResource(new ResourceLocation(resource)).getInputStream().close();
     }
 
     /** Coordinates are centered in X/Z; the model base is Y=0. Returns false for unavailable assets. */
@@ -73,18 +64,7 @@ public final class SwitchMeshRenderer implements IResourceManagerReloadListener 
                 GL11.glTranslated(offset[0], offset[1], offset[2]);
                 for (int m = 0; m < mesh.materials.size(); m++) {
                     MqoMesh.Material material = mesh.materials.get(m);
-                    String texture = definition.getTextures().get(material.name);
-                    if (texture == null) texture = definition.getTextures().get("default");
-                    if (texture == null && !material.texture.isEmpty()) {
-                        // JSON overrides are authoritative, including legacy MQO absolute texture paths.
-                        try { texture = SwitchModelDefinition.resolveResource(definition.getModelFile(), material.texture); }
-                        catch (IllegalArgumentException ignored) { texture = null; }
-                    }
-                    if (texture == null) GL11.glDisable(GL11.GL_TEXTURE_2D);
-                    else {
-                        GL11.glEnable(GL11.GL_TEXTURE_2D);
-                        Minecraft.getMinecraft().getTextureManager().bindTexture(new ResourceLocation(texture));
-                    }
+                    bindMaterialTexture(definition, material);
                     Tessellator tess = Tessellator.instance;
                     tess.startDrawing(GL11.GL_TRIANGLES);
                     tess.setBrightness(brightness);
@@ -102,5 +82,31 @@ public final class SwitchMeshRenderer implements IResourceManagerReloadListener 
             }
         } finally { GL11.glPopMatrix(); GL11.glPopAttrib(); }
         return true;
+    }
+
+    private void bindMaterialTexture(StaticModelDefinition definition, MqoMesh.Material material) {
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        String texture = ModelTextureResolver.select(definition.getTextures(), material.name);
+        if (texture == null || failedTextures.contains(texture)) {
+            bindMissingTexture();
+            return;
+        }
+        try {
+            // TextureManager caches successful resources and its IOException fallback.
+            ResourceLocation location = textureLocations.get(texture);
+            if (location == null) {
+                location = new ResourceLocation(texture);
+                textureLocations.put(texture, location);
+            }
+            Minecraft.getMinecraft().getTextureManager().bindTexture(location);
+        } catch (RuntimeException error) {
+            // Decode/runtime failures are isolated from geometry and retried after resource reload.
+            failedTextures.add(texture);
+            bindMissingTexture();
+        }
+    }
+
+    private void bindMissingTexture() {
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, TextureUtil.missingTexture.getGlTextureId());
     }
 }

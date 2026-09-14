@@ -39,13 +39,7 @@ public final class SwitchModelDefinition implements StaticModelDefinition {
         if (model.has("scale")) result.scale = model.get("scale").getAsDouble();
         if (model.has("offset")) result.modelOffset = vector(model.getAsJsonArray("offset"), 3);
         if (!Double.isFinite(result.scale) || result.scale <= 0 || result.scale > 100) throw new IllegalArgumentException("Invalid model scale");
-        if (model.has("textures")) {
-            for (JsonElement element : model.getAsJsonArray("textures")) {
-                JsonArray entry = element.getAsJsonArray();
-                if (entry.size() < 2) throw new IllegalArgumentException("textures entries require material and resource");
-                result.textures.put(entry.get(0).getAsString(), resolveResource(resource, entry.get(1).getAsString()));
-            }
-        }
+        ModelTextureResolver.parse(model, resource, result.textures);
         if (json.has("buttonTexture")) result.buttonTexture = optionalResource(resource, string(json, "buttonTexture", ""));
         if (json.has("sounds")) {
             JsonObject sounds = json.getAsJsonObject("sounds");

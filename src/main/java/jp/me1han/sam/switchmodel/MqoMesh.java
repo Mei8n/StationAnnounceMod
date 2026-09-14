@@ -8,6 +8,7 @@ import java.util.regex.*;
 public final class MqoMesh {
     public static final class Material {
         public String name;
+        /** Parsed only for MQO compatibility; SAM rendering intentionally ignores this path. */
         public String texture = "";
         public double[] color = {1, 1, 1, 1};
     }

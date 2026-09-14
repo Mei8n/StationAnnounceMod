@@ -38,7 +38,7 @@ public final class SpeakerModelTest {
     public static void main(String[] args) throws Exception {
         Method mapping = TileEntity.class.getDeclaredMethod("addMapping", Class.class, String.class);
         mapping.setAccessible(true); mapping.invoke(null, TestSpeaker.class, "speaker-model-test");
-        definition(); registry(); tileAndPacket(); placement(); cache();
+        definition(); texturePolicy(); registry(); tileAndPacket(); placement(); cache();
         SwitchModelRegistry.reset();
         check(SwitchModelRegistry.list().size() == 2, "Speaker registry work does not alter switch models");
         System.out.println("Speaker models: " + checks + " checks passed");
@@ -64,6 +64,41 @@ public final class SpeakerModelTest {
             try { SpeakerModelDefinition.parse(new StringReader(json), "stationannouncemod:speakers/x.json"); throw new AssertionError("Invalid JSON accepted"); }
             catch (RuntimeException expected) { checks++; }
         }
+    }
+    private static void texturePolicy() {
+        SpeakerModelDefinition none = SpeakerModelDefinition.parse(new StringReader(
+            "{\"name\":\"none\",\"model\":{\"modelFile\":\"speaker.mqo\"}}"),
+            "stationannouncemod:speakers/test.json");
+        check(none.textures.isEmpty() && ModelTextureResolver.select(none.textures, "body") == null,
+            "Speaker without JSON textures remains valid and uses missing texture");
+
+        String base = "{\"name\":\"speaker_texture\",\"model\":{\"modelFile\":\"speaker.mqo\",\"textures\":[";
+        SpeakerModelDefinition exact = SpeakerModelDefinition.parse(new StringReader(base
+            + "[\"body\",\"missing_body.png\"],[\"default\",\"default.png\"]]} }"),
+            "stationannouncemod:speakers/test.json");
+        check(ModelTextureResolver.select(exact.textures, "body").endsWith("/missing_body.png"),
+            "Speaker exact JSON resource is selected without an existence check");
+        check(ModelTextureResolver.select(exact.textures, "grill").endsWith("/default.png"),
+            "Speaker absent exact texture uses JSON default");
+
+        SpeakerModelDefinition invalidExact = SpeakerModelDefinition.parse(new StringReader(base
+            + "[\"body\",\"C:\\\\Users\\\\bad.png\"],[\"default\",\"default.png\"]]} }"),
+            "stationannouncemod:speakers/test.json");
+        check(invalidExact.textures.containsKey("body") && invalidExact.textures.get("body").isEmpty(),
+            "Invalid Speaker exact path is nonfatal metadata");
+        check(ModelTextureResolver.select(invalidExact.textures, "body") == null,
+            "Invalid Speaker exact path uses missing texture without default fallback");
+        check(ModelTextureResolver.select(invalidExact.textures, "grill").endsWith("/default.png"),
+            "Other Speaker materials retain valid default fallback");
+
+        SpeakerModelDefinition invalidDefault = SpeakerModelDefinition.parse(new StringReader(base
+            + "[\"default\",\"../bad.png\"]]} }"), "stationannouncemod:speakers/test.json");
+        check(ModelTextureResolver.select(invalidDefault.textures, "body") == null,
+            "Invalid Speaker default uses missing texture");
+        SpeakerModelDefinition unused = SpeakerModelDefinition.parse(new StringReader(base
+            + "[\"old_part\",\"deleted.png\"]]} }"), "stationannouncemod:speakers/test.json");
+        check(unused.modelFile.endsWith("speaker.mqo") && unused.textures.containsKey("old_part"),
+            "Unused missing Speaker texture does not invalidate geometry metadata");
     }
     private static void registry() throws Exception {
         SpeakerModelRegistry.reset();
@@ -174,14 +209,28 @@ public final class SpeakerModelTest {
     private static void cache() throws Exception {
         Field meshes = SwitchMeshRenderer.class.getDeclaredField("meshes"); meshes.setAccessible(true);
         Field failed = SwitchMeshRenderer.class.getDeclaredField("failed"); failed.setAccessible(true);
+        Field failedTextures = SwitchMeshRenderer.class.getDeclaredField("failedTextures"); failedTextures.setAccessible(true);
+        Field textureLocations = SwitchMeshRenderer.class.getDeclaredField("textureLocations"); textureLocations.setAccessible(true);
         ((Map)meshes.get(SwitchMeshRenderer.INSTANCE)).put("speaker:test", new MqoMesh());
+        ((Map)textureLocations.get(SwitchMeshRenderer.INSTANCE)).put("stationannouncemod:speakers/test.png",
+            new net.minecraft.util.ResourceLocation("stationannouncemod:speakers/test.png"));
         SpeakerModelDefinition broken = SpeakerModelDefinition.parse(new StringReader(
             VALID.replace("\"platform\"", "\"broken\"")), "stationannouncemod:speakers/broken.json");
         ((Set)failed.get(SwitchMeshRenderer.INSTANCE)).add(broken.getClass().getName() + ":broken");
         check(SwitchMeshRenderer.INSTANCE.mesh(broken) == null, "Failed Speaker resource is not retried each frame");
+        ((Set)failedTextures.get(SwitchMeshRenderer.INSTANCE)).add("stationannouncemod:speakers/missing.png");
+        check(((Map)meshes.get(SwitchMeshRenderer.INSTANCE)).size() == 1
+            && ((Set)failed.get(SwitchMeshRenderer.INSTANCE)).size() == 1,
+            "Texture failure neither discards mesh cache nor enters model failed cache");
+        try { MqoMesh.read(new StringReader("not an MQO")); throw new AssertionError("Broken MQO accepted"); }
+        catch (RuntimeException expected) { checks++; }
+        catch (IOException expected) { checks++; }
         SwitchMeshRenderer.INSTANCE.onResourceManagerReload(null);
         check(((Map)meshes.get(SwitchMeshRenderer.INSTANCE)).isEmpty()
-            && ((Set)failed.get(SwitchMeshRenderer.INSTANCE)).isEmpty(), "Resource reload clears mesh and failed caches");
+            && ((Set)failed.get(SwitchMeshRenderer.INSTANCE)).isEmpty()
+            && ((Set)failedTextures.get(SwitchMeshRenderer.INSTANCE)).isEmpty()
+            && ((Map)textureLocations.get(SwitchMeshRenderer.INSTANCE)).isEmpty(),
+            "Resource reload clears mesh, model-failed and texture resolution caches");
     }
     private static class TestSpeaker extends TileEntitySpeaker { int dirty; @Override public void markDirty() { dirty++; } }
     private static class TestPlayer extends EntityPlayer {
