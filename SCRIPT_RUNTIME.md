@@ -24,7 +24,18 @@ scriptへ渡す`tile`は実際のMinecraft `TileEntity`ではなく、呼び出�
 - `getDisplayName()`: 任意。設定画面用の名前を返します。省略時またはエラー時はscript filenameを使用します。最大256文字です。
 - `samMain(tile)`: 必須。放送開始時に呼ばれます。
 
-通常放送とSCRIPTモードの啓発放送の`samMain`は`sam.build(startmelo, sounds, arrmelo[, repeatCount])`が返す`AnnounceData`を返す必要があります。啓発放送では親放送装置のread-only contextが渡され、`getScriptType()`は`AWARENESS` (4) または未宣言の`UNKNOWN`である必要があります。発車放送では`sam.build(melody, sounds, mode)`が返す`DepartureProgram`を返す必要があります。関数の欠落、`null`、異なる型、runtime error、不正またはpacket化できない出力はfail closedとなり、放送を開始しません。logにはscript名、`load` / `getDisplayName` / `samMain` phase、原因が記録されます。
+通常放送、駅名連呼、SCRIPTモードの啓発放送の`samMain`は`sam.build(startmelo, sounds, arrmelo[, repeatCount])`が返す`AnnounceData`を返す必要があります。駅名連呼と啓発放送にも親放送装置のread-only contextが渡されます。発車放送では`sam.build(melody, sounds, mode)`が返す`DepartureProgram`を返す必要があります。関数の欠落、`null`、異なる型、runtime error、不正またはpacket化できない出力はfail closedとなり、放送を開始しません。logにはscript名、`load` / `getDisplayName` / `samMain` phase、原因が記録されます。
+
+`getScriptType()`は任意です。未宣言のscriptは`UNKNOWN`として後方互換で使用でき、既知の型を宣言したscriptは、要求する実行系と一致する場合だけGUI選択・server設定・実行が許可されます。整数IDは次のとおりです。
+
+| ScriptType | ID | 使用先 |
+| --- | ---: | --- |
+| `UNKNOWN` | -1 | 型未宣言の旧script。各実行系で使用可能 |
+| `APPROACH` | 0 | 接近放送 |
+| `ARRIVAL` | 1 | 将来の独立到着放送用予約ID。停止後到着では使用しない |
+| `STATION_NAME` | 2 | 駅名連呼 |
+| `DEPARTURE_MELODY` | 3 | 発車メロディ |
+| `AWARENESS` | 4 | 啓発放送 |
 
 接近JSでは追加で `sam.build(start, sounds, loop, sam.arrival(seconds, data))` が返す `ApproachProgram` を使用できます。接近と到着内容を初回実行時にsnapshotし、停止放送装置のSTOP後に0～3600秒待機して到着を再生します。詳細は[停止後の到着放送](howtoAddAnnounce.md#停止後に到着放送を流す)を参照してください。
 
@@ -43,7 +54,7 @@ scriptへ渡す`tile`は実際のMinecraft `TileEntity`ではなく、呼び出�
 
 ## `tile` context
 
-通常放送では次を使用できます。
+通常放送、駅名連呼、SCRIPTモードの啓発放送では次を使用できます。
 
 ```javascript
 tile.getLinkKey()
@@ -51,8 +62,10 @@ tile.linkKey
 tile.receivedData.get("key")
 ```
 
-`receivedData`は`samMain`呼び出し時点のsnapshotで、`get`、`containsKey`、`isEmpty`、`size`などのread-only queryを使用できます。変更操作は実TileEntityのdataへ反映されません。
+`receivedData`は`samMain`呼び出し時点のsnapshotで、`get`、`containsKey`、`isEmpty`、`size`などのread-only queryを使用できます。変更操作は実TileEntityのdataへ反映されません。駅名連呼と啓発放送のcontextもLink Keyで接続した親放送装置から作られます。
 
 発車放送では`tile.getLinkKey()`と`tile.linkKey`を使用できます。発車用contextに`receivedData`はありません。
 
 従来、undocumentedな実TileEntity method、`World`、任意Java interopへ到達していたpackは、この正式仕様化により動作しなくなる場合があります。既存の公式documentに記載していた`sam` API、`tile.getLinkKey()`、`tile.linkKey`、通常放送の`tile.receivedData.get(...)`は維持されます。
+
+実行系ごとの設定と例は、[通常放送ガイド](howtoAddAnnounce.md)、[駅名連呼ガイド](howtoStationNameAnnouncer.md)、[啓発放送ガイド](howtoAwarenessAnnouncer.md)、[発車メロディガイド](howtoDepartureMelody.md)を参照してください。
