@@ -22,7 +22,7 @@ public final class SamTriggerDispatcher {
                 break;
             case ANNOUNCE_STOP:
                 TileEntityAnnouncer owner = SamLinkRegistry.findFirst(world, trigger.linkKey, TileEntityAnnouncer.class);
-                if (owner != null) owner.forceStop();
+                if (owner != null) owner.onAnnounceStopTrigger();
                 break;
             case DEPARTURE_FINISHED:
                 boolean scheduled = false;

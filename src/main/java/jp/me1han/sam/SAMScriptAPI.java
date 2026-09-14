@@ -18,6 +18,10 @@ public class SAMScriptAPI {
         return new jp.me1han.sam.api.DepartureInterval(seconds);
     }
 
+    public jp.me1han.sam.api.ArrivalPlan arrival(double seconds, AnnounceData data) {
+        return new jp.me1han.sam.api.ArrivalPlan(seconds, data);
+    }
+
     public String startmelo(String id) {
         String value = clean(id);
         if (value.isEmpty()) return null;
@@ -59,6 +63,11 @@ public class SAMScriptAPI {
         copySounds(body, sounds, intervals, "Announcement");
         return new AnnounceData(optionalSoundId(start, "Start melody"), sounds, intervals,
             optionalSoundId(loop, "Arrival melody"), repeatCount);
+    }
+
+    public jp.me1han.sam.api.ApproachProgram build(String start, List<Object> body, String loop,
+            jp.me1han.sam.api.ArrivalPlan arrival) {
+        return new jp.me1han.sam.api.ApproachProgram(build(start, body, loop), arrival);
     }
 
     private static void copySounds(List<Object> source, List<String> target, List<Integer> intervals, String type) {

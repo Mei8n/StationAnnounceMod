@@ -182,6 +182,33 @@ function samMain(tile) {
 
 `samMain`は論理server処理で同期実行されます。無限loop、sleep、重い計算はserver処理を止めるため記述しないでください。hard timeoutはありません。Java 8内蔵Nashornを使用し、`Java.type`、`Packages`、`load`などのhost accessはsupported APIではなく、runtimeでも無効化されます。詳しくは[JavaScript runtime仕様](SCRIPT_RUNTIME.md)を参照してください。
 
+## 停止後に到着放送を流す
+
+接近JSの第4引数に `sam.arrival(待機秒数, 到着用AnnounceData)` を渡すと、停止放送装置の `ANNOUNCE_STOP` を受けた後に到着案内を1回再生できます。駅名連呼用の機能ではありません。ScriptTypeは接近用の `0` のままです（`ARRIVAL=1` は独立した将来用途の予約IDです）。
+
+```javascript
+function getScriptType() { return 0; }
+
+function samMain(tile) {
+    var rapid = String(tile.receivedData.get("trainType")) == "rapid";
+    var arrivalSounds = [rapid ? "sound_sample:rapid_arrived" : "sound_sample:train_arrived"];
+    return sam.build(
+        null,
+        ["sound_sample:train_approaching"],
+        null,
+        sam.arrival(3.0, sam.build(null, arrivalSounds, null))
+    );
+}
+```
+
+例の音声IDはパックに登録してください。接近開始時のJS実行1回で、接近・到着の両方の内容を確定し、音声長とpacket制限を検証します。STOP時にJSを再実行しないため、開始後にクリアされる `receivedData` の情報も到着案内に反映できます。
+
+待機秒数は0～3600秒です。小数第3位以下を切り捨て、20tick/秒への換算時に切り上げます。0秒（切り捨て後に0となる値も含む）は接近STOPの直後に到着STARTを送ります。到着の本放送にも `sam.interval(...)` や通常のrepeat指定が使用できます。
+
+予約は親放送装置ごとに最大1件です。STOP重複で待機時間はリセットされず、再生も重複しません。新しい接近開始は以前の予約を置き換えます。通常の強制停止、ブロック破壊、chunk/world/serverの終了、全停止では予約を破棄し、保存・再ロードで復活しません。クライアント音声の自然終了は到着トリガーではありません。
+
+従来の3引数 `sam.build(...)` と、第4引数に整数repeat countを指定する形式はそのまま使用できます。その場合、到着予約は作成されません。到着予約付きの戻り値は接近JS専用の `ApproachProgram` であり、啓発JSでは使用できません。
+
 ## 発車用JSとの使い分け
 
 | 項目 | 通常放送 | 発車放送 |

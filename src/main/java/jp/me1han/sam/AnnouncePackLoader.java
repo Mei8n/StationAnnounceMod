@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import jp.me1han.sam.api.AnnounceData;
+import jp.me1han.sam.api.ApproachProgram;
 import jp.me1han.sam.api.AnnounceScriptInfo;
 import jp.me1han.sam.api.DepartureProgram;
 import jp.me1han.sam.api.ScriptType;
@@ -195,10 +196,21 @@ public class AnnouncePackLoader {
     private static String normalizeScriptName(String name) { return name == null ? "" : name.trim(); }
 
     public static AnnounceData runScript(String name, TileEntityAnnouncer tile) {
-        return runAnnounceScript(name, tile, ScriptType.APPROACH);
+        ApproachProgram program = runApproachScript(name, tile);
+        return program == null ? null : program.approach;
+    }
+
+    public static ApproachProgram runApproachScript(String name, TileEntityAnnouncer tile) {
+        return runAnnouncementProgram(name, tile, ScriptType.APPROACH, true);
     }
 
     public static AnnounceData runAnnounceScript(String name, TileEntityAnnouncer tile, ScriptType requiredType) {
+        ApproachProgram program = runAnnouncementProgram(name, tile, requiredType, false);
+        return program == null ? null : program.approach;
+    }
+
+    private static ApproachProgram runAnnouncementProgram(String name, TileEntityAnnouncer tile,
+            ScriptType requiredType, boolean allowArrival) {
         String scriptName = normalizeScriptName(name);
         if (!canUseScript(scriptName, requiredType)) {
             logScriptFailure(scriptName, "script type",
@@ -211,20 +223,29 @@ public class AnnouncePackLoader {
             AnnounceScriptContext context = AnnounceScriptContext.snapshot(tile);
             synchronized (engine) {
                 Object value = ((Invocable) engine).invokeFunction("samMain", context);
-                if (!(value instanceof AnnounceData))
-                    throw new IllegalArgumentException("samMain(tile) must return sam.build(...) AnnounceData");
-                AnnounceData data = (AnnounceData)value;
-                PacketAnnounce validation = new PacketAnnounce(data, context.getLinkKey(), false, 0, 0, 0);
-                validation.sessionId = 1;
-                validation.resolveTiming(soundTicks);
-                validation.validatePayload();
-                return data;
+                ApproachProgram program;
+                if (allowArrival && value instanceof ApproachProgram) program = (ApproachProgram)value;
+                else if (value instanceof AnnounceData) program = new ApproachProgram((AnnounceData)value, null);
+                else throw new IllegalArgumentException("samMain(tile) must return sam.build(...) "
+                    + (allowArrival ? "AnnounceData or ApproachProgram" : "AnnounceData"));
+                validateAnnouncement(program.approach, context.getLinkKey());
+                if (program.arrival != null)
+                    validateAnnouncement(program.arrival.announcement, context.getLinkKey());
+                // Detach all mutable lists from objects retained by the script engine.
+                return new ApproachProgram(program.approach, program.arrival);
             }
         } catch (Throwable error) {
             rethrowFatal(error);
             logScriptFailure(scriptName, "samMain", error);
             return null;
         }
+    }
+
+    private static void validateAnnouncement(AnnounceData data, String linkKey) {
+        PacketAnnounce validation = new PacketAnnounce(data, linkKey, false, 0, 0, 0);
+        validation.sessionId = 1;
+        validation.resolveTiming(soundTicks);
+        validation.validatePayload();
     }
 
     public static DepartureProgram runDepartureScript(String name,
