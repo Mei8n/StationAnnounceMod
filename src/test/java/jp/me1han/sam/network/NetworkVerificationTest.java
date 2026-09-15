@@ -48,6 +48,8 @@ public final class NetworkVerificationTest {
         mapping.setAccessible(true);
         mapping.invoke(null, Speaker.class, "network-test-speaker");
         mapping.invoke(null, TileEntityAnnouncer.class, "network-test-announcer");
+        mapping.invoke(null, CountingAnnouncer.class, "network-test-counting-announcer");
+        mapping.invoke(null, TileEntityDepartureMelody.class, "network-test-departure");
         mapping.invoke(null, TileEntityStartAnnouncer.class, "network-test-start");
         mapping.invoke(null, TileEntityStopAnnouncer.class, "network-test-stop");
         mapping.invoke(null, TileEntityTrainTypeSelector.class, "network-test-selector");
@@ -108,7 +110,9 @@ public final class NetworkVerificationTest {
     private static void redstoneLifecycle() throws Exception {
         FixtureWorld offWorld = new FixtureWorld();
         CountingAnnouncer offAnnouncer = new CountingAnnouncer(); offWorld.add(offAnnouncer, 0, 0, 0);
-        check(offWorld.powerQueries == 1, "Validate reads the initial Redstone level once");
+        check(offWorld.powerQueries == 0, "Validate must never query World power (recursive chunk validation risk)");
+        offAnnouncer.updateEntity();
+        check(offWorld.powerQueries == 1, "First server tick reads the initial Redstone level once");
         offAnnouncer.onRedstoneUpdate(false);
         check(offAnnouncer.starts == 0, "An unchanged OFF level does not trigger");
         offAnnouncer.onRedstoneUpdate(true);
@@ -173,6 +177,93 @@ public final class NetworkVerificationTest {
         new jp.me1han.sam.block.BlockStopAnnouncer().onNeighborBlockChange(
             queryWorld, 0, 0, 0, net.minecraft.init.Blocks.redstone_block);
         check(queryWorld.powerQueries == 1, "Stop announcer performs one power query per neighbor notification");
+        queryStop.updateEntity();
+        check(queryWorld.powerQueries == 1, "A neighbor notification before the first tick supplies the baseline");
+
+        for (int kind = 0; kind < 6; kind++) {
+            for (boolean powered : new boolean[] {false, true}) {
+                redstoneLifecycleScenario(kind, powered, false);
+                redstoneLifecycleScenario(kind, powered, true);
+            }
+        }
+    }
+
+    /** Exercise every edge input through its real trigger, with both ways of acquiring a baseline. */
+    private static void redstoneLifecycleScenario(int kind, boolean powered, boolean notifyBeforeTick) throws Exception {
+        FixtureWorld world = new FixtureWorld();
+        CountingAnnouncer parent = new CountingAnnouncer(); parent.setLinkKey("lifecycle");
+        parent.receivedData.put("train", "local");
+        world.add(parent, 0, 0, 0);
+        Player observer = kind == 3 ? player(world, 0, 0, 0) : null;
+        RegisteredTileEntity tile;
+        java.util.function.IntSupplier triggers;
+        switch (kind) {
+            case 0:
+                tile = parent; triggers = () -> parent.starts; break;
+            case 1:
+                tile = new TileEntityStartAnnouncer(); triggers = () -> parent.starts; break;
+            case 2:
+                tile = new TileEntityStopAnnouncer(); triggers = () -> parent.stops; break;
+            case 3:
+                tile = new TileEntityDebugReceiver(); triggers = () -> observer.chats; break;
+            case 4:
+                TileEntityDepartureMelody departure = new TileEntityDepartureMelody();
+                departure.soundId = "test:a";
+                tile = departure; triggers = () -> parent.departures; break;
+            case 5:
+                String script = "redstone-lifecycle-matrix.js";
+                ScriptEngine engine = registerScript(script, ScriptType.STATION_NAME,
+                    "var calls=0; function samMain(tile){calls++;return sam.build('', ['test:a'], '');}");
+                TileEntityStationNameRedstone station = new TileEntityStationNameRedstone();
+                station.applyConfig("lifecycle", script);
+                tile = station; triggers = () -> ((Number)engine.get("calls")).intValue(); break;
+            default: throw new AssertionError("Unknown edge input");
+        }
+        ((jp.me1han.sam.link.SamLinkedTile)tile).setLinkKey("lifecycle");
+        String label = tile.getClass().getSimpleName() + " load=" + powered + " earlyNotification=" + notifyBeforeTick + ": ";
+        Method notify = tile.getClass().getMethod("onRedstoneUpdate", boolean.class);
+        world.powered = notifyBeforeTick ? !powered : powered;
+        if (tile != parent) world.add(tile, 1, 0, 0);
+        tile.validate();
+        check(world.powerQueries == 0, label + "validate must never query World power, including duplicate validation");
+        check(tile.canUpdate(), label + "edge input participates in server ticking");
+        check(triggers.getAsInt() == 0, label + "validation never triggers");
+        if (notifyBeforeTick) {
+            world.powered = powered;
+            notify.invoke(tile, powered);
+            check(triggers.getAsInt() == 0 && world.powerQueries == 0,
+                label + "notification level becomes the baseline without querying or triggering");
+        }
+        tile.updateEntity();
+        int expectedQueries = notifyBeforeTick ? 0 : 1;
+        check(world.powerQueries == expectedQueries && triggers.getAsInt() == 0,
+            label + "first server tick acquires baseline exactly once and never triggers");
+        for (int i = 0; i < 3; i++) { world.nextTick(); tile.updateEntity(); }
+        check(world.powerQueries == expectedQueries, label + "ordinary ticks do not repeat initialization");
+        notify.invoke(tile, powered);
+        check(triggers.getAsInt() == 0, label + "unchanged loaded level never triggers");
+        world.powered = false; notify.invoke(tile, false);
+        check(triggers.getAsInt() == 0, label + "OFF does not trigger");
+        world.powered = true; notify.invoke(tile, true); notify.invoke(tile, true);
+        check(triggers.getAsInt() == 1, label + "real OFF-to-ON triggers exactly once");
+
+        NBTTagCompound saved = new NBTTagCompound(); tile.writeToNBT(saved);
+        check(!saved.hasKey("lastPowered") && !saved.hasKey("poweredInitialized")
+                && !saved.hasKey("redstoneEdgePowered") && !saved.hasKey("redstoneEdgeInitialized"),
+            label + "runtime edge baseline is absent from NBT");
+        tile.onChunkUnload(); tile.validate();
+        check(world.powerQueries == expectedQueries, label + "reload validation never queries World power");
+        tile.updateEntity();
+        check(world.powerQueries == expectedQueries + 1 && triggers.getAsInt() == 1,
+            label + "reload first tick captures ON without a synthetic rising edge");
+        tile.updateEntity(); notify.invoke(tile, true);
+        check(world.powerQueries == expectedQueries + 1 && triggers.getAsInt() == 1,
+            label + "reload baseline is retained on later ticks and notifications");
+        world.powered = false; notify.invoke(tile, false);
+        world.powered = true; notify.invoke(tile, true); notify.invoke(tile, true);
+        check(triggers.getAsInt() == 2, label + "reload still accepts the next real rising edge exactly once");
+        tile.onChunkUnload(); parent.onChunkUnload();
+        ServerSessions.clear();
     }
 
     private static void guiHandlerSafety() {
@@ -460,7 +551,7 @@ public final class NetworkVerificationTest {
         TileEntityAnnouncer parent = new TileEntityAnnouncer(); parent.setLinkKey("station"); world.add(parent,0,0,0);
         TileEntityStationNameRedstone redstone = new TileEntityStationNameRedstone();
         redstone.applyConfig(" station ", typed); world.add(redstone,1,0,0);
-        check(!redstone.canUpdate(), "Redstone station-name tile never ticks");
+        check(redstone.canUpdate(), "Redstone station-name tile ticks to acquire its deferred baseline");
         redstone.onRedstoneUpdate(false); redstone.onRedstoneUpdate(true);
         check(out.count(PacketAnnounce.class)==1 && sessions()==1, "OFF to ON emits one ordinary START");
         PacketAnnounce first=(PacketAnnounce)out.messages.stream().filter(m->m instanceof PacketAnnounce).findFirst().get();
@@ -667,10 +758,12 @@ public final class NetworkVerificationTest {
         check(stable.get(0) == first && stable.get(1) == second, "Empty to A reindex retains stable order");
 
         TileEntityStartAnnouncer start = new TileEntityStartAnnouncer(); start.setLinkKey("A"); world.add(start, 3, 0, 0);
+        start.updateEntity();
         start.onRedstoneUpdate(true);
         check(first.starts == 1 && second.starts == 0, "START routes only to the stable first announcer");
 
         TileEntityStopAnnouncer stop = new TileEntityStopAnnouncer(); stop.setLinkKey("A"); world.add(stop, 4, 0, 0);
+        stop.updateEntity();
         stop.onRedstoneUpdate(true);
         check(first.stops == 1 && second.stops == 0, "STOP performs key-level stop once");
 
@@ -3316,7 +3409,8 @@ public final class NetworkVerificationTest {
 
     private static class Speaker extends TileEntitySpeaker { int dirty; @Override public void markDirty() { dirty++; } }
     private static class CountingAnnouncer extends TileEntityAnnouncer {
-        int starts, stops, dataReceives;
+        int starts, stops, dataReceives, departures;
+        @Override public void startDeparture(DepartureProgram program) { departures++; }
         @Override public void startAnnounce() { starts++; }
         @Override public void forceStop() { stops++; }
         @Override public void onAnnounceStopTrigger() { stops++; }

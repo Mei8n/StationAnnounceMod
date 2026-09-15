@@ -317,6 +317,7 @@ public final class SwitchModelTest {
         redstoneMelody.scriptName = "event-sources.js";
         Button redstoneButton = new Button(); redstoneButton.setLinkKey(redstoneParent.getLinkKey());
         redstoneWorld.add(redstoneParent, 0); redstoneWorld.add(redstoneMelody, 1); redstoneWorld.add(redstoneButton, 2);
+        redstoneMelody.updateEntity(); // Capture the loaded OFF baseline before testing real edges.
         redstoneMelody.click(redstoneButton);
         check(redstoneMelody.getActiveSwitchCount() == 1 && redstoneMelody.isOn()
             && redstoneButton.controlOwner() == redstoneMelody,
