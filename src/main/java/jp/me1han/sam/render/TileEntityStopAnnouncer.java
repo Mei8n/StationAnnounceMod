@@ -18,6 +18,7 @@ public class TileEntityStopAnnouncer extends RegisteredTileEntity implements Sam
 
     @Override
     public void updateEntity() {
+        initializeRedstoneEdgeState();
         if (this.worldObj.isRemote) return;
         this.scanTrain();
     }

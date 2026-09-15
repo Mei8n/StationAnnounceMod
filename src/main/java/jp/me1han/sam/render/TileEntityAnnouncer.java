@@ -66,6 +66,7 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
     }
 
     @Override public void updateEntity() {
+        initializeRedstoneEdgeState();
         if (worldObj == null || worldObj.isRemote || pendingArrival == null) return;
         if (worldObj.getTotalWorldTime() >= pendingArrivalDeadline) playPendingArrival();
     }

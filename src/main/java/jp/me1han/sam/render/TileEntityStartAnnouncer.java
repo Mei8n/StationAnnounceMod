@@ -19,6 +19,7 @@ public class TileEntityStartAnnouncer extends RegisteredTileEntity implements Sa
 
     @Override
     public void updateEntity() {
+        initializeRedstoneEdgeState();
         if (this.worldObj.isRemote) return;
         // 列車は高速で移動するため毎フレーム走査する。
         this.scanTrain();

@@ -19,6 +19,7 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity implements Sam
 
     @Override
     public void updateEntity() {
+        initializeRedstoneEdgeState();
         if (this.worldObj.isRemote || LinkKey.isEmpty(this.getLinkKey())) return;
 
         // 100フレーム毎にスキャン（毎10フレームから大幅削減）

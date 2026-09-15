@@ -35,6 +35,7 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
     private long releasedTick = Long.MIN_VALUE;
 
     @Override public void updateEntity() {
+        initializeRedstoneEdgeState();
         if (worldObj == null || worldObj.isRemote) return;
         if (sequence == null) return;
         if (activeParent == null || activeParent.isInvalid()

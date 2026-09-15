@@ -8,5 +8,5 @@ public final class TileEntityStationNameRedstone extends TileEntityStationNameAn
     }
 
     @Override protected boolean usesRedstoneEdgeInput() { return true; }
-    @Override public boolean canUpdate() { return false; }
+    @Override public void updateEntity() { initializeRedstoneEdgeState(); }
 }

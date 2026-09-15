@@ -13,12 +13,20 @@ public abstract class RegisteredTileEntity extends TileEntity {
 
     @Override public void validate() {
         super.validate();
-        if (usesRedstoneEdgeInput() && worldObj != null && !worldObj.isRemote) {
-            redstoneEdgePowered = worldObj.isBlockIndirectlyGettingPowered(xCoord, yCoord, zCoord);
-            redstoneEdgeInitialized = true;
-        }
         LoadedSamTiles.register(this);
         SamLinkRegistry.register(this);
+    }
+
+    /**
+     * Captures the initial Redstone level after chunk loading has completed.
+     * Calling World#getBlock from validate() can synchronously load a neighbouring
+     * chunk and recursively validate this tile until the server stack overflows.
+     */
+    protected final void initializeRedstoneEdgeState() {
+        if (redstoneEdgeInitialized || !usesRedstoneEdgeInput()
+                || worldObj == null || worldObj.isRemote) return;
+        redstoneEdgePowered = worldObj.isBlockIndirectlyGettingPowered(xCoord, yCoord, zCoord);
+        redstoneEdgeInitialized = true;
     }
 
     /** Updates the cached level and reports whether it changed after a valid baseline existed. */
