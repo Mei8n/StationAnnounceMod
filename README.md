@@ -29,35 +29,6 @@ Minecraftで駅放送を流せるようにするModです。\
 
 マルチプレイでは、サーバーと各クライアントの両方に同じバージョンのModと同じパックを導入してください。
 
-## 開発・ビルド
-
-ビルド環境は次のversionを基準とします。
-
-- Minecraft 1.7.10
-- Minecraft Forge 10.13.4.1614
-- Java 8
-- CI baseline: Eclipse Temurin 8u482-b08
-- Gradle Wrapper 7.6.3
-- ForgeGradle 1.2-1.1.1
-
-通常の検証とビルドは、repository rootで次を実行してください。
-
-Windows:
-
-```text
-gradlew.bat clean check build
-```
-
-Linux / macOS:
-
-```text
-./gradlew clean check build
-```
-
-repositoryの`gradle.properties`には、個人PC固有の`org.gradle.java.home`を記載しないでください。ローカルでJDK pathの指定が必要な場合は、ユーザー側の`~/.gradle/gradle.properties`へ記載してください。
-
-開発中の0.2.2-betaで追加・変更された機能は、[CHANGELOG](CHANGELOG.md)を参照してください。
-
 ## 追加ブロック、アイテムの説明
 ### ・放送装置ブロック
 親となるブロックです。レッドストーン入力で動作します。\
