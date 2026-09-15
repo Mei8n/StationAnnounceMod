@@ -22,8 +22,6 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
     public String soundId = "";
     public String scriptName = "";
     public String lastError = "";
-    private boolean lastPowered;
-    private boolean poweredInitialized;
     private long sessionId;
     private DepartureProgram program;
     private DepartureSequence sequence;
@@ -38,11 +36,6 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
 
     @Override public void updateEntity() {
         if (worldObj == null || worldObj.isRemote) return;
-        // Read the current level on load without replaying an old rising edge.
-        if (!poweredInitialized) {
-            lastPowered = worldObj.isBlockIndirectlyGettingPowered(xCoord, yCoord, zCoord);
-            poweredInitialized = true;
-        }
         if (sequence == null) return;
         if (activeParent == null || activeParent.isInvalid()
             || !worldObj.blockExists(activeParent.xCoord, activeParent.yCoord, activeParent.zCoord)
@@ -67,12 +60,12 @@ public class TileEntityDepartureMelody extends RegisteredTileEntity implements S
 
     public void onRedstoneUpdate(boolean powered) {
         if (worldObj == null || worldObj.isRemote) return;
-        if (powered == lastPowered) return;
-        lastPowered = powered;
-        poweredInitialized = true;
+        if (!updateRedstoneEdgeState(powered)) return;
         if (powered) operate(null, true);
         else { redstoneOn = false; updateControlState(); }
     }
+
+    @Override protected boolean usesRedstoneEdgeInput() { return true; }
 
     public void startMelody() { operate(null, true); }
 

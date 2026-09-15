@@ -15,7 +15,6 @@ import jp.me1han.sam.trigger.SamTriggerType;
 public class TileEntityStartAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
     private String linkKey = "";
     public boolean isControlCar = false;
-    private boolean lastPowered = false;
     private long lastFormationId = -1L;
 
     @Override
@@ -45,14 +44,13 @@ public class TileEntityStartAnnouncer extends RegisteredTileEntity implements Sa
     }
 
     public void onRedstoneUpdate(boolean powered) {
-        if (this.worldObj.isRemote) return;
-
-
-        if (powered && !lastPowered) {
+        if (this.worldObj == null || this.worldObj.isRemote) return;
+        if (updateRedstoneEdgeState(powered) && powered) {
             this.dispatchTrigger(SamTriggerSourceType.REDSTONE, SamTrigger.NO_FORMATION);
         }
-        this.lastPowered = powered;
     }
+
+    @Override protected boolean usesRedstoneEdgeInput() { return true; }
 
     private void dispatchTrigger(SamTriggerSourceType sourceType, long formationId) {
         SamTriggerDispatcher.dispatch(this.worldObj, SamTrigger.from(this, SamTriggerType.ANNOUNCE_START,

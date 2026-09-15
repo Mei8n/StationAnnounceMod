@@ -14,7 +14,6 @@ import jp.me1han.sam.link.SamLinkRegistry;
 public class TileEntityDebugReceiver extends RegisteredTileEntity implements SamLinkedTile {
     private String linkKey = "";
     private long lastReadTime = 0;
-    private boolean lastPowered = false;
     private long lastCacheTime = 0;
     private static final long CACHE_DURATION = 100; // Ticks（約5秒）
 
@@ -39,21 +38,13 @@ public class TileEntityDebugReceiver extends RegisteredTileEntity implements Sam
     }
 
     public void onRedstoneUpdate(boolean powered) {
-        if (this.worldObj == null || this.worldObj.isRemote) {
-            this.lastPowered = powered;
-            return;
-        }
-
-        if (LinkKey.isEmpty(this.getLinkKey())) {
-            this.lastPowered = powered;
-            return;
-        }
-
-        if (powered && !lastPowered) {
+        if (this.worldObj == null || this.worldObj.isRemote) return;
+        if (updateRedstoneEdgeState(powered) && powered && !LinkKey.isEmpty(this.getLinkKey())) {
             this.forcePrintData();
         }
-        this.lastPowered = powered;
     }
+
+    @Override protected boolean usesRedstoneEdgeInput() { return true; }
 
     private void forcePrintData() {
         if (LinkKey.isEmpty(this.getLinkKey())) return;

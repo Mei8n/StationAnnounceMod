@@ -23,7 +23,6 @@ import jp.me1han.sam.trigger.SamTriggerSourceType;
 import jp.me1han.sam.trigger.SamTriggerType;
 
 public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLinkedTile {
-    private boolean lastPowered = false;
     private String scriptName = "";
     private String linkKey = "";
     private ArrivalPlan armedArrival;
@@ -40,14 +39,11 @@ public class TileEntityAnnouncer extends RegisteredTileEntity implements SamLink
 
 
     public void onRedstoneUpdate(boolean powered) {
-        if (this.worldObj.isRemote) return;
-
-        if (powered && !lastPowered) {
-            startAnnounce();
-        }
-
-        this.lastPowered = powered;
+        if (this.worldObj == null || this.worldObj.isRemote) return;
+        if (updateRedstoneEdgeState(powered) && powered) startAnnounce();
     }
+
+    @Override protected boolean usesRedstoneEdgeInput() { return true; }
 
     public void startAnnounce() {
         if (worldObj == null || worldObj.isRemote) return;
