@@ -59,7 +59,7 @@ public final class NetworkVerificationTest {
         AnnouncePackLoader.soundTicks.put("test:body", 20);
         AnnouncePackLoader.soundTicks.put("test:a", 20);
         AnnouncePackLoader.soundTicks.put("test:b", 20);
-        lifecycle(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); stationNameAnnouncers(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); arrivalAnnouncements(); awarenessScriptMode(); awarenessRedstoneGate(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
+        lifecycle(); redstoneLifecycle(); guiHandlerSafety(); nashornBeanProperty(); linkRouting(); deterministicSpeakerRouting(); trainCompat(); stationNameAnnouncers(); wireBounds(); senderReceiverValidation(); delivery(); canonicalOrdinaryTiming(); departureInterval(); config(); scriptTypeValidation(); arrivalAnnouncements(); awarenessScriptMode(); awarenessRedstoneGate(); client(); clientQueueBudget(); clientTimelineResyncBoundaries(); ordinaryRepeats(); dynamicRouting(); initialRouteGate(); serverDescriptorRouting(); coalescedRouteUpdates(); activeSessionAttach(); departureRetriggerLateJoin(); awarenessPauseLifetime(); departureCompletionRetention(); serverLogicalCompletion(); serverTaskQueueFairness(); limitsAndExpiry(); fallbackAuthority();
         SpeakerRegistry.clear(); ClientSpeakerRegistry.clear(); SamLinkRegistry.clear(); LoadedSamTiles.clear(); ServerSessions.clear();
         System.out.println("Network verification: " + checks + " checks passed");
     }
@@ -103,6 +103,109 @@ public final class NetworkVerificationTest {
         }
         SpeakerRegistry.clear(world);
         check(SpeakerRegistry.findByKey(world, "A").isEmpty(), "World unload cleanup");
+    }
+
+    private static void redstoneLifecycle() throws Exception {
+        FixtureWorld offWorld = new FixtureWorld();
+        CountingAnnouncer offAnnouncer = new CountingAnnouncer(); offWorld.add(offAnnouncer, 0, 0, 0);
+        check(offWorld.powerQueries == 1, "Validate reads the initial Redstone level once");
+        offAnnouncer.onRedstoneUpdate(false);
+        check(offAnnouncer.starts == 0, "An unchanged OFF level does not trigger");
+        offAnnouncer.onRedstoneUpdate(true);
+        check(offAnnouncer.starts == 1, "A real OFF-to-ON edge triggers once");
+
+        FixtureWorld onWorld = new FixtureWorld(); onWorld.powered = true;
+        CountingAnnouncer onAnnouncer = new CountingAnnouncer(); onWorld.add(onAnnouncer, 0, 0, 0);
+        onAnnouncer.onRedstoneUpdate(true);
+        check(onAnnouncer.starts == 0, "An ON level present at load is only the baseline");
+        onAnnouncer.onRedstoneUpdate(false); onAnnouncer.onRedstoneUpdate(true);
+        check(onAnnouncer.starts == 1, "A loaded ON baseline triggers after a later OFF-to-ON edge");
+        onAnnouncer.onChunkUnload(); onAnnouncer.validate(); onAnnouncer.onRedstoneUpdate(true);
+        check(onAnnouncer.starts == 1, "Chunk reload while still ON does not synthesize another edge");
+
+        String stationScript = "redstone-lifecycle-station.js";
+        ScriptEngine stationEngine = registerScript(stationScript, ScriptType.STATION_NAME,
+            "var calls=0; function samMain(tile){calls++;return sam.build('', ['test:a'], '');}");
+        FixtureWorld stationWorld = new FixtureWorld(); stationWorld.powered = true;
+        TileEntityAnnouncer stationParent = new TileEntityAnnouncer(); stationParent.setLinkKey("station-edge");
+        stationWorld.add(stationParent, 0, 0, 0);
+        TileEntityStationNameRedstone station = new TileEntityStationNameRedstone();
+        station.applyConfig("station-edge", stationScript); stationWorld.add(station, 1, 0, 0);
+        station.onRedstoneUpdate(true);
+        check(((Number)stationEngine.get("calls")).intValue() == 0,
+            "Station-name does not treat loaded ON as a rising edge");
+        station.onRedstoneUpdate(false); station.onRedstoneUpdate(true);
+        check(((Number)stationEngine.get("calls")).intValue() == 1,
+            "Station-name triggers on the next real rising edge");
+
+        FixtureWorld triggerWorld = new FixtureWorld(); triggerWorld.powered = true;
+        CountingAnnouncer triggerParent = new CountingAnnouncer(); triggerParent.setLinkKey("edge");
+        triggerWorld.add(triggerParent, 0, 0, 0);
+        TileEntityStartAnnouncer start = new TileEntityStartAnnouncer(); start.setLinkKey("edge"); triggerWorld.add(start, 1, 0, 0);
+        TileEntityStopAnnouncer stop = new TileEntityStopAnnouncer(); stop.setLinkKey("edge"); triggerWorld.add(stop, 2, 0, 0);
+        start.onRedstoneUpdate(true); stop.onRedstoneUpdate(true);
+        check(triggerParent.starts == 0 && triggerParent.stops == 0,
+            "Start and Stop announcers ignore their loaded ON baseline");
+        start.onRedstoneUpdate(false); stop.onRedstoneUpdate(false);
+        start.onRedstoneUpdate(true); stop.onRedstoneUpdate(true);
+        check(triggerParent.starts == 1 && triggerParent.stops == 1,
+            "Start and Stop announcers share real edge semantics");
+
+        Player observer = player(triggerWorld, 0, 0, 0);
+        triggerParent.receivedData.put("train", "local");
+        TileEntityDebugReceiver debug = new TileEntityDebugReceiver(); debug.setLinkKey("edge"); triggerWorld.add(debug, 3, 0, 0);
+        debug.onRedstoneUpdate(true);
+        check(observer.chats == 0, "Debug receiver ignores its loaded ON baseline");
+        debug.onRedstoneUpdate(false); debug.onRedstoneUpdate(true);
+        check(observer.chats == 1, "Debug receiver prints once on a real rising edge");
+
+        TileEntityDepartureMelody departure = new TileEntityDepartureMelody(); triggerWorld.add(departure, 4, 0, 0);
+        departure.onRedstoneUpdate(true);
+        check(!departure.isPlaying(), "Departure melody does not replay an ON level present at load");
+
+        NBTTagCompound runtime = new NBTTagCompound(); stationParent.writeToNBT(runtime);
+        check(!runtime.hasKey("lastPowered") && !runtime.hasKey("poweredInitialized")
+                && !runtime.hasKey("redstoneEdgePowered") && !runtime.hasKey("redstoneEdgeInitialized"),
+            "Redstone edge baseline is runtime-only and absent from NBT");
+
+        FixtureWorld queryWorld = new FixtureWorld(); TileEntityStopAnnouncer queryStop = new TileEntityStopAnnouncer();
+        queryWorld.add(queryStop, 0, 0, 0); queryWorld.powerQueries = 0;
+        new jp.me1han.sam.block.BlockStopAnnouncer().onNeighborBlockChange(
+            queryWorld, 0, 0, 0, net.minecraft.init.Blocks.redstone_block);
+        check(queryWorld.powerQueries == 1, "Stop announcer performs one power query per neighbor notification");
+    }
+
+    private static void guiHandlerSafety() {
+        FixtureWorld world = new FixtureWorld();
+        TileEntity[] tiles = {new TileEntityAnnouncer(), new TileEntityTrainTypeSelector(),
+            new TileEntityDebugReceiver(), new TileEntityStartAnnouncer(), new TileEntityStopAnnouncer(),
+            new TileEntitySpeaker()};
+        int[] ids = {StationAnnounceModCore.GUI_ID_ANNOUNCER, StationAnnounceModCore.GUI_ID_TRAIN_TYPE_SELECTOR,
+            StationAnnounceModCore.GUI_ID_DEBUG_RECEIVER, StationAnnounceModCore.GUI_ID_START_ANNOUNCER,
+            StationAnnounceModCore.GUI_ID_STOP_ANNOUNCER, StationAnnounceModCore.GUI_ID_SPEAKER};
+        Class<?>[] containers = {jp.me1han.sam.container.ContainerAnnouncer.class,
+            jp.me1han.sam.container.ContainerTrainTypeSelector.class, jp.me1han.sam.container.ContainerDebugReceiver.class,
+            jp.me1han.sam.container.ContainerStartAnnouncer.class, jp.me1han.sam.container.ContainerStopAnnouncer.class,
+            jp.me1han.sam.container.ContainerSpeaker.class};
+        SAMGuiHandler server = new SAMGuiHandler();
+        for (int i = 0; i < tiles.length; i++) world.add(tiles[i], i, 0, 0);
+        for (int i = 0; i < tiles.length; i++) {
+            check(containers[i].isInstance(server.getServerGuiElement(ids[i], null, world, i, 0, 0)),
+                "Correct server GUI TileEntity remains accepted: " + ids[i]);
+            check(server.getServerGuiElement(ids[i], null, world, 99, 0, 0) == null,
+                "Missing server GUI TileEntity returns null: " + ids[i]);
+            check(server.getServerGuiElement(ids[i], null, world, (i + 1) % tiles.length, 0, 0) == null,
+                "Mismatched server GUI TileEntity returns null: " + ids[i]);
+        }
+        ClientProxy client = new ClientProxy();
+        for (int i = 0; i < tiles.length; i++) {
+            check(client.getClientGuiElement(ids[i], null, world, i, 0, 0) != null,
+                "Correct client GUI TileEntity remains accepted: " + ids[i]);
+            check(client.getClientGuiElement(ids[i], null, world, 99, 0, 0) == null,
+                "Missing client GUI TileEntity returns null: " + ids[i]);
+            check(client.getClientGuiElement(ids[i], null, world, (i + 1) % tiles.length, 0, 0) == null,
+                "Mismatched client GUI TileEntity returns null: " + ids[i]);
+        }
     }
 
     private static void deterministicSpeakerRouting() throws Exception {
@@ -1543,6 +1646,7 @@ public final class NetworkVerificationTest {
         Speaker speaker = new Speaker(); speaker.linkKey = "A"; world.add(speaker, 2, 0, 0);
         Player player = player(world, 1, 0, 0);
         RecordingDelivery out = new RecordingDelivery(); ServerSessions.delivery = out;
+        world.powerQueries = 0;
 
         NBTTagCompound legacy = new NBTTagCompound();
         TileEntityAwarenessAnnouncer legacyTile = new TileEntityAwarenessAnnouncer(); legacyTile.readFromNBT(legacy);
@@ -3324,11 +3428,12 @@ public final class NetworkVerificationTest {
         @Override public boolean canMineBlock(EntityPlayer player, int x, int y, int z) { return true; }
     }
     private static class Player extends EntityPlayerMP {
-        UUID uuid; boolean editable;
+        UUID uuid; boolean editable; int chats;
         Player() { super(null, null, new GameProfile(UUID.randomUUID(), "test"), null); }
         @Override public UUID getUniqueID() { return uuid; }
         @Override public boolean canPlayerEdit(int x, int y, int z, int side, ItemStack stack) { return editable; }
         @Override public ItemStack getHeldItem() { return null; }
+        @Override public void addChatMessage(net.minecraft.util.IChatComponent message) { chats++; }
     }
     private static Player player(World world, double x, double y, double z) throws Exception {
         // Same headless fixture technique as SwitchModelTest: avoid MinecraftServer/crafting boot.

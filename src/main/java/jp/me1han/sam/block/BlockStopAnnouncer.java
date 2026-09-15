@@ -31,7 +31,7 @@ public class BlockStopAnnouncer extends Block implements ITileEntityProvider {
         if (!world.isRemote) {
             net.minecraft.tileentity.TileEntity te = world.getTileEntity(x, y, z);
             if (te instanceof jp.me1han.sam.render.TileEntityStopAnnouncer) {
-                boolean powered = world.isBlockIndirectlyGettingPowered(x, y, z) || world.isBlockIndirectlyGettingPowered(x, y, z);
+                boolean powered = world.isBlockIndirectlyGettingPowered(x, y, z);
                 ((jp.me1han.sam.render.TileEntityStopAnnouncer) te).onRedstoneUpdate(powered);
             }
         }

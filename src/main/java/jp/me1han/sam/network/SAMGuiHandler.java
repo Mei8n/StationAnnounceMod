@@ -53,7 +53,9 @@ public class SAMGuiHandler implements IGuiHandler {
         }
 
         if (ID == StationAnnounceModCore.GUI_ID_SPEAKER) {
-            return new ContainerSpeaker((TileEntitySpeaker) world.getTileEntity(x, y, z));
+            if (tile instanceof TileEntitySpeaker) {
+                return new ContainerSpeaker((TileEntitySpeaker) tile);
+            }
         }
 
         if (ID == StationAnnounceModCore.GUI_ID_AWARENESS_ANNOUNCER && tile instanceof TileEntityAwarenessAnnouncer) {
