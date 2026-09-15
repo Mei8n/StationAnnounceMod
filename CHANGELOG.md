@@ -1,6 +1,6 @@
 # 変更履歴
 
-## 0.2.2-beta（開発中）
+## 0.2.2-beta
 
 ### 放送機能
 
@@ -10,6 +10,7 @@
 - RS式とRTM停車検知式の駅名連呼ブロックを追加しました。駅名連呼JSは`ScriptType.STATION_NAME`（2）です。
 - 啓発放送ブロックへDIRECT/SCRIPTモードと「RS入力時のみ動作」を追加しました。
 - toggle型発車メロディで、OFF後の戸閉放送を残したまま再ONできる打ち返しに対応しました。
+- 啓発放送・駅名連呼（RS式／RTM停車検知式）ブロックのテクスチャを更新しました。
 
 ### JavaScriptとパック
 
@@ -21,6 +22,7 @@
 
 ### 安定性と負荷
 
+- TileEntity validation中のRedstone状態取得を初回server tickへ遅延し、world/chunkロード時の再帰的validationによる起動不能を防止しました。
 - session lifecycleをserver側でも管理し、途中参加、client ACK、Awareness pause、Departure自然終了の関係を整理しました。
 - server task queueへCRITICAL/NORMALを追加し、client packet queueをFIFO・1tick最大128件に制限しました。
 - RTM列車検索をworld・game tick単位で共有する`TrainDetectionManager`へ集約しました。
